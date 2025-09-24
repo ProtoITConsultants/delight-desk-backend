@@ -1,0 +1,74 @@
+import { drizzle } from 'drizzle-orm/node-postgres';
+import { Pool } from 'pg';
+import { billingPlans } from '../schema/billing_plan.schema';
+
+import * as dotenv from 'dotenv';
+dotenv.config();
+
+const pool = new Pool({
+  connectionString: process.env.DATABASE_URL,
+});
+
+const db = drizzle(pool);
+
+async function seedBillingPlans() {
+  const plans = [
+    {
+      name: 'growth',
+      displayName: 'Growth',
+      price: '45.00',
+      storeLimit: 3,
+      emailLimit: null,
+      features: [
+        'Unlimited access to AI Assistant',
+        'Full Platform Access Included',
+        'AI automations and Quick Actions',
+        '🏪 Connect 2-5 Store Platforms',
+        'Support: Priority Email + Phone',
+      ],
+      isActive: false,
+      resolutions: 40,
+    },
+    {
+      name: 'solopreneur',
+      displayName: 'Solopreneur',
+      price: '9.00',
+      storeLimit: 1,
+      emailLimit: null,
+      features: [
+        'Unlimited access to AI Assistant',
+        'Full Platform Access Included',
+        'AI automations and Quick Actions',
+        '🏪 Connect 1 Store Platform',
+        'Support: Email',
+      ],
+      isActive: true,
+      resolutions: 10,
+    },
+    {
+      name: 'scale',
+      displayName: 'Scale',
+      price: '80.00',
+      storeLimit: 10,
+      emailLimit: null,
+      features: [
+        'Unlimited access to AI Assistant',
+        'Full Platform Access Included',
+        'AI automations and Quick Actions',
+        '🏪 Connect 5+ Store Platforms',
+        'Support: Priority Email + Phone + Slack',
+      ],
+      isActive: false,
+      resolutions: 100,
+    },
+  ];
+
+  await db.insert(billingPlans).values(plans).onConflictDoNothing();
+  console.log('Billing plans seeded!');
+  process.exit(0);
+}
+
+seedBillingPlans().catch((err) => {
+  console.error('Seeding failed:', err);
+  process.exit(1);
+});

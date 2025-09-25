@@ -16,8 +16,9 @@ jobs:
           username: ${{ secrets.EC2_USER }}
           key: ${{ secrets.EC2_SSH_KEY }}
           script: |
+            source ~/.bashrc
             cd /home/ubuntu/delight-desk-backend
             git pull origin dev
             npm ci --omit=dev
             npm run build
-            pm2 restart delight-desk
+            pm2 restart delight-desk --update-env

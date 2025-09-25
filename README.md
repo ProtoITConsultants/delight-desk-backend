@@ -74,19 +74,18 @@ npm run start:prod
 
 ### Code Quality
 
-- **Format code:**  
+- **Format code:**
   ```bash
   npm run format
   ```
-- **Check formatting:**  
+- **Check formatting:**
   ```bash
   npm run format:check
   ```
-- **Lint code:**  
+- **Lint code:**
   ```bash
   npm run lint
   ```
-
 
 ## Project Structure
 
@@ -104,20 +103,20 @@ src/
 
 ## Scripts
 
-| Script            | Description                        |
-|-------------------|------------------------------------|
-| build             | Build the NestJS app               |
-| start             | Start the app                      |
-| start:dev         | Start in watch mode                |
-| start:prod        | Start production build             |
-| format            | Format code with Prettier          |
-| format:check      | Check code formatting              |
-| lint              | Lint and auto-fix code             |
-| db:generate       | Generate Drizzle ORM artifacts     |
-| db:push           | Push schema to DB                  |
-| db:migrate        | Run DB migrations                  |
-| db:studio         | Open Drizzle Studio                |
-| seed:billing      | Seed billing plans                 |
+| Script       | Description                    |
+| ------------ | ------------------------------ |
+| build        | Build the NestJS app           |
+| start        | Start the app                  |
+| start:dev    | Start in watch mode            |
+| start:prod   | Start production build         |
+| format       | Format code with Prettier      |
+| format:check | Check code formatting          |
+| lint         | Lint and auto-fix code         |
+| db:generate  | Generate Drizzle ORM artifacts |
+| db:push      | Push schema to DB              |
+| db:migrate   | Run DB migrations              |
+| db:studio    | Open Drizzle Studio            |
+| seed:billing | Seed billing plans             |
 
 ## License
 

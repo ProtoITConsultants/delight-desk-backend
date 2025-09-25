@@ -14,11 +14,10 @@ export const DATABASE_CONNECTION = 'DATABASE_CONNECTION';
       inject: [ConfigService],
       useFactory: async (configService: ConfigService) => {
         const pool = new Pool({
-          host: configService.get('DB_HOST'),
-          port: configService.get('DB_PORT'),
-          user: configService.get('DB_USER'),
-          password: configService.get('DB_PASSWORD'),
-          database: configService.get('DB_NAME'),
+          connectionString: configService.get<string>('DATABASE_URL'),
+          ssl: {
+            rejectUnauthorized: false,
+          },
         });
 
         return drizzle(pool, { schema });

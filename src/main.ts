@@ -1,4 +1,5 @@
 import { NestFactory } from '@nestjs/core';
+import { NestExpressApplication } from '@nestjs/platform-express';
 import { ValidationPipe } from '@nestjs/common';
 import { AppModule } from './app.module';
 import session from 'express-session';
@@ -7,17 +8,34 @@ import { Pool } from 'pg';
 import { ConfigService } from '@nestjs/config';
 
 async function bootstrap() {
-  const app = await NestFactory.create(AppModule);
+  const app = await NestFactory.create<NestExpressApplication>(AppModule);
 
   const configService = app.get(ConfigService);
 
+  const origins = configService
+    .get<string>('CORS_ORIGINS', '')
+    .split(',')
+    .map((origin) => origin.trim())
+    .filter((origin) => origin.length > 0);
+
+  app.enableCors({
+    origin: origins,
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
+    credentials: true,
+  });
+
   const PgSession = pgSession(session);
+
+  app.set('trust proxy', 1);
 
   app.use(
     session({
       store: new PgSession({
         pool: new Pool({
           connectionString: configService.get<string>('DATABASE_URL'),
+          ssl: {
+            rejectUnauthorized: false,
+          },
         }),
         tableName: 'user_sessions',
       }),
@@ -28,6 +46,7 @@ async function bootstrap() {
         httpOnly: true,
         maxAge: Number(configService.get<string>('SESSION_MAX_AGE')),
         secure: configService.get<string>('NODE_ENV') === 'production',
+        sameSite: 'none',
       },
     }),
   );
@@ -39,7 +58,10 @@ async function bootstrap() {
   );
 
   const port = Number(configService.get<string>('PORT'));
+
   await app.listen(port);
+
   console.log(`App running on http://localhost:${port}`);
 }
-bootstrap();
+
+void bootstrap();

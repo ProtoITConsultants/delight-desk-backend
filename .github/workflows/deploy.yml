@@ -19,6 +19,7 @@ jobs:
             export NVM_DIR="$HOME/.nvm"
             [ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"
             cd /home/ubuntu/delight-desk-backend
-            npm ci --omit=dev
+            npm ci
             npm run build
+            npm prune --omit=dev
             pm2 restart delight-desk --update-env

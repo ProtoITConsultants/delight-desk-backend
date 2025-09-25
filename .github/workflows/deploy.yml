@@ -19,6 +19,6 @@ jobs:
             source ~/.bashrc
             cd /home/ubuntu/delight-desk-backend
             git pull origin dev
-            usr/bin/npm ci --omit=dev
-            usr/bin/npm run build
-            usr/bin/pm2 restart delight-desk --update-env
+            /usr/bin/npm ci --omit=dev
+            /usr/bin/npm run build
+            /usr/bin/pm2 restart delight-desk --update-env

@@ -16,7 +16,7 @@ export const billingPlans = pgTable('billing_plans', {
   displayName: text('display_name').notNull(),
   price: decimal('price', { precision: 10, scale: 2 }).notNull(),
   resolutions: integer('resolutions').notNull(),
-  storeLimit: integer('store_limit').notNull(),
+  costPerResolution: decimal('cost_per_resolution', { precision: 10, scale: 2 }).notNull(),
   emailLimit: integer('email_limit'),
   features: jsonb('features').$type<string[]>().notNull(),
   isActive: boolean('is_active').default(true),

@@ -20,7 +20,7 @@ async function seedBillingPlans() {
       name: 'growth',
       displayName: 'Growth',
       price: '45.00',
-      storeLimit: 3,
+      costPerResolution: '0.75',
       emailLimit: null,
       features: [
         'Unlimited access to AI Assistant',
@@ -36,7 +36,7 @@ async function seedBillingPlans() {
       name: 'solopreneur',
       displayName: 'Solopreneur',
       price: '9.00',
-      storeLimit: 1,
+      costPerResolution: '0.80',
       emailLimit: null,
       features: [
         'Unlimited access to AI Assistant',
@@ -52,7 +52,7 @@ async function seedBillingPlans() {
       name: 'scale',
       displayName: 'Scale',
       price: '80.00',
-      storeLimit: 10,
+      costPerResolution: '0.70',
       emailLimit: null,
       features: [
         'Unlimited access to AI Assistant',

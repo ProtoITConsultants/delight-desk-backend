@@ -5,7 +5,7 @@ import { PlansRepository } from './plans.repository';
 export class PlansService {
   constructor(private readonly plansRepo: PlansRepository) {}
 
-  async getAllPlans() {
+  getAllPlans() {
     return this.plansRepo.findAll();
   }
 }

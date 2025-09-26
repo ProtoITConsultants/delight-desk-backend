@@ -13,10 +13,6 @@ export class UserRepository {
     return user;
   }
 
-  async findAll() {
-    return this.db.select().from(users);
-  }
-
   async findById(id: string) {
     const [user] = await this.db.select().from(users).where(eq(users.id, id));
     return user ?? null;

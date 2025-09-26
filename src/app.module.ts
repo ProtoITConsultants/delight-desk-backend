@@ -3,6 +3,7 @@ import { UsersModule } from './modules/users/users.module';
 import { AuthModule } from './modules/auth/auth.module';
 import { ConfigModule } from '@nestjs/config';
 import { PlansModule } from './modules/plans/plans.module';
+import { AccountsModule } from './modules/accounts/accounts.module';
 
 @Module({
   imports: [
@@ -12,6 +13,7 @@ import { PlansModule } from './modules/plans/plans.module';
     UsersModule,
     AuthModule,
     PlansModule,
+    AccountsModule,
   ],
   controllers: [],
   providers: [],

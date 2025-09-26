@@ -6,49 +6,38 @@ import { CreateUserDto } from './dto/index.dto';
 export class UsersService {
   constructor(private readonly userRepo: UserRepository) {}
 
-  async create(createUserDto: CreateUserDto) {
-    const existing = await this.findByEmail(createUserDto.email);
-    if (existing) {
-      throw new Error('User already exists');
-    }
-
-    const user = await this.userRepo.create(createUserDto);
-
-    return user;
+  create(createUserDto: CreateUserDto) {
+    return this.userRepo.create(createUserDto);
   }
 
-  async findAll() {
-    return this.userRepo.findAll();
-  }
-
-  async findOne(id: string) {
+  findOne(id: string) {
     return this.userRepo.findById(id);
   }
 
-  async findByEmail(email: string) {
-    return await this.userRepo.findByEmail(email);
+  findByEmail(email: string) {
+    return this.userRepo.findByEmail(email);
   }
 
-  async update(id: string, updateUserDto: Partial<{ email: string; name: string }>) {
-    return this.userRepo.update(id, updateUserDto);
+  update(id: string, fields: object) {
+    return this.userRepo.update(id, fields);
   }
 
-  async remove(id: string) {
+  remove(id: string) {
     return this.userRepo.delete(id);
   }
 
-  async setResetToken(userId: string, token: string, expiry: Date) {
+  setResetToken(userId: string, token: string, expiry: Date) {
     return this.userRepo.update(userId, {
       passwordResetToken: token,
       passwordResetExpiresAt: expiry,
     });
   }
 
-  async findByResetToken(token: string) {
+  findByResetToken(token: string) {
     return this.userRepo.findByResetToken(token);
   }
 
-  async updatePassword(userId: string, hashedPassword: string) {
+  updatePassword(userId: string, hashedPassword: string) {
     return this.userRepo.update(userId, {
       password: hashedPassword,
       passwordResetToken: null,

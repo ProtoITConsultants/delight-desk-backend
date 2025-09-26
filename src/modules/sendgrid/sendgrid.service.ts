@@ -1,4 +1,4 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, ServiceUnavailableException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import sgMail from '@sendgrid/mail';
 
@@ -24,15 +24,14 @@ export class SendgridService {
     };
 
     try {
-      await sgMail.send(msg);
-      this.logger.log(`✅ Email sent to ${to}`);
+      return await sgMail.send(msg);
     } catch (error: any) {
-      this.logger.error(`❌ Failed to send email to ${to}`, error?.stack || error);
-      throw error;
+      this.logger.error(`Failed to send email to ${to}`, error?.stack || error);
+      throw new ServiceUnavailableException('Unable to send email');
     }
   }
 
-  async sendPasswordResetEmail(to: string, resetToken: string) {
+  sendPasswordResetEmail(to: string, resetToken: string) {
     const resetUrl = `${this.configService.get<string>('FRONTEND_RESET_PASSWORD_URL')}?token=${resetToken}`;
     const html = `
       <h2>Password Reset Request</h2>
@@ -40,6 +39,6 @@ export class SendgridService {
       <a href="${resetUrl}" target="_blank">Reset Password</a>
       <p>This link will expire in 1 hour.</p>
     `;
-    return await this.sendMail(to, 'Password Reset Request', html);
+    return this.sendMail(to, 'Password Reset Request', html);
   }
 }

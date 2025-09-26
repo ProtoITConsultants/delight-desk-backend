@@ -6,6 +6,7 @@ import session from 'express-session';
 import pgSession from 'connect-pg-simple';
 import { Pool } from 'pg';
 import { ConfigService } from '@nestjs/config';
+import morgan from 'morgan';
 
 async function bootstrap() {
   const app = await NestFactory.create<NestExpressApplication>(AppModule);
@@ -59,11 +60,9 @@ async function bootstrap() {
 
   const port = Number(configService.get<string>('PORT'));
 
+  app.use(morgan('dev'));
+
   await app.listen(port);
-
-  // Testing Key Change
-
-  console.log(`App running on http://localhost:${port}`);
 }
 
 void bootstrap();

@@ -22,6 +22,6 @@ export const users = pgTable('users', {
   signatureEmail: text('signature_email'),
   signatureLogoUrl: text('signature_logo_url'),
   signaturePhotoUrl: text('signature_photo_url'),
-  createdAt: timestamp('created_at').defaultNow().notNull(),
-  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
 });

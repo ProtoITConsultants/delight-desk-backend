@@ -20,17 +20,19 @@ export class AuthService {
     private readonly configService: ConfigService,
   ) {}
 
-  async signup(dto: SignupDto) {
+  async signup(dto: SignupDto, session: Record<string, any>) {
     const existing = await this.usersService.findByEmail(dto.email);
 
     if (existing) throw new BadRequestException('Email already registered');
 
     const hashed = await bcrypt.hash(dto.password, 10);
 
-    await this.usersService.create({
+    const user = await this.usersService.create({
       ...dto,
       password: hashed,
     });
+
+    session.userId = user.id;
 
     return { message: 'Signup successful' };
   }

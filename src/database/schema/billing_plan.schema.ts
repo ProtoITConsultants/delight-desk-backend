@@ -8,7 +8,6 @@ import {
   jsonb,
   timestamp,
 } from 'drizzle-orm/pg-core';
-import { sql } from 'drizzle-orm';
 
 export const billingPlans = pgTable('billing_plans', {
   id: uuid('id').primaryKey().defaultRandom(),
@@ -20,5 +19,5 @@ export const billingPlans = pgTable('billing_plans', {
   emailLimit: integer('email_limit'),
   features: jsonb('features').$type<string[]>().notNull(),
   isActive: boolean('is_active').default(true),
-  createdAt: timestamp('created_at').default(sql`NOW()`),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
 });

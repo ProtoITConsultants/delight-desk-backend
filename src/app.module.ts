@@ -4,6 +4,8 @@ import { AuthModule } from './modules/auth/auth.module';
 import { ConfigModule } from '@nestjs/config';
 import { PlansModule } from './modules/plans/plans.module';
 import { AccountsModule } from './modules/accounts/accounts.module';
+import { GoogleOauthModule } from './modules/google-oauth/google-oauth.module';
+import { ContactUsModule } from './modules/contact-us/contact-us.module';
 
 @Module({
   imports: [
@@ -14,6 +16,8 @@ import { AccountsModule } from './modules/accounts/accounts.module';
     AuthModule,
     PlansModule,
     AccountsModule,
+    GoogleOauthModule,
+    ContactUsModule,
   ],
   controllers: [],
   providers: [],

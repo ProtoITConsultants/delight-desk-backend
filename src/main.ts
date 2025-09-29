@@ -47,7 +47,7 @@ async function bootstrap() {
         httpOnly: true,
         maxAge: Number(configService.get<string>('SESSION_MAX_AGE')),
         secure: configService.get<string>('NODE_ENV') === 'production',
-        sameSite: 'lax', // for dev only, later on i will change it to 'none'
+        sameSite: 'none',
       },
     }),
   );

@@ -24,4 +24,20 @@ export class GoogleOauthRepository {
       expiresAt: account.expiresAt,
     });
   }
+
+  async getGoogleAccount(userId: string) {
+    const [account] = await this.db
+      .select()
+      .from(userOAuthAccounts)
+      .where(eq(userOAuthAccounts.userId, userId));
+
+    return account;
+  }
+
+  async updateGoogleAccount(userId: string, updates: Partial<GoogleAccount>) {
+    return this.db
+      .update(userOAuthAccounts)
+      .set(updates)
+      .where(eq(userOAuthAccounts.userId, userId));
+  }
 }

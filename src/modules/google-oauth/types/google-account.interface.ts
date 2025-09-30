@@ -7,5 +7,5 @@ export interface GoogleAccount {
   accessToken: string;
   refreshToken: string;
   scopes?: string[];
-  expiresAt?: Date;
+  expiresAt: Date;
 }

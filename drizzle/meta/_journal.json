@@ -15,6 +15,13 @@
       "when": 1759173521381,
       "tag": "0001_luxuriant_korg",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1759247717450,
+      "tag": "0002_last_dust",
+      "breakpoints": true
     }
   ]
 }

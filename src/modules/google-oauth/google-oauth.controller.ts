@@ -13,8 +13,7 @@ export class GoogleOauthController {
   @Get('callback')
   @UseGuards(AuthGuard('google'))
   async googleCallback(@Req() req: any, @Res() res: any) {
-    // const userId = req.session?.userId;
-    const userId = '51b1a258-6550-4922-8396-7d80aa6ea978';
+    const userId = req.session?.userId;
     const googleAccount = req.user;
     const scopes = req.query.scope?.toString().split(' ') || [];
 
@@ -33,8 +32,7 @@ export class GoogleOauthController {
 
   @Get('disconnect')
   async disconnect(@Req() req, @Res() res) {
-    // const userId = req.session.userId;
-    const userId = '51b1a258-6550-4922-8396-7d80aa6ea978';
+    const userId = req.session.userId;
 
     if (!userId) {
       return res.status(401).send('Not logged in');

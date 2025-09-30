@@ -14,7 +14,6 @@
     "start:debug": "nest start --debug --watch",
     "start:prod": "node dist/main",
     "db:generate": "drizzle-kit generate",
-    "db:push": "drizzle-kit push",
     "db:migrate": "drizzle-kit migrate",
     "db:studio": "drizzle-kit studio",
     "seed:billing": "ts-node src/database/seeds/billing-plans.seed.ts"

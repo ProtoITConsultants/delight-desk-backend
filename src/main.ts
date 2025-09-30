@@ -40,8 +40,8 @@ async function bootstrap() {
         }),
         tableName: 'user_sessions',
       }),
-      secret: configService.get<string>('SESSION_SECRET', 'super-secret'),
-      resave: false,
+      secret: configService.get<string>('SESSION_SECRET') as string,
+      resave: true,
       saveUninitialized: false,
       cookie: {
         httpOnly: true,

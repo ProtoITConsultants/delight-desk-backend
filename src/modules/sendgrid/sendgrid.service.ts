@@ -1,6 +1,7 @@
 import { Injectable, Logger, ServiceUnavailableException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import sgMail from '@sendgrid/mail';
+import { ContactUsDto } from '../contact-us/dto/index.dto';
 
 @Injectable()
 export class SendgridService {
@@ -18,7 +19,7 @@ export class SendgridService {
   async sendMail(to: string, subject: string, html: string) {
     const msg = {
       to,
-      from: this.configService.get<string>('SENDGRID_FROM_EMAIL') || 'no-reply@yourapp.com',
+      from: this.configService.get<string>('SENDGRID_FROM_EMAIL') as string,
       subject,
       html,
     };
@@ -40,5 +41,20 @@ export class SendgridService {
       <p>This link will expire in 1 hour.</p>
     `;
     return this.sendMail(to, 'Password Reset Request', html);
+  }
+
+  async sendContactInquiryEmail(dto: ContactUsDto) {
+    const supportEmail = this.configService.get<string>('CONTACT_SUPPORT_EMAIL') as string;
+
+    const html = `
+      <h2>New Contact Inquiry</h2>
+      <p><strong>Name:</strong> ${dto.name}</p>
+      <p><strong>Email:</strong> ${dto.email}</p>
+      ${dto.company ? `<p><strong>Company:</strong> ${dto.company}</p>` : ''}
+      <p><strong>Inquiry:</strong></pdto.>
+      <p>${dto.inquiry}</p>
+    `;
+
+    return this.sendMail(supportEmail, 'New Contact Inquiry', html);
   }
 }

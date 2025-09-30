@@ -5,7 +5,7 @@ export const contactInquiries = pgTable('contact_inquiries', {
 
   name: text('name').notNull(),
   email: text('email').notNull(),
-  company: text('company'),
+  subject: text('subject'),
   inquiry: text('inquiry').notNull(),
 
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),

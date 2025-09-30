@@ -12,7 +12,7 @@ export class ContactUsDto {
 
   @IsString()
   @IsOptional()
-  company?: string;
+  subject?: string;
 
   @IsString()
   @IsNotEmpty()

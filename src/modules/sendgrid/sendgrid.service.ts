@@ -50,7 +50,7 @@ export class SendgridService {
       <h2>New Contact Inquiry</h2>
       <p><strong>Name:</strong> ${dto.name}</p>
       <p><strong>Email:</strong> ${dto.email}</p>
-      ${dto.company ? `<p><strong>Company:</strong> ${dto.company}</p>` : ''}
+      ${dto.subject ? `<p><strong>Subject:</strong> ${dto.subject}</p>` : ''}
       <p><strong>Inquiry:</strong></pdto.>
       <p>${dto.inquiry}</p>
     `;

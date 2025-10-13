@@ -1,6 +1,6 @@
 {
-  "id": "cc406c8a-32f2-49d2-8f2d-da7696dadff9",
-  "prevId": "6fd60456-b0ea-4290-b7f9-f6308d1625c4",
+  "id": "970fe5ff-e167-4790-882d-42ebaca0bb5f",
+  "prevId": "cc406c8a-32f2-49d2-8f2d-da7696dadff9",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
@@ -289,6 +289,12 @@
           "primaryKey": false,
           "notNull": true
         },
+        "email": {
+          "name": "email",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
         "provider": {
           "name": "provider",
           "type": "text",
@@ -360,7 +366,13 @@
         }
       },
       "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
+      "uniqueConstraints": {
+        "user_oauth_accounts_email_unique": {
+          "name": "user_oauth_accounts_email_unique",
+          "nullsNotDistinct": false,
+          "columns": ["email"]
+        }
+      },
       "policies": {},
       "checkConstraints": {},
       "isRLSEnabled": false

@@ -1,7 +1,7 @@
 export interface GoogleAccount {
   provider: 'google';
+  email: string;
   providerUserId: string;
-  email?: string;
   displayName?: string;
   avatarUrl?: string;
   accessToken: string;

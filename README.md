@@ -2,19 +2,6 @@
 
 A NestJS-based backend service for Delight Desk, featuring modular architecture, user management, authentication, billing plans, and email integration.
 
-## Features
-
-- **NestJS** framework for scalable server-side applications
-- **User management** (CRUD)
-- **Authentication** with session support
-- **Billing plans** management
-- **SendGrid** integration for transactional emails
-- **Drizzle ORM** for database access
-- **PostgreSQL** session storage
-- **Input validation** with `class-validator`
-- **Environment-based configuration**
-- **Prettier** and **ESLint** for code quality
-
 ## Getting Started
 
 ### Prerequisites
@@ -86,20 +73,6 @@ npm run start:prod
   ```bash
   npm run lint
   ```
-
-## Project Structure
-
-```
-src/
-  modules/
-    users/
-    auth/
-    plans/
-    sendgrid/
-  database/
-  app.module.ts
-.env
-```
 
 ## Scripts
 

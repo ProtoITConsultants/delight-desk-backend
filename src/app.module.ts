@@ -6,6 +6,7 @@ import { PlansModule } from './modules/plans/plans.module';
 import { AccountsModule } from './modules/accounts/accounts.module';
 import { GoogleOauthModule } from './modules/google-oauth/google-oauth.module';
 import { ContactUsModule } from './modules/contact-us/contact-us.module';
+import { ConnectionsModule } from './modules/connections/connections.module';
 
 @Module({
   imports: [
@@ -18,6 +19,7 @@ import { ContactUsModule } from './modules/contact-us/contact-us.module';
     AccountsModule,
     GoogleOauthModule,
     ContactUsModule,
+    ConnectionsModule,
   ],
   controllers: [],
   providers: [],

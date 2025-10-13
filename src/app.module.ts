@@ -7,6 +7,7 @@ import { AccountsModule } from './modules/accounts/accounts.module';
 import { GoogleOauthModule } from './modules/google-oauth/google-oauth.module';
 import { ContactUsModule } from './modules/contact-us/contact-us.module';
 import { ConnectionsModule } from './modules/connections/connections.module';
+import { MicrosoftOauthModule } from './modules/microsoft-oauth/microsoft-oauth.module';
 
 @Module({
   imports: [
@@ -18,6 +19,7 @@ import { ConnectionsModule } from './modules/connections/connections.module';
     PlansModule,
     AccountsModule,
     GoogleOauthModule,
+    MicrosoftOauthModule,
     ContactUsModule,
     ConnectionsModule,
   ],

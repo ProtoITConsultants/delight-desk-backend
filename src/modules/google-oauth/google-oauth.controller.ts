@@ -25,7 +25,6 @@ export class GoogleOauthController {
 
     try {
       await this.googleService.connectGoogleAccount(userId, googleAccount, scopes);
-
       const origin = req.get('origin') || `${req.protocol}://${req.get('host')}`;
       return res.redirect(`${origin}/connections`);
     } catch (err) {
@@ -38,12 +37,7 @@ export class GoogleOauthController {
   @Delete('disconnect')
   @UseGuards(SessionGuard)
   async disconnect(@CurrentUserId() userId: string) {
-    const isDeleted = await this.googleService.disconnectGoogleAccount(userId);
-
-    if (!isDeleted) {
-      throw new NotFoundException('Account already disconnected or not found');
-    }
-
+    await this.googleService.disconnectGoogleAccount(userId);
     return { message: 'Account disconnected successfully' };
   }
 }

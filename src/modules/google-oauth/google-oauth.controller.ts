@@ -1,6 +1,8 @@
-import { Controller, Get, Req, Res, UseGuards } from '@nestjs/common';
+import { Controller, Delete, Get, NotFoundException, Req, Res, UseGuards } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
 import { GoogleOauthService } from './google-oauth.service';
+import { SessionGuard } from 'src/guards/session.guard';
+import { CurrentUserId } from 'src/decorators/current-user.decorator';
 
 @Controller('google-oauth')
 export class GoogleOauthController {
@@ -23,23 +25,25 @@ export class GoogleOauthController {
 
     try {
       await this.googleService.connectGoogleAccount(userId, googleAccount, scopes);
-      return res.redirect(process.env.GOOGLE_SUCCESS_REDIRECT);
+
+      const origin = req.get('origin') || `${req.protocol}://${req.get('host')}`;
+      return res.redirect(`${origin}/connections`);
     } catch (err) {
-      console.error('Google connect failed:', err);
-      return res.redirect(process.env.GOOGLE_FAILURE_REDIRECT);
+      console.error({ err });
+      const origin = req.get('origin') || `${req.protocol}://${req.get('host')}`;
+      return res.redirect(`${origin}/login`);
     }
   }
 
-  @Get('disconnect')
-  async disconnect(@Req() req, @Res() res) {
-    const userId = req.session.userId;
+  @Delete('disconnect')
+  @UseGuards(SessionGuard)
+  async disconnect(@CurrentUserId() userId: string) {
+    const isDeleted = await this.googleService.disconnectGoogleAccount(userId);
 
-    if (!userId) {
-      return res.status(401).send('Not logged in');
+    if (!isDeleted) {
+      throw new NotFoundException('Account already disconnected or not found');
     }
 
-    await this.googleService.disconnectGoogleAccount(userId);
-
-    return res.redirect(process.env.GOOGLE_SUCCESS_REDIRECT);
+    return { message: 'Account disconnected successfully' };
   }
 }

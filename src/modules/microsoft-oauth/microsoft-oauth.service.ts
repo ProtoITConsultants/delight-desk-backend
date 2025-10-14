@@ -13,7 +13,7 @@ export class MicrosoftOauthService {
   }
 
   async disconnectMicrosoftAccount(userId: string) {
-    return await this.repo.disconnectMicrosoftAccount(userId);
+    return await this.repo.removeExistingAccount(userId);
   }
 
   private getGraphClient(accessToken: string): Client {

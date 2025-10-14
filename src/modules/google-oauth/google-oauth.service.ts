@@ -13,7 +13,7 @@ export class GoogleOauthService {
   }
 
   async disconnectGoogleAccount(userId: string) {
-    return await this.repo.disconnectGoogleAccount(userId);
+    return await this.repo.removeExistingAccount(userId);
   }
 
   private getOAuth2Client(refreshToken?: string, accessToken?: string) {

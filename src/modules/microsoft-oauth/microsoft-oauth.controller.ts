@@ -1,12 +1,16 @@
-import { Controller, Delete, Get, NotFoundException, Req, Res, UseGuards } from '@nestjs/common';
+import { Controller, Delete, Get, Req, Res, UseGuards } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
 import { MicrosoftOauthService } from './microsoft-oauth.service';
 import { SessionGuard } from 'src/guards/session.guard';
 import { CurrentUserId } from 'src/decorators/current-user.decorator';
+import { ConfigService } from '@nestjs/config';
 
 @Controller('microsoft-oauth')
 export class MicrosoftOauthController {
-  constructor(private readonly microsoftService: MicrosoftOauthService) {}
+  constructor(
+    private readonly microsoftService: MicrosoftOauthService,
+    private readonly configService: ConfigService,
+  ) {}
 
   @Get('login')
   @UseGuards(AuthGuard('microsoft'))
@@ -25,14 +29,14 @@ export class MicrosoftOauthController {
         .send('You must be logged in to delight desk before connecting Microsoft');
     }
 
+    const MICROSOFT_SUCCESS_REDIRECT = this.configService.get('MICROSOFT_SUCCESS_REDIRECT');
+    const MICROSOFT_FAILURE_REDIRECT = this.configService.get('MICROSOFT_FAILURE_REDIRECT');
+
     try {
       await this.microsoftService.connectMicrosoftAccount(userId, msAccount, scopes);
-      const origin = req.get('origin') || `${req.protocol}://${req.get('host')}`;
-      return res.redirect(`${origin}/connections`);
+      return res.redirect(MICROSOFT_SUCCESS_REDIRECT);
     } catch (err) {
-      console.error({ err });
-      const origin = req.get('origin') || `${req.protocol}://${req.get('host')}`;
-      return res.redirect(`${origin}/login`);
+      return res.redirect(MICROSOFT_FAILURE_REDIRECT);
     }
   }
 

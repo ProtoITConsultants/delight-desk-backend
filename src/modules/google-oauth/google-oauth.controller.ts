@@ -30,6 +30,8 @@ export class GoogleOauthController {
 
     const origin: string = req.get('origin') || `${req.protocol}://${req.get('host')}`;
     const isRequestFromLocal = origin.includes('localhost');
+    console.log({ origin });
+    console.log({ isRequestFromLocal });
     const GOOGLE_SUCCESS_LOCAL_REDIRECT = this.configService.get('GOOGLE_SUCCESS_LOCAL_REDIRECT');
     const GOOGLE_SUCCESS_STAGING_REDIRECT = this.configService.get(
       'GOOGLE_SUCCESS_STAGING_REDIRECT',

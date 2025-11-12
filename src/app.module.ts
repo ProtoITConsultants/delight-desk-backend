@@ -8,6 +8,9 @@ import { GoogleOauthModule } from './modules/google-oauth/google-oauth.module';
 import { ContactUsModule } from './modules/contact-us/contact-us.module';
 import { ConnectionsModule } from './modules/connections/connections.module';
 import { MicrosoftOauthModule } from './modules/microsoft-oauth/microsoft-oauth.module';
+import { WooCommerceModule } from './modules/woocommerce/woocommerce.module';
+import { StoreConnectionsModule } from './modules/store-connections/store-connections.module';
+import { WoocommerceOauthModule } from './modules/woocommerce-oauth/woocommerce-oauth.module';
 
 @Module({
   imports: [
@@ -22,6 +25,9 @@ import { MicrosoftOauthModule } from './modules/microsoft-oauth/microsoft-oauth.
     MicrosoftOauthModule,
     ContactUsModule,
     ConnectionsModule,
+    WooCommerceModule,
+    StoreConnectionsModule,
+    WoocommerceOauthModule,
   ],
   controllers: [],
   providers: [],

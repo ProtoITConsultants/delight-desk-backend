@@ -5,6 +5,7 @@ import { storeConnections } from 'src/database/schema/storeConnections';
 import { DATABASE_CONNECTION } from 'src/database/database.module';
 import type { NodePgDatabase } from 'drizzle-orm/node-postgres';
 
+
 @Injectable()
 export class StoreConnectionsRepository {
   constructor(@Inject(DATABASE_CONNECTION) private readonly db: NodePgDatabase) {}
@@ -62,6 +63,47 @@ export class StoreConnectionsRepository {
       .select()
       .from(storeConnections)
       .where(and(eq(storeConnections.userid, userId), eq(storeConnections.platform, platform)));
+
+    return connection ?? null;
+  }
+
+  async findByOAuthToken(token: string) {
+    const [connection] = await this.db
+      .select()
+      .from(storeConnections)
+      .where(eq(storeConnections.oauth_token, token));
+
+    return connection || null;
+  }
+
+  async updateOAuthTokens(id: string, userId: string, data: Partial<typeof storeConnections.$inferInsert>) {
+    const [updated] = await this.db
+      .update(storeConnections)
+      .set({
+        ...data,
+        updated_at: new Date(),
+      })
+      .where(
+        and(
+          eq(storeConnections.id, String(id)),
+          eq(storeConnections.userid, userId),
+        )
+      )
+      .returning();
+    return updated ?? null;
+  }
+
+  async findByPlatformAndMethod(userId: string, platform: string, connectionMethod: string) {
+    const [connection] = await this.db
+      .select()
+      .from(storeConnections)
+      .where(
+        and(
+          eq(storeConnections.userid, userId),
+          eq(storeConnections.platform, platform),
+          eq(storeConnections.connection_method, connectionMethod)
+        )
+      );
 
     return connection ?? null;
   }

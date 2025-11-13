@@ -10,7 +10,7 @@ import { ConnectionsModule } from './modules/connections/connections.module';
 import { MicrosoftOauthModule } from './modules/microsoft-oauth/microsoft-oauth.module';
 import { WooCommerceModule } from './modules/woocommerce/woocommerce.module';
 import { StoreConnectionsModule } from './modules/store-connections/store-connections.module';
-import { WoocommerceOauthModule } from './modules/woocommerce-oauth/woocommerce-oauth.module';
+import { WooCommerceOAuthModule } from './modules/woocommerce-oauth/woocommerce-oauth.module';
 
 @Module({
   imports: [
@@ -27,7 +27,7 @@ import { WoocommerceOauthModule } from './modules/woocommerce-oauth/woocommerce-
     ConnectionsModule,
     WooCommerceModule,
     StoreConnectionsModule,
-    WoocommerceOauthModule,
+    WooCommerceOAuthModule,
   ],
   controllers: [],
   providers: [],

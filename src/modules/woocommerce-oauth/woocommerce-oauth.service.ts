@@ -1,7 +1,6 @@
 import { Injectable, BadRequestException } from '@nestjs/common';
 import OAuth from 'oauth-1.0a';
 import * as crypto from 'crypto';
-import axios from 'axios';
 import { StoreConnectionsRepository } from '../store-connections/store-connections.repository';
 import { CreateWooCommerceOAuthDto } from './dto/create-woocommerce-oauth.dto';
 
@@ -48,7 +47,7 @@ export class WooCommerceOAuthService {
   }
 
   async handleCallback(oauth_token: string, oauth_verifier: string) {
-  // Find the store connection by oauth_token
+    // Find the store connection by oauth_token
     const connection = await this.storeRepo.findByOAuthToken(oauth_token);
     if (!connection) {
       throw new BadRequestException('No matching store connection found');
@@ -64,11 +63,7 @@ export class WooCommerceOAuthService {
   }
 
   async disconnectWooCommerce(userId: string) {
-    const connection = await this.storeRepo.findByPlatformAndMethod(
-      userId,
-      'woocommerce',
-      'oauth',
-    );
+    const connection = await this.storeRepo.findByPlatformAndMethod(userId, 'woocommerce', 'oauth');
 
     if (!connection) {
       throw new BadRequestException('No WooCommerce OAuth connection found for this user');

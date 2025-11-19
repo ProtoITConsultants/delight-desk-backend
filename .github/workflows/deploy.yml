@@ -8,6 +8,7 @@ on:
 jobs:
   build-and-deploy:
     runs-on: ubuntu-latest
+
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -16,13 +17,18 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: '22'
-          cache: 'npm'
+          cache: 'pnpm'
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 9
 
       - name: Install dependencies
-        run: npm ci
+        run: pnpm install --frozen-lockfile
 
       - name: Build application
-        run: npm run build
+        run: pnpm build
 
       - name: Deploy to EC2 via SSH
         uses: appleboy/ssh-action@v1.0.3
@@ -33,14 +39,14 @@ jobs:
           script: |
             export NVM_DIR="$HOME/.nvm"
             [ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"
+
             cd /home/ubuntu/delight-desk-backend
 
             pm2 stop delight-desk || true
 
             git pull origin dev
 
-            # Install production dependencies only
-            npm ci --omit=dev
+            pnpm install --prod --frozen-lockfile
 
       - name: Copy dist folder to EC2
         uses: appleboy/scp-action@v0.1.7

@@ -13,14 +13,8 @@ export class WooCommerceService {
       throw new NotFoundException('WooCommerce store connection not found for this user');
     }
 
-    const { 
-      store_url, 
-      api_key, 
-      api_secret, 
-      oauth_token, 
-      oauth_token_secret, 
-      connection_method 
-    } = connection;
+    const { store_url, api_key, api_secret, oauth_token, oauth_token_secret, connection_method } =
+      connection;
 
     if (!store_url) {
       throw new NotFoundException('WooCommerce store URL is missing');
@@ -59,7 +53,7 @@ export class WooCommerceService {
 
     throw new NotFoundException(`Invalid connection method: ${connection_method}`);
   }
-async getProducts(userId: string) {
+  async getProducts(userId: string) {
     try {
       const api = await this.initWooCommerceClient(userId);
       const response = await api.get('products', { per_page: 50 });

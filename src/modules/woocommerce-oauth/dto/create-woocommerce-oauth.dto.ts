@@ -13,9 +13,7 @@ export class CreateWooCommerceOAuthDto {
   @IsString()
   consumerSecret: string;
 
-  
   @IsNotEmpty()
   @IsString()
   storeName: string;
-
 }

@@ -1,4 +1,13 @@
-import { Controller, Get, Query, Body, Post, BadRequestException, Req, Delete } from '@nestjs/common';
+import {
+  Controller,
+  Get,
+  Query,
+  Body,
+  Post,
+  BadRequestException,
+  Req,
+  Delete,
+} from '@nestjs/common';
 import { WooCommerceOAuthService } from './woocommerce-oauth.service';
 import { CreateWooCommerceOAuthDto } from './dto/create-woocommerce-oauth.dto';
 
@@ -35,5 +44,4 @@ export class WooCommerceOAuthController {
     }
     return this.wooOAuthService.disconnectWooCommerce(userId);
   }
-
 }

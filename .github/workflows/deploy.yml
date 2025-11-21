@@ -31,15 +31,10 @@ jobs:
       - name: Build app
         run: pnpm build
 
-      - name: Install prod dependencies only
-        run: |
-          rm -rf node_modules
-          pnpm install --prod --frozen-lockfile
-
       - name: Prepare deployment bundle
         run: |
           mkdir deploy
-          cp -R dist package.json pnpm-lock.yaml node_modules deploy/
+          cp -R dist package.json pnpm-lock.yaml deploy/
           cd deploy && tar -czf ../deploy.tar.gz .
 
       - name: Upload bundle to EC2
@@ -59,8 +54,17 @@ jobs:
           key: ${{ secrets.EC2_SSH_KEY }}
           script: |
             cd /home/ubuntu/delight-desk-backend
+
+            # Clean old files
+            rm -rf dist package.json pnpm-lock.yaml
+
+            # Extract new build
             tar -xzf deploy.tar.gz -C .
             rm deploy.tar.gz
 
+            # Install production dependencies
+            pnpm install --prod --frozen-lockfile
+
+            # Restart application
             pm2 restart delight-desk --update-env || pm2 start dist/src/main.js --name delight-desk
             pm2 save

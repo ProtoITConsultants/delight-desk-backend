@@ -4,7 +4,6 @@ import { GoogleOauthService } from './google-oauth.service';
 import { SessionGuard } from 'src/guards/session.guard';
 import { CurrentUserId } from 'src/decorators/current-user.decorator';
 import { ConfigService } from '@nestjs/config';
-import express from 'express';
 
 @Controller('google-oauth')
 export class GoogleOauthController {
@@ -19,7 +18,7 @@ export class GoogleOauthController {
 
   @Get('callback')
   @UseGuards(AuthGuard('google'))
-  async googleCallback(@Req() req: any, @Res() res: express.Response) {
+  async googleCallback(@Req() req: any, @Res() res: any) {
     const userId = req.session?.userId;
     const googleAccount = req.user;
     const scopes = req.query.scope?.toString().split(' ') || [];

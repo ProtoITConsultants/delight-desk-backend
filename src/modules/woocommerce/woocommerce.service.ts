@@ -1,10 +1,10 @@
 import { Injectable, InternalServerErrorException, NotFoundException } from '@nestjs/common';
 import WooCommerceRestApi from '@woocommerce/woocommerce-rest-api';
-import { StoreConnectionsRepository } from '../store-connections/store-connections.repository';
+import { UserStoreConnectionsRepository } from '../woocommerce-oauth/user-store-connections.repository';
 
 @Injectable()
 export class WooCommerceService {
-  constructor(private readonly storeConnectionsRepo: StoreConnectionsRepository) {}
+  constructor(private readonly storeConnectionsRepo: UserStoreConnectionsRepository) {}
 
   private async initWooCommerceClient(userId: string) {
     const connection = await this.storeConnectionsRepo.findByPlatform(userId, 'woocommerce');
@@ -13,45 +13,27 @@ export class WooCommerceService {
       throw new NotFoundException('WooCommerce store connection not found for this user');
     }
 
-    const { store_url, api_key, api_secret, oauth_token, oauth_token_secret, connection_method } =
-      connection;
+    const { storeUrl, apiKey, apiSecret, connectionMethod } = connection;
 
-    if (!store_url) {
+    if (!storeUrl) {
       throw new NotFoundException('WooCommerce store URL is missing');
     }
 
-    // ✅ Handle API Key authentication
-    if (connection_method === 'api_key') {
-      if (!api_key || !api_secret) {
+    if (connectionMethod === 'apiKey') {
+      if (!apiKey || !apiSecret) {
         throw new NotFoundException('WooCommerce API credentials are incomplete');
       }
 
       return new WooCommerceRestApi({
-        url: store_url,
-        consumerKey: api_key,
-        consumerSecret: api_secret,
+        url: storeUrl,
+        consumerKey: apiKey,
+        consumerSecret: apiSecret,
         version: 'wc/v3',
         queryStringAuth: true,
       });
     }
 
-    // ✅ Handle OAuth authentication
-    if (connection_method === 'oauth') {
-      if (!oauth_token || !oauth_token_secret) {
-        throw new NotFoundException('WooCommerce OAuth credentials are incomplete');
-      }
-
-      // For WooCommerce OAuth 1.0a, use the same library
-      return new WooCommerceRestApi({
-        url: store_url,
-        consumerKey: oauth_token,
-        consumerSecret: oauth_token_secret,
-        version: 'wc/v3',
-        queryStringAuth: true,
-      });
-    }
-
-    throw new NotFoundException(`Invalid connection method: ${connection_method}`);
+    throw new NotFoundException(`Invalid connection method: ${connectionMethod}`);
   }
   async getProducts(userId: string) {
     try {

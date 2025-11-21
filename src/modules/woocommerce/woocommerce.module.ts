@@ -1,12 +1,13 @@
 import { Module } from '@nestjs/common';
 import { WooCommerceService } from './woocommerce.service';
 import { WooCommerceController } from './woocommerce.controller';
-import { StoreConnectionsModule } from '../store-connections/store-connections.module';
+import { UserStoreConnectionsRepository } from '../woocommerce-oauth/user-store-connections.repository';
+import { DatabaseModule } from 'src/database/database.module';
 
 @Module({
-  imports: [StoreConnectionsModule],
+  imports: [DatabaseModule],
   controllers: [WooCommerceController],
-  providers: [WooCommerceService],
-  exports: [WooCommerceService], // allows reuse in other modules if needed
+  providers: [WooCommerceService, UserStoreConnectionsRepository],
+  exports: [WooCommerceService],
 })
 export class WooCommerceModule {}

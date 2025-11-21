@@ -1,74 +1,112 @@
-import { Injectable, BadRequestException } from '@nestjs/common';
-import OAuth from 'oauth-1.0a';
-import * as crypto from 'crypto';
-import { StoreConnectionsRepository } from '../store-connections/store-connections.repository';
-import { CreateWooCommerceOAuthDto } from './dto/create-woocommerce-oauth.dto';
+import { Injectable, BadRequestException, ConflictException } from '@nestjs/common';
+import { UserStoreConnectionsRepository } from './user-store-connections.repository';
+import { InitializeWooOAuthDto, ManualConnectWooDto } from './dto/index.dto';
+import { ConfigService } from '@nestjs/config';
+import WooCommerceRestApi from '@woocommerce/woocommerce-rest-api';
 
 @Injectable()
 export class WooCommerceOAuthService {
-  constructor(private readonly storeRepo: StoreConnectionsRepository) {}
+  constructor(
+    private readonly storeRepo: UserStoreConnectionsRepository,
+    private readonly configService: ConfigService,
+  ) {}
 
-  async getAuthorizationUrl(userId: string, body: CreateWooCommerceOAuthDto) {
-    const { storeUrl, consumerKey, consumerSecret } = body;
-
-    if (!storeUrl || !consumerKey || !consumerSecret) {
-      throw new BadRequestException('Missing required WooCommerce credentials');
+  async initializeOAuth(userId: string, body: InitializeWooOAuthDto) {
+    if (await this.storeRepo.userHasStore(userId)) {
+      throw new ConflictException('Store already exists');
     }
 
-    const oauth = new OAuth({
-      consumer: { key: consumerKey, secret: consumerSecret },
-      signature_method: 'HMAC-SHA1',
-      hash_function(base_string, key) {
-        return crypto.createHmac('sha1', key).update(base_string).digest('base64');
-      },
-    });
+    const storeUrl = this.sanitizeStoreUrl(body.storeUrl);
+    const requestTokenUrl = `${storeUrl}wc-auth/v1/authorize`;
+    const callbackUrl = this.configService.get('WOOCOMMERCE_OAUTH_CALLBACK_URL');
 
-    const requestTokenUrl = `${storeUrl}/wc-auth/v1/authorize`;
+    const payload = {
+      userId,
+      storeUrl,
+    };
 
-    // const callbackUrl = `${process.env.BACKEND_URL}/woocommerce-oauth/callback`;
-    const callbackUrl = `https://api.delightdesk.io/woocommerce-oauth/callback`;
+    const encoded = Buffer.from(JSON.stringify(payload)).toString('base64');
 
-    // Build redirect URL
-    const redirectUrl = `${requestTokenUrl}?app_name=DelightDesk&scope=read_write&user_id=${userId}&return_url=${callbackUrl}&callback_url=${callbackUrl}`;
+    const redirectUrl =
+      requestTokenUrl +
+      `?app_name=DelightDesk` +
+      `&scope=read_write` +
+      `&user_id=${encodeURIComponent(encoded)}` +
+      `&return_url=${encodeURIComponent(callbackUrl)}` +
+      `&callback_url=${encodeURIComponent(callbackUrl)}`;
 
-    // Save the connection (initial entry)
-    await this.storeRepo.create({
-      userid: userId,
-      platform: 'woocommerce',
-      store_name: body.storeName || new URL(body.storeUrl).hostname,
-      store_url: storeUrl,
-      api_key: consumerKey,
-      api_secret: consumerSecret,
-      connection_method: 'oauth',
-      is_active: false,
-    });
-
-    return { redirectUrl };
+    return {
+      redirectUrl,
+    };
   }
 
-  async handleCallback(oauth_token: string, oauth_verifier: string) {
-    // Find the store connection by oauth_token
-    const connection = await this.storeRepo.findByOAuthToken(oauth_token);
-    if (!connection) {
-      throw new BadRequestException('No matching store connection found');
+  async handleCallback(body: any) {
+    const { user_id, consumer_key, consumer_secret } = body;
+
+    const decoded = JSON.parse(Buffer.from(user_id, 'base64').toString('utf8'));
+
+    await this.storeRepo.create({
+      userId: decoded.userId,
+      platform: 'woocommerce',
+      storeUrl: decoded.storeUrl,
+      connectionMethod: 'oauth',
+      apiKey: consumer_key,
+      apiSecret: consumer_secret,
+      isActive: true,
+    });
+  }
+
+  async manualConnect(userId: string, body: ManualConnectWooDto) {
+    if (await this.storeRepo.userHasStore(userId)) {
+      throw new ConflictException('Store already exists');
     }
-    // Update the OAuth tokens and mark as active
-    await this.storeRepo.updateOAuthTokens(connection.id, connection.userid, {
-      oauth_token,
-      oauth_verifier,
-      is_active: true,
+
+    const { storeUrl, consumerKey, consumerSecret } = body;
+    const sanitizedUrl = this.sanitizeStoreUrl(storeUrl);
+
+    const wc = new WooCommerceRestApi({
+      url: sanitizedUrl,
+      consumerKey,
+      consumerSecret,
+      version: 'wc/v3',
+    });
+
+    try {
+      await wc.get('system_status');
+    } catch (err: any) {
+      const message = err?.response?.data?.message || 'Invalid WooCommerce credentials';
+      throw new BadRequestException(message);
+    }
+
+    await this.storeRepo.create({
+      userId,
+      platform: 'woocommerce',
+      storeUrl: sanitizedUrl,
+      connectionMethod: 'manual',
+      apiKey: consumerKey,
+      apiSecret: consumerSecret,
+      isActive: true,
     });
 
     return { message: 'WooCommerce store connected successfully' };
   }
 
   async disconnectWooCommerce(userId: string) {
-    const connection = await this.storeRepo.findByPlatformAndMethod(userId, 'woocommerce', 'oauth');
+    const connection = await this.storeRepo.findByPlatform(userId, 'woocommerce');
 
     if (!connection) {
       throw new BadRequestException('No WooCommerce OAuth connection found for this user');
     }
     await this.storeRepo.delete(connection.id, userId);
     return { message: 'WooCommerce OAuth connection deleted successfully' };
+  }
+
+  sanitizeStoreUrl(url: string) {
+    let clean = url.trim();
+    if (!clean.startsWith('http')) {
+      throw new BadRequestException('Invalid store URL');
+    }
+    if (!clean.endsWith('/')) clean += '/';
+    return clean;
   }
 }

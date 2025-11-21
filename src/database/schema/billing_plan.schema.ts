@@ -11,6 +11,7 @@ import {
 
 export const billingPlans = pgTable('billing_plans', {
   id: uuid('id').primaryKey().defaultRandom(),
+
   name: text('name').notNull(),
   displayName: text('display_name').notNull(),
   price: decimal('price', { precision: 10, scale: 2 }).notNull(),
@@ -19,5 +20,7 @@ export const billingPlans = pgTable('billing_plans', {
   emailLimit: integer('email_limit'),
   features: jsonb('features').$type<string[]>().notNull(),
   isActive: boolean('is_active').default(true),
+
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
 });

@@ -1,5 +1,14 @@
-import { IsEmail, IsNotEmpty, IsString, MinLength } from 'class-validator';
-import { Exclude } from 'class-transformer';
+import {
+  IsEmail,
+  IsNotEmpty,
+  IsString,
+  MinLength,
+  IsOptional,
+  IsInt,
+  Min,
+  Max,
+} from 'class-validator';
+import { Exclude, Type } from 'class-transformer';
 
 export class CreateUserDto {
   @IsNotEmpty()
@@ -54,4 +63,23 @@ export class UserResponseDto {
 
   @Exclude()
   passwordResetExpiresAt?: Date | null;
+}
+
+export class GetUsersDto {
+  @IsOptional()
+  @IsString()
+  q?: string;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  page?: number = 1;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  @Max(100)
+  limit?: number = 10;
 }

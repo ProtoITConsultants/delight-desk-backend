@@ -1,47 +1,53 @@
 import {
   Controller,
-  Get,
-  Query,
   Body,
   Post,
-  BadRequestException,
-  Req,
   Delete,
+  UseGuards,
+  Response,
+  Get,
+  Res,
+  Redirect,
 } from '@nestjs/common';
 import { WooCommerceOAuthService } from './woocommerce-oauth.service';
-import { CreateWooCommerceOAuthDto } from './dto/create-woocommerce-oauth.dto';
+import { InitializeWooOAuthDto, ManualConnectWooDto } from './dto/index.dto';
+import { SessionGuard } from 'src/guards/session.guard';
+import { CurrentUserId } from 'src/decorators/current-user.decorator';
+import { ConfigService } from '@nestjs/config';
 
-@Controller('woocommerce-oauth')
+@Controller('woocommerce')
 export class WooCommerceOAuthController {
-  constructor(private readonly wooOAuthService: WooCommerceOAuthService) {}
+  constructor(
+    private readonly wooOAuthService: WooCommerceOAuthService,
+    private readonly configService: ConfigService,
+  ) {}
 
-  @Post('init')
-  async initOAuth(@Body() body: CreateWooCommerceOAuthDto, @Req() req: any) {
-    const userId = req?.cookies?.userId || req?.session?.userId || req?.user?.userId;
-    if (!userId) {
-      throw new BadRequestException('User not logged in');
-    }
+  @UseGuards(SessionGuard)
+  @Post('init-oauth')
+  async initOAuth(@CurrentUserId() userId: string, @Body() body: InitializeWooOAuthDto) {
+    return this.wooOAuthService.initializeOAuth(userId, body);
+  }
 
-    return this.wooOAuthService.getAuthorizationUrl(userId, body);
+  @Post('callback')
+  async handleCallback(@Body() body: any, @Response() res: any) {
+    await this.wooOAuthService.handleCallback(body);
+    return res.redirect(process.env.FRONTEND_CONNECTIONS_PAGE_URL);
   }
 
   @Get('callback')
-  async handleCallback(@Query() query: any) {
-    const { oauth_token, oauth_verifier } = query;
-
-    if (!oauth_token || !oauth_verifier) {
-      throw new BadRequestException('Missing oauth_token or oauth_verifier');
-    }
-
-    return this.wooOAuthService.handleCallback(oauth_token, oauth_verifier);
+  async handleCallbackGet(@Res() res: any) {
+    return res.redirect(process.env.FRONTEND_CONNECTIONS_PAGE_URL);
   }
 
+  @UseGuards(SessionGuard)
+  @Post('manual-connect')
+  async manualConnect(@CurrentUserId() userId: string, @Body() body: ManualConnectWooDto) {
+    return this.wooOAuthService.manualConnect(userId, body);
+  }
+
+  @UseGuards(SessionGuard)
   @Delete('disconnect')
-  async disconnectWooCommerce(@Req() req: any) {
-    const userId = req?.cookies?.userId || req?.session?.userId || req?.user?.userId;
-    if (!userId) {
-      throw new BadRequestException('User not logged in');
-    }
+  async disconnectWooCommerce(@CurrentUserId() userId: string) {
     return this.wooOAuthService.disconnectWooCommerce(userId);
   }
 }

@@ -3,6 +3,7 @@ import { eq } from 'drizzle-orm';
 import { users } from 'src/database/schema/user.schema';
 import { DATABASE_CONNECTION } from 'src/database/database.module';
 import type { NodePgDatabase } from 'drizzle-orm/node-postgres';
+import { sql } from 'drizzle-orm';
 
 @Injectable()
 export class UserRepository {
@@ -39,5 +40,127 @@ export class UserRepository {
   async findByResetToken(token: string) {
     const [user] = await this.db.select().from(users).where(eq(users.passwordResetToken, token));
     return user ?? null;
+  }
+
+  async findByIdBasic(id: string) {
+    return this.db
+      .select({
+        id: users.id,
+        email: users.email,
+        role: users.role,
+        firstName: users.firstName,
+        lastName: users.lastName,
+      })
+      .from(users)
+      .where(eq(users.id, id))
+      .limit(1);
+  }
+
+  async isAdmin(id: string) {
+    const row = await this.db
+      .select({ role: users.role })
+      .from(users)
+      .where(eq(users.id, id))
+      .limit(1);
+
+    return row[0]?.role === 'admin';
+  }
+
+  async deleteById(id: string) {
+    await this.db.delete(users).where(eq(users.id, id));
+    return true;
+  }
+
+  async countUsers(whereSql: any): Promise<number> {
+    const query = sql`
+    SELECT COUNT(*)::int AS total
+    FROM users u
+    ${whereSql}
+  `;
+
+    const result = await this.db.execute(query);
+    return (result.rows?.[0]?.total as number) ?? 0;
+  }
+
+  async getUsers(whereSql: any, limit: number, offset: number) {
+    const query = sql`
+    SELECT
+      u.id,
+      u.email,
+      u.first_name AS "firstName",
+      u.last_name AS "lastName",
+      u.phone,
+      u.last_login_at AS "lastLoginAt",
+
+      -- Single OAuth account
+      o.oauth_account AS "oauthAccount",
+
+      -- Single Store connection
+      s.store_connection AS "storeConnection"
+
+    FROM users u
+
+    -- Single OAuth row
+    LEFT JOIN LATERAL (
+      SELECT json_build_object(
+        'id', oa.id,
+        'provider', oa.provider,
+        'email', oa.email,
+        'status', oa.status,
+        'providerUserId', oa.provider_user_id,
+        'createdAt', oa.created_at
+      ) AS oauth_account
+      FROM user_oauth_accounts oa
+      WHERE oa.user_id = u.id
+      LIMIT 1
+    ) o ON TRUE
+
+    -- Single Store row
+    LEFT JOIN LATERAL (
+      SELECT json_build_object(
+        'id', sc.id,
+        'platform', sc.platform,
+        'storeUrl', sc.store_url,
+        'isActive', sc.is_active,
+        'createdAt', sc.created_at
+      ) AS store_connection
+      FROM user_store_connections sc
+      WHERE sc.user_id = u.id
+      LIMIT 1
+    ) s ON TRUE
+
+    ${whereSql}
+    ORDER BY u.created_at DESC
+    LIMIT ${limit}
+    OFFSET ${offset}
+  `;
+
+    const result = await this.db.execute(query);
+    return result.rows ?? [];
+  }
+
+  async deleteSessionsByUserId(userId: string) {
+    const result: any = await this.db.execute(sql`SELECT sid, sess FROM user_sessions`);
+
+    if (!result?.rows?.length) return;
+
+    const sidsToDelete: string[] = [];
+
+    for (const row of result.rows) {
+      try {
+        const data = JSON.parse(row.sess);
+        if (data?.userId === userId) {
+          sidsToDelete.push(row.sid);
+        }
+      } catch {
+        continue;
+      }
+    }
+
+    if (sidsToDelete.length === 0) return;
+
+    await this.db.execute(sql`DELETE FROM user_sessions WHERE sid = ANY(${sidsToDelete})`);
+
+    return true;
   }
 }

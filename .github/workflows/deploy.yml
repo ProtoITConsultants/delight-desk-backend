@@ -55,6 +55,13 @@ jobs:
           script: |
             cd /home/ubuntu/delight-desk-backend
 
+            # Load NVM if used (optional)
+            export NVM_DIR="$HOME/.nvm"
+            [ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"
+
+            # Ensure global Node binaries are in PATH
+            export PATH=$PATH:/usr/local/bin:$HOME/.npm-global/bin
+
             # Clean old files
             rm -rf dist package.json pnpm-lock.yaml
 

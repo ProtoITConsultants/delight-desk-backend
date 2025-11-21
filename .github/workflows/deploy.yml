@@ -70,7 +70,7 @@ jobs:
             rm deploy.tar.gz
 
             # Install production dependencies
-            pnpm install --prod --frozen-lockfile
+            pnpm install --frozen-lockfile
 
             # Restart application
             pm2 restart delight-desk --update-env || pm2 start dist/src/main.js --name delight-desk

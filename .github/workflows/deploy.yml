@@ -25,11 +25,16 @@ jobs:
           node-version: 22
           cache: pnpm
 
-      - name: Install deps (prod only)
-        run: pnpm install --prod --frozen-lockfile
+      - name: Install all dependencies
+        run: pnpm install --frozen-lockfile
 
       - name: Build app
         run: pnpm build
+
+      - name: Install prod dependencies only
+        run: |
+          rm -rf node_modules
+          pnpm install --prod --frozen-lockfile
 
       - name: Prepare deployment bundle
         run: |

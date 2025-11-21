@@ -6,13 +6,14 @@ on:
       - dev
 
 jobs:
-  deploy:
+  build-and-deploy:
     runs-on: ubuntu-latest
 
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
 
+      # Install pnpm BEFORE setup-node caching
       - name: Setup pnpm
         uses: pnpm/action-setup@v4
         with:
@@ -22,56 +23,57 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: 22
-          cache: pnpm
+          node-version: '22'
+          cache: 'pnpm'
 
-      - name: Install all dependencies
+      - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Build app
+      - name: Build application
         run: pnpm build
 
-      - name: Prepare deployment bundle
-        run: |
-          mkdir deploy
-          cp -R dist package.json pnpm-lock.yaml deploy/
-          cd deploy && tar -czf ../deploy.tar.gz .
-
-      - name: Upload bundle to EC2
-        uses: appleboy/scp-action@v0.1.7
-        with:
-          host: ${{ secrets.EC2_HOST }}
-          username: ${{ secrets.EC2_USER }}
-          key: ${{ secrets.EC2_SSH_KEY }}
-          source: deploy.tar.gz
-          target: /home/ubuntu/delight-desk-backend/
-
-      - name: Deploy on EC2
+      - name: Deploy to EC2 via SSH
         uses: appleboy/ssh-action@v1.0.3
         with:
           host: ${{ secrets.EC2_HOST }}
           username: ${{ secrets.EC2_USER }}
           key: ${{ secrets.EC2_SSH_KEY }}
           script: |
-            cd /home/ubuntu/delight-desk-backend
-
-            # Load NVM if used (optional)
             export NVM_DIR="$HOME/.nvm"
             [ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"
 
-            # Ensure global Node binaries are in PATH
-            export PATH=$PATH:/usr/local/bin:$HOME/.npm-global/bin
+            cd /home/ubuntu/delight-desk-backend
 
-            # Clean old files
-            rm -rf dist package.json pnpm-lock.yaml
+            pm2 stop delight-desk || true
 
-            # Extract new build
-            tar -xzf deploy.tar.gz -C .
-            rm deploy.tar.gz
+            git pull origin dev
 
-            # Install production dependencies
             pnpm install --frozen-lockfile
 
-            # Restart application
+      - name: Copy dist folder to EC2
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ secrets.EC2_HOST }}
+          username: ${{ secrets.EC2_USER }}
+          key: ${{ secrets.EC2_SSH_KEY }}
+          source: 'dist/'
+          target: '/home/ubuntu/delight-desk-backend/'
+          overwrite: true
+
+      - name: Restart Application
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.EC2_HOST }}
+          username: ${{ secrets.EC2_USER }}
+          key: ${{ secrets.EC2_SSH_KEY }}
+          script: |
+            export NVM_DIR="$HOME/.nvm"
+            [ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"
+
+            cd /home/ubuntu/delight-desk-backend
+
             pm2 restart delight-desk --update-env || pm2 start dist/src/main.js --name delight-desk
             pm2 save
+
+            pm2 list
+            pm2 logs delight-desk --lines 20 --nostream

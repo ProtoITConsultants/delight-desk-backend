@@ -12,6 +12,10 @@ export class GoogleOauthService {
     private readonly configService: ConfigService,
   ) {}
 
+  async accountExists(userId: string) {
+    return await this.repo.accountExists(userId);
+  }
+
   async connectGoogleAccount(userId: string, googleAccount: GoogleAccount, scopes: []) {
     await this.repo.removeExistingAccount(userId);
     await this.repo.addGoogleAccount(userId, googleAccount, scopes);

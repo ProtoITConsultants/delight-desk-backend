@@ -3,7 +3,20 @@ import { ConfigService } from '@nestjs/config';
 import { SessionGuard } from 'src/guards/session.guard';
 import { GoogleOauthService } from './google-oauth.service';
 import { CurrentUserId } from 'src/decorators/current-user.decorator';
-import { Body, Controller, Delete, Get, HttpCode, Post, Req, Res, UseGuards } from '@nestjs/common';
+import {
+  BadRequestException,
+  Body,
+  Controller,
+  Delete,
+  Get,
+  HttpCode,
+  HttpStatus,
+  Post,
+  Redirect,
+  Req,
+  Res,
+  UseGuards,
+} from '@nestjs/common';
 
 @Controller('google-oauth')
 export class GoogleOauthController {
@@ -13,8 +26,24 @@ export class GoogleOauthController {
   ) {}
 
   @Get('login')
+  @Redirect()
+  @UseGuards(SessionGuard)
+  async googleLogin(@Req() req: any, @Res() res: any) {
+    const userId = req.session.userId;
+    const existingAccount = await this.googleService.accountExists(userId);
+    if (existingAccount) {
+      throw new BadRequestException('Google account already connected');
+    }
+
+    return {
+      url: '/google-oauth/redirect',
+      statusCode: HttpStatus.FOUND,
+    };
+  }
+
+  @Get('redirect')
   @UseGuards(AuthGuard('google'))
-  async googleLogin() {}
+  async googleRedirect() {}
 
   @Get('callback')
   @UseGuards(AuthGuard('google'))

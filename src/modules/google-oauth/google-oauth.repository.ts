@@ -40,6 +40,16 @@ export class GoogleOauthRepository {
     return account;
   }
 
+  async accountExists(userId: string): Promise<boolean> {
+    const [exists] = await this.db
+      .select({ id: userOAuthAccounts.id })
+      .from(userOAuthAccounts)
+      .where(eq(userOAuthAccounts.userId, userId))
+      .limit(1);
+
+    return !!exists;
+  }
+
   async getGoogleAccountByEmail(email: string) {
     const [account] = await this.db
       .select()

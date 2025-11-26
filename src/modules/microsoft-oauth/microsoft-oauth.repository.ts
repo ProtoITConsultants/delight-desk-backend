@@ -1,8 +1,8 @@
-import { Inject, Injectable } from '@nestjs/common';
-import { NodePgDatabase } from 'drizzle-orm/node-postgres';
 import { eq, and } from 'drizzle-orm';
-import { DATABASE_CONNECTION } from '../../database/database.module';
+import { Inject, Injectable } from '@nestjs/common';
 import { userOAuthAccounts } from '../../database/schema';
+import { NodePgDatabase } from 'drizzle-orm/node-postgres';
+import { DATABASE_CONNECTION } from '../../database/database.module';
 import { MicrosoftAccount } from './types/microsoft-account.interface';
 
 @Injectable()
@@ -42,7 +42,7 @@ export class MicrosoftOauthRepository {
     return account;
   }
 
-  async updateMicrosoftAccount(userId: string, updates: Partial<MicrosoftAccount>) {
+  async updateMicrosoftAccount(userId: string, updates: any) {
     return this.db
       .update(userOAuthAccounts)
       .set(updates)

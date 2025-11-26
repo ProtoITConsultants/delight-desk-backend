@@ -16,6 +16,13 @@ export const userOAuthAccounts = pgTable('user_oauth_accounts', {
   scopes: text('scopes').array(),
   expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
 
+  // For outlook subscription management
+  subscriptionId: text('subscription_id').unique(),
+  subscriptionExpiry: timestamp('subscription_expiry'),
+
+  // For google watch management
+  lastHistoryId: text('last_history_id'),
+
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
 });

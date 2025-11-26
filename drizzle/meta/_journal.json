@@ -22,6 +22,34 @@
       "when": 1763656328361,
       "tag": "0002_fantastic_exiles",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1764001817068,
+      "tag": "0003_acoustic_rocket_racer",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1764079064471,
+      "tag": "0004_powerful_warstar",
+      "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1764080190773,
+      "tag": "0005_cool_talisman",
+      "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1764081133248,
+      "tag": "0006_sharp_silverclaw",
+      "breakpoints": true
     }
   ]
 }

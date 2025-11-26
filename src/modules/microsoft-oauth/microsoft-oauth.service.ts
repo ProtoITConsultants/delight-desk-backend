@@ -1,15 +1,28 @@
-import { Injectable } from '@nestjs/common';
-import { MicrosoftOauthRepository } from './microsoft-oauth.repository';
-import { Client } from '@microsoft/microsoft-graph-client';
 import axios from 'axios';
+import { Injectable } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
+import { Client } from '@microsoft/microsoft-graph-client';
+import { MicrosoftOauthRepository } from './microsoft-oauth.repository';
 
 @Injectable()
 export class MicrosoftOauthService {
-  constructor(private readonly repo: MicrosoftOauthRepository) {}
+  constructor(
+    private readonly repo: MicrosoftOauthRepository,
+    private readonly configService: ConfigService,
+  ) {}
+
+  private getClient(token: string): Client {
+    return Client.init({
+      authProvider: (done) => {
+        done(null, token);
+      },
+    });
+  }
 
   async connectMicrosoftAccount(userId: string, microsoftAccount: any, scopes: string[]) {
     await this.repo.removeExistingAccount(userId);
     await this.repo.addMicrosoftAccount(userId, microsoftAccount, scopes);
+    await this.createMailSubscription(userId);
   }
 
   async disconnectMicrosoftAccount(userId: string) {
@@ -100,11 +113,33 @@ export class MicrosoftOauthService {
     return client.api('/me/mailFolders/Inbox/messages').top(10).get();
   }
 
-  async sendEmail(userId: string, message: any) {
+  async sendEmail(
+    userId: string,
+    params: { to: string; subject: string; body: string },
+  ): Promise<{ success: boolean }> {
     const client = await this.getGraphClientForUser(userId);
-    return client.api('/me/sendMail').post({
-      message: message,
-    });
+
+    const message = {
+      message: {
+        subject: params.subject,
+        body: {
+          contentType: 'Text',
+          content: params.body,
+        },
+        toRecipients: [
+          {
+            emailAddress: {
+              address: params.to,
+            },
+          },
+        ],
+      },
+      saveToSentItems: true,
+    };
+
+    await client.api('/me/sendMail').post(message);
+
+    return { success: true };
   }
 
   async refreshToken(userId: string) {
@@ -130,5 +165,72 @@ export class MicrosoftOauthService {
       isExpired,
       canRefresh: !!account.refreshToken,
     };
+  }
+
+  async createMailSubscription(userId: string) {
+    const account = await this.getValidAccount(userId);
+    const client = this.getGraphClient(account.accessToken);
+
+    const notificationUrl = this.configService.get('MICROSOFT_OUTLOOK_WEBHOOK_URL');
+    if (!notificationUrl) {
+      throw new Error('MICROSOFT_OUTLOOK_WEBHOOK_URL not configured');
+    }
+
+    const expiration = new Date(Date.now() + 60 * 60 * 1000 * 24); // 24 hours
+
+    const body = {
+      changeType: 'created',
+      notificationUrl,
+      resource: 'me/messages',
+      expirationDateTime: expiration.toISOString(),
+      clientState: `${userId}-${Date.now()}`,
+    };
+
+    const subscription = await client.api('/subscriptions').post(body);
+
+    await this.repo.updateMicrosoftAccount(userId, {
+      subscriptionId: subscription.id,
+      subscriptionExpiry: subscription.expirationDateTime,
+    });
+
+    return subscription;
+  }
+
+  async markEmailAsRead(userId: string, messageId: string): Promise<{ success: boolean }> {
+    const client = await this.getGraphClientForUser(userId);
+
+    await client.api(`/me/messages/${messageId}`).patch({
+      isRead: true,
+    });
+
+    return { success: true };
+  }
+
+  async processNotifications(body: any) {
+    if (!body?.value?.length) return;
+
+    for (const notification of body.value) {
+      const subscriptionId = notification.subscriptionId;
+      const messageId = notification.resourceData?.id;
+
+      if (!messageId || !subscriptionId) continue;
+
+      // const account = await this.repo.getMicrosoftAccountBySubscriptionId(subscriptionId);
+      // if (!account) {
+      //   console.error(`Unknown subscription ${subscriptionId}`);
+      //   continue;
+      // }
+
+      // const client = this.getClient(account.accessToken);
+
+      // const message = await client.api(`/me/messages/${messageId}`).get();
+
+      // await this.handleIncomingMail(account.userId, message);
+    }
+  }
+
+  private async handleIncomingMail(userId: string, message: any) {
+    // TODO: Save to DB
+    console.log(`New email for user ${userId}: ${message.subject}`);
   }
 }

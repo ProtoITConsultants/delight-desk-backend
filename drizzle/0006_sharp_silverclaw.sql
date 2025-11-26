@@ -1,0 +1,1 @@
+CREATE UNIQUE INDEX "email_threads_thread_id_idx" ON "email_threads" USING btree ("thread_id");

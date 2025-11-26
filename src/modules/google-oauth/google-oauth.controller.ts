@@ -1,9 +1,9 @@
-import { Controller, Delete, Get, Req, Res, UseGuards } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
-import { GoogleOauthService } from './google-oauth.service';
-import { SessionGuard } from 'src/guards/session.guard';
-import { CurrentUserId } from 'src/decorators/current-user.decorator';
 import { ConfigService } from '@nestjs/config';
+import { SessionGuard } from 'src/guards/session.guard';
+import { GoogleOauthService } from './google-oauth.service';
+import { CurrentUserId } from 'src/decorators/current-user.decorator';
+import { Body, Controller, Delete, Get, HttpCode, Post, Req, Res, UseGuards } from '@nestjs/common';
 
 @Controller('google-oauth')
 export class GoogleOauthController {
@@ -37,6 +37,7 @@ export class GoogleOauthController {
 
     try {
       await this.googleService.connectGoogleAccount(userId, googleAccount, scopes);
+      await this.googleService.watchGmail(userId);
 
       return isRequestFromLocal
         ? res.redirect(GOOGLE_SUCCESS_LOCAL_REDIRECT)
@@ -53,5 +54,16 @@ export class GoogleOauthController {
   async disconnect(@CurrentUserId() userId: string) {
     await this.googleService.disconnectGoogleAccount(userId);
     return { message: 'Account disconnected successfully' };
+  }
+
+  @Post('gmail/webhook')
+  @HttpCode(200)
+  handleGmailWebhook(@Body() body: any) {
+    const message = body?.message?.data;
+    if (!message) return;
+    const decoded = JSON.parse(Buffer.from(message, 'base64').toString('utf-8'));
+    const userEmail = decoded.emailAddress;
+    const historyId = decoded.historyId;
+    // this.googleService.processNewEmails(userEmail, historyId);
   }
 }

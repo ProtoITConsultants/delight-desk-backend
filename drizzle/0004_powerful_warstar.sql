@@ -1,0 +1,1 @@
+ALTER TABLE "user_oauth_accounts" RENAME COLUMN "history_id" TO "last_history_id";

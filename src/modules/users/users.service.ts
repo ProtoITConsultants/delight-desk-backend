@@ -86,29 +86,33 @@ export class UsersService {
     return { deleted: true };
   }
 
-  async getUsersForAdminPanel(q?: string, page = 1, limit = 20): Promise<GetUsersResponse> {
+  async getUsersForAdminPanel(
+    userId: string,
+    q?: string,
+    page = 1,
+    limit = 20,
+  ): Promise<GetUsersResponse> {
     const offset = (page - 1) * limit;
 
-    let whereSql = sql`WHERE TRUE`;
+    let conditions = sql`TRUE`;
 
     if (q && q.trim()) {
       const like = `%${q.trim().toLowerCase()}%`;
 
-      whereSql = sql`
-      ${whereSql}
+      conditions = sql`
+      ${conditions}
       AND (
         LOWER(u.email) LIKE ${like}
         OR LOWER(u.first_name) LIKE ${like}
         OR LOWER(u.last_name) LIKE ${like}
-        OR LOWER(u.phone) LIKE ${like}
       )
     `;
     }
 
-    const total = await this.userRepo.countUsers(whereSql);
-    const rows: any = await this.userRepo.getUsers(whereSql, limit, offset);
+    const total = await this.userRepo.countUsers(conditions, userId);
+    const rows = await this.userRepo.getUsers(conditions, limit, offset, userId);
 
-    const items: UserDetail[] = rows.map((r) => ({
+    const items: any = rows.map((r) => ({
       id: r.id,
       email: r.email,
       firstName: r.firstName,
@@ -120,12 +124,7 @@ export class UsersService {
       subscriptionPlanName: r.subscriptionPlanName ?? null,
     }));
 
-    return {
-      total,
-      page,
-      limit,
-      items,
-    };
+    return { total, page, limit, items };
   }
 
   async getConnectionsDetail(userId: string) {

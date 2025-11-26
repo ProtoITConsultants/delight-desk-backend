@@ -22,10 +22,10 @@ export class UsersController {
   }
 
   @Get()
-  async getUsersForAdminPanel(@Query() query: GetUsersDto) {
+  async getUsersForAdminPanel(@Query() query: GetUsersDto, @CurrentUserId() userId: string) {
     const page = query.page ?? 1;
     const limit = query.limit ?? 10;
-    const result = await this.usersService.getUsersForAdminPanel(query.q, page, limit);
+    const result = await this.usersService.getUsersForAdminPanel(userId, query.q, page, limit);
     return result;
   }
 

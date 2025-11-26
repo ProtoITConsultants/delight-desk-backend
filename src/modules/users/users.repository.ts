@@ -71,18 +71,18 @@ export class UserRepository {
     return true;
   }
 
-  async countUsers(whereSql: any): Promise<number> {
+  async countUsers(conditions: any, userId: string) {
     const query = sql`
-    SELECT COUNT(*)::int AS total
+    SELECT COUNT(*) AS total
     FROM users u
-    ${whereSql}
+    WHERE ${conditions}
+      AND u.id <> ${userId}
   `;
-
     const result = await this.db.execute(query);
-    return (result.rows?.[0]?.total as number) ?? 0;
+    return Number(result.rows[0].total);
   }
 
-  async getUsers(whereSql: any, limit: number, offset: number) {
+  async getUsers(conditions: any, limit: number, offset: number, userId: string) {
     const query = sql`
     SELECT
       u.id,
@@ -135,7 +135,9 @@ export class UserRepository {
       LIMIT 1
     ) sb ON TRUE
 
-    ${whereSql}
+    WHERE ${conditions}
+      AND u.id <> ${userId}
+
     ORDER BY u.created_at DESC
     LIMIT ${limit}
     OFFSET ${offset}

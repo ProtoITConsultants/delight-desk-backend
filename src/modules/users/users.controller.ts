@@ -1,4 +1,13 @@
-import { Controller, Get, Query, Param, Delete, ParseUUIDPipe, UseGuards } from '@nestjs/common';
+import {
+  Controller,
+  Get,
+  Query,
+  Param,
+  Delete,
+  ParseUUIDPipe,
+  UseGuards,
+  ForbiddenException,
+} from '@nestjs/common';
 import { UsersService } from './users.service';
 import { GetUsersDto } from './dto/index.dto';
 import { SessionGuard } from 'src/guards/session.guard';
@@ -23,6 +32,8 @@ export class UsersController {
 
   @Get()
   async getUsersForAdminPanel(@Query() query: GetUsersDto, @CurrentUserId() userId: string) {
+    const { isAdmin } = await this.usersService.verifyAdmin(userId);
+    if (!isAdmin) throw new ForbiddenException();
     const page = query.page ?? 1;
     const limit = query.limit ?? 10;
     const result = await this.usersService.getUsersForAdminPanel(userId, query.q, page, limit);

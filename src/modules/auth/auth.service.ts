@@ -46,6 +46,8 @@ export class AuthService {
 
     if (!match) throw new BadRequestException('Invalid credentials');
 
+    await this.usersService.update(user.id, { lastLoginAt: new Date() });
+
     session.userId = user.id;
 
     return { userId: user.id };

@@ -1,7 +1,10 @@
-import { ForbiddenException, Injectable } from '@nestjs/common';
-import { UserRepository } from './users.repository';
-import { CreateUserDto } from './dto/index.dto';
 import { sql } from 'drizzle-orm';
+import { CreateUserDto } from './dto/index.dto';
+import { UserRepository } from './users.repository';
+import { ForbiddenException, Injectable } from '@nestjs/common';
+import { GoogleOauthRepository } from '../google-oauth/google-oauth.repository';
+import { MicrosoftOauthRepository } from '../microsoft-oauth/microsoft-oauth.repository';
+import { UserStoreConnectionsRepository } from '../woocommerce-oauth/user-store-connections.repository';
 import type {
   GetUsersResponse,
   UserDetail,
@@ -9,17 +12,14 @@ import type {
   DeleteUserResponse,
   MeResponse,
 } from './dto/response.dto';
-import { UserStoreConnectionsRepository } from '../woocommerce-oauth/user-store-connections.repository';
-import { GoogleOauthRepository } from '../google-oauth/google-oauth.repository';
-import { MicrosoftOauthRepository } from '../microsoft-oauth/microsoft-oauth.repository';
 
 @Injectable()
 export class UsersService {
   constructor(
     private readonly userRepo: UserRepository,
-    private readonly storeRepo: UserStoreConnectionsRepository,
-    private readonly googleOauthRepo: GoogleOauthRepository,
     private readonly msOauthRepo: MicrosoftOauthRepository,
+    private readonly googleOauthRepo: GoogleOauthRepository,
+    private readonly storeRepo: UserStoreConnectionsRepository,
   ) {}
 
   create(createUserDto: CreateUserDto) {
@@ -80,7 +80,7 @@ export class UsersService {
     return { deleted: true };
   }
 
-  async getUsersWithDetails(q?: string, page = 1, limit = 20): Promise<GetUsersResponse> {
+  async getUsersForAdminPanel(q?: string, page = 1, limit = 20): Promise<GetUsersResponse> {
     const offset = (page - 1) * limit;
 
     let whereSql = sql`WHERE TRUE`;
@@ -101,6 +101,7 @@ export class UsersService {
 
     const total = await this.userRepo.countUsers(whereSql);
     const rows: any = await this.userRepo.getUsers(whereSql, limit, offset);
+
     const items: UserDetail[] = rows.map((r) => ({
       id: r.id,
       email: r.email,
@@ -110,6 +111,7 @@ export class UsersService {
       lastLoginAt: r.lastLoginAt,
       oauthAccount: r.oauthAccount ?? null,
       storeConnection: r.storeConnection ?? null,
+      subscription: r.subscription ?? null,
     }));
 
     return {

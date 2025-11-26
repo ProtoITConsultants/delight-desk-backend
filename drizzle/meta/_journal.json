@@ -50,6 +50,27 @@
       "when": 1764081133248,
       "tag": "0006_sharp_silverclaw",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1764158058139,
+      "tag": "0007_legal_shinobi_shaw",
+      "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1764158087872,
+      "tag": "0008_mushy_squadron_supreme",
+      "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1764161472144,
+      "tag": "0009_reflective_the_watchers",
+      "breakpoints": true
     }
   ]
 }

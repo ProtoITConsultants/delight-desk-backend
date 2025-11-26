@@ -1,19 +1,27 @@
 import { Body, Controller, Post, Session } from '@nestjs/common';
 import { AuthService } from './auth.service';
 import { SignupDto, ForgotPasswordDto, LoginDto, ResetPasswordDto } from './dto/index.dto';
+import { SubscriptionService } from '../billing/subscriptions/subscription.service';
 
 @Controller('auth')
 export class AuthController {
-  constructor(private readonly authService: AuthService) {}
+  constructor(
+    private readonly authService: AuthService,
+    private readonly subscriptionService: SubscriptionService,
+  ) {}
 
   @Post('signup')
-  signup(@Body() dto: SignupDto, @Session() session: Record<string, any>) {
-    return this.authService.signup(dto, session);
+  async signup(@Body() dto: SignupDto, @Session() session: Record<string, any>) {
+    const { userId } = await this.authService.signup(dto, session);
+    await this.subscriptionService.createSubscriptionManual(userId);
+    return { message: 'Signup successful' };
   }
 
   @Post('login')
-  login(@Body() dto: LoginDto, @Session() session: Record<string, any>) {
-    return this.authService.login(dto, session);
+  async login(@Body() dto: LoginDto, @Session() session: Record<string, any>) {
+    const { userId } = await this.authService.login(dto, session);
+    await this.subscriptionService.createSubscriptionManual(userId);
+    return { message: 'Login successful' };
   }
 
   @Post('logout')

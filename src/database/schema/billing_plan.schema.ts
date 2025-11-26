@@ -1,13 +1,4 @@
-import {
-  pgTable,
-  uuid,
-  text,
-  decimal,
-  integer,
-  boolean,
-  jsonb,
-  timestamp,
-} from 'drizzle-orm/pg-core';
+import { pgTable, uuid, text, decimal, integer, jsonb, timestamp } from 'drizzle-orm/pg-core';
 
 export const billingPlans = pgTable('billing_plans', {
   id: uuid('id').primaryKey().defaultRandom(),
@@ -19,7 +10,6 @@ export const billingPlans = pgTable('billing_plans', {
   costPerResolution: decimal('cost_per_resolution', { precision: 10, scale: 2 }).notNull(),
   emailLimit: integer('email_limit'),
   features: jsonb('features').$type<string[]>().notNull(),
-  isActive: boolean('is_active').default(true),
 
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),

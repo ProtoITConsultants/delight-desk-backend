@@ -28,7 +28,6 @@ async function seedBillingPlans() {
         'AI automations and Quick Actions',
         'Support: Priority Email + Phone',
       ],
-      isActive: false,
       resolutions: 40,
     },
     {
@@ -43,7 +42,6 @@ async function seedBillingPlans() {
         'AI automations and Quick Actions',
         'Support: Email',
       ],
-      isActive: true,
       resolutions: 10,
     },
     {
@@ -58,7 +56,6 @@ async function seedBillingPlans() {
         'AI automations and Quick Actions',
         'Support: Priority Email + Phone + Slack',
       ],
-      isActive: false,
       resolutions: 100,
     },
   ];

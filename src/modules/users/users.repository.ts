@@ -92,11 +92,9 @@ export class UserRepository {
       u.phone,
       u.last_login_at AS "lastLoginAt",
 
-      -- Single OAuth account
       o.oauth_account AS "oauthAccount",
-
-      -- Single Store connection
-      s.store_connection AS "storeConnection"
+      s.store_connection AS "storeConnection",
+      sb.subscription AS "subscription"
 
     FROM users u
 
@@ -128,6 +126,34 @@ export class UserRepository {
       WHERE sc.user_id = u.id
       LIMIT 1
     ) s ON TRUE
+
+    -- Single Subscription + Plan
+    LEFT JOIN LATERAL (
+      SELECT json_build_object(
+        'subscriptionId', sub.id,
+        'status', sub.status,
+        'stripeSubscriptionId', sub.stripe_subscription_id,
+        'currentPeriodStart', sub.current_period_start,
+        'currentPeriodEnd', sub.current_period_end,
+        'cancelAtPeriodEnd', sub.cancel_at_period_end,
+        'resolutionsRemaining', sub.resolutions_remaining,
+        'plan', json_build_object(
+            'id', bp.id,
+            'name', bp.name,
+            'displayName', bp.display_name,
+            'price', bp.price,
+            'resolutions', bp.resolutions,
+            'costPerResolution', bp.cost_per_resolution,
+            'emailLimit', bp.email_limit,
+            'features', bp.features
+        )
+      ) AS subscription
+      FROM subscriptions sub
+      JOIN billing_plans bp ON bp.id = sub.plan_id
+      WHERE sub.user_id = u.id
+      ORDER BY sub.created_at DESC
+      LIMIT 1
+    ) sb ON TRUE
 
     ${whereSql}
     ORDER BY u.created_at DESC

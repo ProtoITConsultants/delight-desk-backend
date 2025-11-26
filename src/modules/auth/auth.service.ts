@@ -34,7 +34,7 @@ export class AuthService {
 
     session.userId = user.id;
 
-    return { message: 'Signup successful' };
+    return { userId: user.id };
   }
 
   async login(dto: LoginDto, session: Record<string, any>) {
@@ -48,7 +48,7 @@ export class AuthService {
 
     session.userId = user.id;
 
-    return { message: 'Login successful' };
+    return { userId: user.id };
   }
 
   async logout(session: Record<string, any>) {

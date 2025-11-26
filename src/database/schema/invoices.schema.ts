@@ -4,7 +4,9 @@ import { subscriptions } from './index';
 export const invoices = pgTable('invoices', {
   id: uuid('id').primaryKey().defaultRandom(),
 
-  subscriptionId: uuid('subscription_id').references(() => subscriptions.id),
+  subscriptionId: uuid('subscription_id').references(() => subscriptions.id, {
+    onDelete: 'cascade',
+  }),
 
   stripeInvoiceId: text('stripe_invoice_id').notNull(),
   amountDue: decimal('amount_due', { precision: 10, scale: 2 }),

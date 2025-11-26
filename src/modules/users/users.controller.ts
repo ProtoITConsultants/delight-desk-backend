@@ -39,7 +39,6 @@ export class UsersController {
     @Param('id', new ParseUUIDPipe()) id: string,
     @CurrentUserId() sessionUserId: string,
   ) {
-    await this.usersService.deleteUserById(sessionUserId, id);
-    return { deleted: true };
+    return await this.usersService.deleteUserById(sessionUserId, id);
   }
 }

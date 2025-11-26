@@ -6,11 +6,11 @@ export const subscriptions = pgTable('subscriptions', {
 
   userId: uuid('user_id')
     .notNull()
-    .references(() => users.id),
+    .references(() => users.id, { onDelete: 'cascade' }),
 
   planId: uuid('plan_id')
     .notNull()
-    .references(() => billingPlans.id),
+    .references(() => billingPlans.id, { onDelete: 'cascade' }),
 
   stripeSubscriptionId: text('stripe_subscription_id').notNull(),
 

@@ -6,11 +6,11 @@ import { GoogleOauthRepository } from '../google-oauth/google-oauth.repository';
 import { MicrosoftOauthRepository } from '../microsoft-oauth/microsoft-oauth.repository';
 import { UserStoreConnectionsRepository } from '../woocommerce-oauth/user-store-connections.repository';
 import type {
-  GetUsersResponse,
   UserDetail,
-  VerifyAdminResponse,
-  DeleteUserResponse,
   MeResponse,
+  GetUsersResponse,
+  DeleteUserResponse,
+  VerifyAdminResponse,
 } from './dto/response.dto';
 
 @Injectable()
@@ -71,12 +71,18 @@ export class UsersService {
     return row[0];
   }
 
-  async deleteUserById(sessionUserId: string, targetId: string): Promise<DeleteUserResponse> {
-    const isAdmin = await this.userRepo.isAdmin(sessionUserId);
+  async deleteUserById(adminUserId: string, userId: string): Promise<DeleteUserResponse> {
+    const isAdmin = await this.userRepo.isAdmin(adminUserId);
     if (!isAdmin) throw new ForbiddenException();
 
-    await this.userRepo.deleteSessionsByUserId(targetId);
-    await this.userRepo.deleteById(targetId);
+    const isSelfDelete = adminUserId === userId;
+    if (isSelfDelete) throw new ForbiddenException('Self delete is not allowed.');
+
+    await Promise.all([
+      this.userRepo.deleteSessionsByUserId(userId),
+      this.userRepo.deleteById(userId),
+    ]);
+
     return { deleted: true };
   }
 

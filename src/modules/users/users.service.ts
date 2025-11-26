@@ -111,7 +111,7 @@ export class UsersService {
       lastLoginAt: r.lastLoginAt,
       oauthAccount: r.oauthAccount ?? null,
       storeConnection: r.storeConnection ?? null,
-      subscription: r.subscription ?? null,
+      subscriptionPlanName: r.subscriptionPlanName ?? null,
     }));
 
     return {

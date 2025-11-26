@@ -1,25 +1,3 @@
-export interface BillingPlan {
-  id: string;
-  name: string;
-  displayName: string;
-  price: string;
-  resolutions: number;
-  costPerResolution: string;
-  emailLimit: number | null;
-  features: string[];
-}
-
-export interface Subscription {
-  subscriptionId: string;
-  status: string;
-  stripeSubscriptionId: string;
-  currentPeriodStart: string;
-  currentPeriodEnd: string;
-  cancelAtPeriodEnd: number | null;
-  resolutionsRemaining: number;
-  plan: BillingPlan;
-}
-
 export interface OAuthAccount {
   id: string;
   provider: string;
@@ -47,7 +25,7 @@ export interface UserDetail {
   lastLoginAt: string | null;
   oauthAccount: OAuthAccount | null;
   storeConnection: StoreConnection | null;
-  subscription: Subscription | null;
+  subscriptionPlanName: string | null;
 }
 
 export interface GetUsersResponse {

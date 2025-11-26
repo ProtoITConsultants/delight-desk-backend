@@ -91,11 +91,9 @@ export class UserRepository {
       u.last_name AS "lastName",
       u.phone,
       u.last_login_at AS "lastLoginAt",
-
       o.oauth_account AS "oauthAccount",
       s.store_connection AS "storeConnection",
-      sb.subscription AS "subscription"
-
+      sb.subscription_plan_name AS "subscriptionPlanName"
     FROM users u
 
     -- Single OAuth row
@@ -127,27 +125,9 @@ export class UserRepository {
       LIMIT 1
     ) s ON TRUE
 
-    -- Single Subscription + Plan
+    -- Single subscription plan name only
     LEFT JOIN LATERAL (
-      SELECT json_build_object(
-        'subscriptionId', sub.id,
-        'status', sub.status,
-        'stripeSubscriptionId', sub.stripe_subscription_id,
-        'currentPeriodStart', sub.current_period_start,
-        'currentPeriodEnd', sub.current_period_end,
-        'cancelAtPeriodEnd', sub.cancel_at_period_end,
-        'resolutionsRemaining', sub.resolutions_remaining,
-        'plan', json_build_object(
-            'id', bp.id,
-            'name', bp.name,
-            'displayName', bp.display_name,
-            'price', bp.price,
-            'resolutions', bp.resolutions,
-            'costPerResolution', bp.cost_per_resolution,
-            'emailLimit', bp.email_limit,
-            'features', bp.features
-        )
-      ) AS subscription
+      SELECT bp.name AS subscription_plan_name
       FROM subscriptions sub
       JOIN billing_plans bp ON bp.id = sub.plan_id
       WHERE sub.user_id = u.id

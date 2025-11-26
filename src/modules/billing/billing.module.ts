@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 import { PlansService } from './plans/plans.service';
+import { PlansController } from './plans/plans.controller';
 import { PlansRepository } from './plans/plans.repository';
 import { DatabaseModule } from 'src/database/database.module';
 import { SubscriptionService } from './subscriptions/subscription.service';
@@ -8,7 +9,7 @@ import { SubscriptionController } from './subscriptions/subscription.controller'
 
 @Module({
   imports: [DatabaseModule],
-  controllers: [SubscriptionController],
+  controllers: [SubscriptionController, PlansController],
   providers: [PlansService, SubscriptionService, PlansRepository, SubscriptionRepository],
   exports: [PlansService, SubscriptionService],
 })

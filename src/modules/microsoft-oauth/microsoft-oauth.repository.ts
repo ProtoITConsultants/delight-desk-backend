@@ -18,6 +18,16 @@ export class MicrosoftOauthRepository {
     return result.length > 0;
   }
 
+  async accountExists(userId: string): Promise<boolean> {
+    const [exists] = await this.db
+      .select({ id: userOAuthAccounts.id })
+      .from(userOAuthAccounts)
+      .where(eq(userOAuthAccounts.userId, userId))
+      .limit(1);
+
+    return !!exists;
+  }
+
   async addMicrosoftAccount(userId: string, account: MicrosoftAccount, scopes: string[] = []) {
     return this.db.insert(userOAuthAccounts).values({
       userId,

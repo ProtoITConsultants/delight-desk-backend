@@ -7,8 +7,8 @@ import { MicrosoftOauthRepository } from './microsoft-oauth.repository';
 @Injectable()
 export class MicrosoftOauthService {
   constructor(
-    private readonly repo: MicrosoftOauthRepository,
     private readonly configService: ConfigService,
+    private readonly repo: MicrosoftOauthRepository,
   ) {}
 
   private getClient(token: string): Client {
@@ -17,6 +17,10 @@ export class MicrosoftOauthService {
         done(null, token);
       },
     });
+  }
+
+  async accountExists(userId: string) {
+    return await this.repo.accountExists(userId);
   }
 
   async connectMicrosoftAccount(userId: string, microsoftAccount: any, scopes: string[]) {

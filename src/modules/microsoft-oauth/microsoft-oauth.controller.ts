@@ -1,26 +1,52 @@
-import { ConfigService } from '@nestjs/config';
 import { AuthGuard } from '@nestjs/passport';
+import { ConfigService } from '@nestjs/config';
 import { SessionGuard } from 'src/guards/session.guard';
 import { MicrosoftOauthService } from './microsoft-oauth.service';
 import { CurrentUserId } from 'src/decorators/current-user.decorator';
-import { Body, Controller, Delete, Get, Post, Query, Req, Res, UseGuards } from '@nestjs/common';
+import {
+  Get,
+  Req,
+  Res,
+  Body,
+  Post,
+  Query,
+  Delete,
+  UseGuards,
+  Controller,
+  HttpStatus,
+  BadRequestException,
+} from '@nestjs/common';
 
 @Controller('microsoft-oauth')
 export class MicrosoftOauthController {
   constructor(
-    private readonly microsoftService: MicrosoftOauthService,
     private readonly configService: ConfigService,
+    private readonly microsoftService: MicrosoftOauthService,
   ) {}
 
   @Get('login')
+  @UseGuards(SessionGuard)
+  async microsoftLogin(@Req() req: any) {
+    const userId = req.session.userId;
+    const existingAccount = await this.microsoftService.accountExists(userId);
+    if (existingAccount) {
+      throw new BadRequestException('An account already connected');
+    }
+
+    return {
+      url: '/google-oauth/redirect',
+      statusCode: HttpStatus.FOUND,
+    };
+  }
+
+  @Get('redirect')
   @UseGuards(AuthGuard('microsoft'))
-  async microsoftLogin() {}
+  async microsoftRedirect() {}
 
   @Get('callback')
   @UseGuards(AuthGuard('microsoft'))
   async microsoftCallback(@Req() req: any, @Res() res: any) {
     const userId = req.session?.userId;
-    // const userId = '6a9bd2af-76e4-4376-a996-c73cbd0d0d6d';
     const msAccount = req.user;
     const scopes = req.query.scope?.toString().split(' ') || [];
 

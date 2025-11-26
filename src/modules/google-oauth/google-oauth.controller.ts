@@ -28,11 +28,11 @@ export class GoogleOauthController {
   @Get('login')
   @Redirect()
   @UseGuards(SessionGuard)
-  async googleLogin(@Req() req: any, @Res() res: any) {
+  async googleLogin(@Req() req: any) {
     const userId = req.session.userId;
     const existingAccount = await this.googleService.accountExists(userId);
     if (existingAccount) {
-      throw new BadRequestException('Google account already connected');
+      throw new BadRequestException('An account already connected');
     }
 
     return {

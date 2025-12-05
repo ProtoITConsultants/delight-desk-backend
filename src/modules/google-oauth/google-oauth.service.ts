@@ -118,7 +118,6 @@ export class GoogleOauthService {
     const account = await this.repo.getGoogleAccountByEmail(email);
     const gmail = await this.getGmailClient(account.userId);
     const startHistoryId = account.lastHistoryId ? account.lastHistoryId.toString() : null;
-    console.log({ startHistoryId });
 
     let historyRes: any = null;
     try {
@@ -132,7 +131,7 @@ export class GoogleOauthService {
         const listRes = await gmail.users.messages.list({
           userId: 'me',
           labelIds: ['INBOX'],
-          maxResults: 1,
+          maxResults: 10,
         });
         const msgIds = listRes.data.messages || [];
         historyRes = { fullSync: true, messages: msgIds.map((m: any) => ({ id: m.id })) };
@@ -141,14 +140,14 @@ export class GoogleOauthService {
       const listRes = await gmail.users.messages.list({
         userId: 'me',
         labelIds: ['INBOX'],
-        maxResults: 1,
+        maxResults: 10,
       });
       const msgIds = listRes.data.messages || [];
       historyRes = { fullSync: true, messages: msgIds.map((m: any) => ({ id: m.id })) };
     }
 
     const messages: any[] =
-      historyRes?.history?.flatMap((h: any) => h.messages) || historyRes?.messages || [];
+      historyRes?.data?.history?.flatMap((h: any) => h.messages) || historyRes?.messages || [];
 
     for (const msgRef of messages) {
       try {
@@ -174,13 +173,11 @@ export class GoogleOauthService {
         const snippet = msg.snippet || null;
 
         const { text, html } = await this.parseGmailMessageBody(msg);
-        const body = html || text || snippet;
+        const rawBody = html || text || snippet;
+        const body = this.extractLatestReply(rawBody);
 
         const thread = await this.repo.upsertThread(account.userId, threadId, subject);
 
-        console.log({ thread });
-
-        // Prepare email payload
         const emailPayload = {
           messageId: messageId,
           threadId: thread.id,
@@ -263,5 +260,34 @@ export class GoogleOauthService {
     }
     walk(payload);
     return out;
+  }
+
+  private extractLatestReply(body: string | null): string | null {
+    if (!body) return null;
+
+    // Decode HTML entities
+    const decoded = body
+      .replace(/&lt;/g, '<')
+      .replace(/&gt;/g, '>')
+      .replace(/&quot;/g, '"')
+      .replace(/&amp;/g, '&');
+
+    // Pattern to match Gmail quote headers: "On [date] at [time] [name] <email> wrote:"
+    const quotePattern = /On .+? at .+? .+? <.+?> wrote:/i;
+
+    // Split on the first quote header to get just the latest message
+    const parts = decoded.split(quotePattern);
+
+    // The first part is the newest content
+    let latest = parts[0].trim();
+
+    // Also remove lines that start with '>' (common quote marker)
+    const lines = latest
+      .split('\n')
+      .filter((line) => !line.trim().startsWith('>'))
+      .join('\n')
+      .trim();
+
+    return lines || null;
   }
 }

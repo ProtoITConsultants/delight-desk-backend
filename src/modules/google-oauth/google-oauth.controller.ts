@@ -4,25 +4,25 @@ import { SessionGuard } from 'src/guards/session.guard';
 import { GoogleOauthService } from './google-oauth.service';
 import { CurrentUserId } from 'src/decorators/current-user.decorator';
 import {
-  BadRequestException,
-  Body,
-  Controller,
-  Delete,
-  Get,
-  HttpCode,
-  HttpStatus,
-  Post,
-  Redirect,
   Req,
+  Get,
   Res,
+  Body,
+  Post,
+  Delete,
+  HttpCode,
+  Redirect,
   UseGuards,
+  HttpStatus,
+  Controller,
+  BadRequestException,
 } from '@nestjs/common';
 
 @Controller('google-oauth')
 export class GoogleOauthController {
   constructor(
-    private readonly googleService: GoogleOauthService,
     private readonly configService: ConfigService,
+    private readonly googleService: GoogleOauthService,
   ) {}
 
   @Get('login')
@@ -49,6 +49,7 @@ export class GoogleOauthController {
   @UseGuards(AuthGuard('google'))
   async googleCallback(@Req() req: any, @Res() res: any) {
     const userId = req.session?.userId;
+    // const userId = '6a9bd2af-76e4-4376-a996-c73cbd0d0d6d';
     const googleAccount = req.user;
     const scopes = req.query.scope?.toString().split(' ') || [];
 
@@ -87,12 +88,24 @@ export class GoogleOauthController {
 
   @Post('gmail/webhook')
   @HttpCode(200)
-  handleGmailWebhook(@Body() body: any) {
+  async handleGmailWebhook(@Body() body: any) {
     const message = body?.message?.data;
-    if (!message) return;
-    const decoded = JSON.parse(Buffer.from(message, 'base64').toString('utf-8'));
-    const userEmail = decoded.emailAddress;
-    const historyId = decoded.historyId;
-    // this.googleService.processNewEmails(userEmail, historyId);
+    if (!message) {
+      return { status: 'no_message' };
+    }
+
+    try {
+      const decoded = JSON.parse(Buffer.from(message, 'base64').toString('utf-8'));
+      const userEmail = decoded.emailAddress;
+      const historyId = decoded.historyId;
+
+      if (userEmail !== 'nabeel.asif362@gmail.com') return;
+
+      console.log(`Webhook received for ${userEmail}, historyId: ${historyId}`);
+
+      this.googleService.processNewEmails(userEmail, historyId);
+    } catch (error) {
+      console.error('Error handling webhook:', error);
+    }
   }
 }

@@ -26,8 +26,9 @@ jobs:
       - name: Build & Deploy
         run: |
           ssh -o StrictHostKeyChecking=no ${{ secrets.EC2_USER }}@${{ secrets.EC2_HOST }} << 'EOF'
-            source ~/.bashrc
             cd ~/delight-desk
+            export NVM_DIR="$HOME/.nvm"
+            [ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"
             export NODE_OPTIONS="--max-old-space-size=8192"
             npm install
             npm run build

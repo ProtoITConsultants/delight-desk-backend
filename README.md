@@ -74,22 +74,92 @@ npm run start:prod
   npm run lint
   ```
 
-## Scripts
+## Docker Setup
 
-| Script       | Description                    |
-| ------------ | ------------------------------ |
-| build        | Build the NestJS app           |
-| start        | Start the app                  |
-| start:dev    | Start in watch mode            |
-| start:prod   | Start production build         |
-| format       | Format code with Prettier      |
-| format:check | Check code formatting          |
-| lint         | Lint and auto-fix code         |
-| db:generate  | Generate Drizzle ORM artifacts |
-| db:push      | Push schema to DB              |
-| db:migrate   | Run DB migrations              |
-| db:studio    | Open Drizzle Studio            |
-| seed:billing | Seed billing plans             |
+This project uses a **single Dockerfile** with multi-stage builds for development and production.
+
+---
+
+## Prerequisites
+
+- Docker >= 24
+- Docker Compose >= 2.17
+- `.env` file in the project root with necessary environment variables
+
+---
+
+## Development
+
+The development setup uses hot-reload and bind mounts.
+
+### Build & Run
+
+```bash
+docker compose up --build
+```
+
+- Builds the development image if needed (`target: development`)
+- Starts the container
+- Live reload enabled
+
+### Stop Development Container
+
+```bash
+docker compose down
+```
+
+### Notes
+
+- Code changes in the host machine automatically reflect inside the container.
+- Node modules are isolated in a volume (`/app/node_modules`) to avoid overwriting.
+
+---
+
+## Production
+
+The production setup builds an optimized image and runs without bind mounts.
+
+### Build & Run
+
+```bash
+docker compose -f docker-compose.yml -f docker-compose.prod.yml up --build -d
+```
+
+- Builds the production image (`target: production`)
+- Runs container in detached mode
+- Exposes port `3000`
+
+### Stop Production Container
+
+```bash
+docker compose -f docker-compose.yml -f docker-compose.prod.yml down
+```
+
+### Notes
+
+- No bind mounts → container is self-contained
+- Uses environment variables from `.env`
+- Optimized for performance with built artifacts (`npm run build`)
+
+---
+
+## View Logs
+
+```bash
+docker logs -f delight-desk-dev      # Development
+docker logs -f delight-desk-prod     # Production
+```
+
+---
+
+## Rebuild Images (Optional)
+
+If you want to rebuild without cache:
+
+```bash
+docker compose build --no-cache         # Development
+docker compose -f docker-compose.yml -f docker-compose.prod.yml build --no-cache   # Production
+```
 
 ## License
 

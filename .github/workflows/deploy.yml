@@ -1,4 +1,4 @@
-name: Deploy Delight Desk
+name: Delight Desk Deployment
 
 on:
   push:
@@ -23,16 +23,9 @@ jobs:
           ssh -o StrictHostKeyChecking=no ${{ secrets.EC2_USER }}@${{ secrets.EC2_HOST }} "mkdir -p ~/delight-desk"
           rsync -avz --exclude 'node_modules' ./ ${{ secrets.EC2_USER }}@${{ secrets.EC2_HOST }}:~/delight-desk/
 
-      - name: Build & run production container
+      - name: Build & Deploy
         run: |
           ssh -o StrictHostKeyChecking=no ${{ secrets.EC2_USER }}@${{ secrets.EC2_HOST }} << 'EOF'
             cd ~/delight-desk
-            # Pull latest image or build locally
-            docker compose -f docker-compose.yml -f docker-compose.prod.yml build
-            # Run migrations
-            docker compose -f docker-compose.yml -f docker-compose.prod.yml run --rm app npm run db:migrate:prod
-            # Start/Update container
-            docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d
-            # Optional: prune old images
-            docker image prune -f
+            npm run deploy
           EOF

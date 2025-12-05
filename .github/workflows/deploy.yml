@@ -26,6 +26,7 @@ jobs:
       - name: Build & Deploy
         run: |
           ssh -o StrictHostKeyChecking=no ${{ secrets.EC2_USER }}@${{ secrets.EC2_HOST }} << 'EOF'
+            source ~/.bashrc
             cd ~/delight-desk
             export NODE_OPTIONS="--max-old-space-size=8192"
             npm install

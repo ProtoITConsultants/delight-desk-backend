@@ -12,7 +12,6 @@
     "start": "nest start",
     "start:dev": "nest start --watch",
     "start:debug": "nest start --debug --watch",
-    "deploy": "npm run build && pm2 startOrReload ecosystem.config.js --update-env && pm2 save",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "drizzle-kit migrate",
     "db:studio": "drizzle-kit studio",

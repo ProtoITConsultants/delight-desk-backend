@@ -1,8 +1,8 @@
 import { eq, sql } from 'drizzle-orm';
 import { Injectable, Inject } from '@nestjs/common';
-import { users } from 'src/database/schema/user.schema';
 import type { NodePgDatabase } from 'drizzle-orm/node-postgres';
 import { DATABASE_CONNECTION } from 'src/database/database.module';
+import { users, agents, userAgents, systemSettings } from 'src/database/schema/index';
 
 @Injectable()
 export class UserRepository {
@@ -169,5 +169,30 @@ export class UserRepository {
     await this.db.execute(sql`DELETE FROM user_sessions WHERE sid = ANY(${sidsToDelete}::text[])`);
 
     return true;
+  }
+
+  async initializeUser(userId: string): Promise<boolean> {
+    try {
+      const _agents = await this.db.select().from(agents);
+
+      const userAgentRows = _agents.map((agent) => ({
+        userId,
+        agentId: agent.id,
+        isEnabled: false,
+        requiresModeration: false,
+      }));
+
+      await this.db.insert(userAgents).values(userAgentRows);
+
+      await this.db.insert(systemSettings).values({
+        userId: userId,
+        hasTrackingPluginForWoocommerce: false,
+      });
+
+      return true;
+    } catch (error) {
+      console.error(error);
+      return false;
+    }
   }
 }

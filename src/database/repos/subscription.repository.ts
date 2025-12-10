@@ -1,7 +1,7 @@
 import { eq } from 'drizzle-orm';
+import { subscriptions } from '../schema';
 import { Inject, Injectable } from '@nestjs/common';
 import { NodePgDatabase } from 'drizzle-orm/node-postgres';
-import { subscriptions } from '../../../database/schema/index';
 import { DATABASE_CONNECTION } from 'src/database/database.module';
 
 @Injectable()

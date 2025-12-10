@@ -4,7 +4,7 @@ import { GoogleStrategy } from './google.strategy';
 import { GoogleOauthService } from './google-oauth.service';
 import { DatabaseModule } from 'src/database/database.module';
 import { GoogleOauthController } from './google-oauth.controller';
-import { GoogleOauthRepository } from './google-oauth.repository';
+import { GoogleOauthRepository } from '../../database/repos/google-oauth.repository';
 
 @Module({
   imports: [PassportModule.register({ session: true }), DatabaseModule],

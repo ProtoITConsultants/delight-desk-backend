@@ -98,11 +98,8 @@ export class GoogleOauthController {
       const decoded = JSON.parse(Buffer.from(message, 'base64').toString('utf-8'));
       const userEmail = decoded.emailAddress;
       const historyId = decoded.historyId;
-
-      if (userEmail !== 'nabeel.asif362@gmail.com') return;
-
       console.log(`Webhook received for ${userEmail}, historyId: ${historyId}`);
-
+      return;
       this.googleService.processNewEmails(userEmail, historyId);
     } catch (error) {
       console.error('Error handling webhook:', error);

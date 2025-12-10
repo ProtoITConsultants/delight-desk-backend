@@ -32,6 +32,8 @@ export class AuthService {
       password: hashed,
     });
 
+    await this.usersService.initializeUser(user.id);
+
     session.userId = user.id;
 
     return { userId: user.id };

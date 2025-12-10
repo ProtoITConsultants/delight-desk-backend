@@ -17,6 +17,7 @@ const db = drizzle(pool);
 async function seedBillingPlans() {
   const plans = [
     {
+      id: 'a0c77ed0-6c9d-4f8c-9c71-5c26a9da1ba2',
       name: 'growth',
       displayName: 'Growth',
       price: '45.00',
@@ -31,6 +32,7 @@ async function seedBillingPlans() {
       resolutions: 40,
     },
     {
+      id: 'b79c5a14-093b-4cd2-86ce-8f5181e4476e',
       name: 'solopreneur',
       displayName: 'Solopreneur',
       price: '9.00',
@@ -45,6 +47,7 @@ async function seedBillingPlans() {
       resolutions: 10,
     },
     {
+      id: 'f110ad73-19d3-4b7d-8c6e-3199a91734e8',
       name: 'scale',
       displayName: 'Scale',
       price: '80.00',
@@ -60,7 +63,7 @@ async function seedBillingPlans() {
     },
   ];
 
-  await db.insert(billingPlans).values(plans).onConflictDoNothing();
+  await db.insert(billingPlans).values(plans).onConflictDoNothing({ target: billingPlans.id });
   console.log('Billing plans seeded!');
   process.exit(0);
 }

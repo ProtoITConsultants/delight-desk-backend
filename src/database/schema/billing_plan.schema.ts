@@ -3,8 +3,8 @@ import { pgTable, uuid, text, decimal, integer, jsonb, timestamp } from 'drizzle
 export const billingPlans = pgTable('billing_plans', {
   id: uuid('id').primaryKey().defaultRandom(),
 
-  name: text('name').notNull(),
-  displayName: text('display_name').notNull(),
+  name: text('name').notNull().unique(),
+  displayName: text('display_name').notNull().unique(),
   price: decimal('price', { precision: 10, scale: 2 }).notNull(),
   resolutions: integer('resolutions').notNull(),
   costPerResolution: decimal('cost_per_resolution', { precision: 10, scale: 2 }).notNull(),

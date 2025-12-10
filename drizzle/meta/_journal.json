@@ -78,6 +78,20 @@
       "when": 1764182882555,
       "tag": "0010_classy_otto_octavius",
       "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1765367793666,
+      "tag": "0011_stiff_rictor",
+      "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "7",
+      "when": 1765369573181,
+      "tag": "0012_opposite_glorian",
+      "breakpoints": true
     }
   ]
 }

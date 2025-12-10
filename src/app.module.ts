@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { AuthModule } from './modules/auth/auth.module';
 import { UsersModule } from './modules/users/users.module';
+import { AgentsModule } from './modules/agents/agents.module';
 import { BillingModule } from './modules/billing/billing.module';
 import { AccountsModule } from './modules/accounts/accounts.module';
 import { ContactUsModule } from './modules/contact-us/contact-us.module';
@@ -17,6 +18,7 @@ import { WooCommerceOAuthModule } from './modules/woocommerce-oauth/woocommerce-
     }),
     AuthModule,
     UsersModule,
+    AgentsModule,
     BillingModule,
     AccountsModule,
     ContactUsModule,

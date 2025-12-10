@@ -1,8 +1,8 @@
 import { Module } from '@nestjs/common';
+import { DatabaseModule } from 'src/database/database.module';
 import { WooCommerceOAuthService } from './woocommerce-oauth.service';
 import { WooCommerceOAuthController } from './woocommerce-oauth.controller';
-import { UserStoreConnectionsRepository } from './user-store-connections.repository';
-import { DatabaseModule } from 'src/database/database.module';
+import { UserStoreConnectionsRepository } from '../../database/repos/user-store-connections.repository';
 
 @Module({
   imports: [DatabaseModule],

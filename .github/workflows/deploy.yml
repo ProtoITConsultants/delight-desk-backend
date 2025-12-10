@@ -29,8 +29,7 @@ jobs:
             cd ~/delight-desk
             export NVM_DIR="$HOME/.nvm"
             [ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"
-            export NODE_OPTIONS="--max-old-space-size=8192"
-            npm install
+            npm ci
             npm run build
             pm2 startOrReload ecosystem.config.js --update-env
             pm2 save

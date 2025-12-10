@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { ContactUsDto } from './dto/index.dto';
-import { ContactUsRepository } from './contact-us.repository';
 import { SendgridService } from '../sendgrid/sendgrid.service';
+import { ContactUsRepository } from 'src/database/repos/contact-us.repository';
 
 @Injectable()
 export class ContactUsService {

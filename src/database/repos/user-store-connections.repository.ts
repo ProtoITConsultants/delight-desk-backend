@@ -1,8 +1,8 @@
-import { Inject, Injectable } from '@nestjs/common';
 import { eq, and } from 'drizzle-orm';
-import { userStoreConnections } from 'src/database/schema/user_store_connection.schema';
-import { DATABASE_CONNECTION } from 'src/database/database.module';
+import { Inject, Injectable } from '@nestjs/common';
 import type { NodePgDatabase } from 'drizzle-orm/node-postgres';
+import { DATABASE_CONNECTION } from 'src/database/database.module';
+import { userStoreConnections } from 'src/database/schema/user_store_connection.schema';
 
 @Injectable()
 export class UserStoreConnectionsRepository {

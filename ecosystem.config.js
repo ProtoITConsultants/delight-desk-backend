@@ -21,7 +21,6 @@ module.exports = {
       max_restarts: 10,
       min_uptime: '10s',
       merge_logs: true,
-      log_type: 'json',
     },
   ],
 };

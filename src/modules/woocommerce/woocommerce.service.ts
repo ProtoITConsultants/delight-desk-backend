@@ -1,6 +1,6 @@
 import { Injectable, InternalServerErrorException, NotFoundException } from '@nestjs/common';
 import WooCommerceRestApi from '@woocommerce/woocommerce-rest-api';
-import { UserStoreConnectionsRepository } from '../woocommerce-oauth/user-store-connections.repository';
+import { UserStoreConnectionsRepository } from '../../database/repos/user-store-connections.repository';
 
 @Injectable()
 export class WooCommerceService {

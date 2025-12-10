@@ -1,8 +1,8 @@
 import { Inject, Injectable } from '@nestjs/common';
+import { NodePgDatabase } from 'drizzle-orm/node-postgres';
+import { ContactUsDto } from 'src/modules/contact-us/dto/index.dto';
 import { DATABASE_CONNECTION } from '../../database/database.module';
 import { contactInquiries } from '../../database/schema/contact_inquiry.schema';
-import { NodePgDatabase } from 'drizzle-orm/node-postgres';
-import { ContactUsDto } from './dto/index.dto';
 
 @Injectable()
 export class ContactUsRepository {

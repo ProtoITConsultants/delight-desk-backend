@@ -4,9 +4,9 @@ import { AuthController } from './auth.controller';
 import { UsersModule } from '../users/users.module';
 import { SendgridModule } from '../sendgrid/sendgrid.module';
 import { DatabaseModule } from 'src/database/database.module';
-import { PlansRepository } from '../billing/plans/plans.repository';
+import { PlansRepository } from '../../database/repos/plans.repository';
 import { SubscriptionService } from '../billing/subscriptions/subscription.service';
-import { SubscriptionRepository } from '../billing/subscriptions/subscription.repository';
+import { SubscriptionRepository } from '../../database/repos/subscription.repository';
 
 @Module({
   imports: [UsersModule, SendgridModule, DatabaseModule],

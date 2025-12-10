@@ -3,7 +3,7 @@ import { simpleParser } from 'mailparser';
 import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { GoogleAccount } from './types/google-account.interface';
-import { GoogleOauthRepository } from './google-oauth.repository';
+import { GoogleOauthRepository } from 'src/database/repos/google-oauth.repository';
 
 @Injectable()
 export class GoogleOauthService {
@@ -131,19 +131,14 @@ export class GoogleOauthService {
         const listRes = await gmail.users.messages.list({
           userId: 'me',
           labelIds: ['INBOX'],
-          maxResults: 10,
+          maxResults: 1,
         });
         const msgIds = listRes.data.messages || [];
         historyRes = { fullSync: true, messages: msgIds.map((m: any) => ({ id: m.id })) };
       }
     } catch (err: any) {
-      const listRes = await gmail.users.messages.list({
-        userId: 'me',
-        labelIds: ['INBOX'],
-        maxResults: 10,
-      });
-      const msgIds = listRes.data.messages || [];
-      historyRes = { fullSync: true, messages: msgIds.map((m: any) => ({ id: m.id })) };
+      console.error(err);
+      return;
     }
 
     const messages: any[] =
@@ -156,7 +151,23 @@ export class GoogleOauthService {
           id: msgRef.id,
           format: 'full',
         });
+
         const msg = messageDetails.data;
+
+        const gmailLabels = msg.labelIds || [];
+
+        const irrelevantLabels = [
+          'SPAM',
+          'TRASH',
+          'CATEGORY_PROMOTIONS',
+          'CATEGORY_SOCIAL',
+          'CATEGORY_UPDATES',
+          'CATEGORY_FORUMS',
+        ];
+
+        if (gmailLabels.some((label) => irrelevantLabels.includes(label))) {
+          continue;
+        }
 
         const messageId = msg.id;
         const threadId = msg.threadId as string;
@@ -176,6 +187,10 @@ export class GoogleOauthService {
         const rawBody = html || text || snippet;
         const body = this.extractLatestReply(rawBody);
 
+        if (this.isHtmlHeavy(body) || !this.isLikelyCustomerEmail(body)) {
+          return;
+        }
+
         const thread = await this.repo.upsertThread(account.userId, threadId, subject);
 
         const emailPayload = {
@@ -191,27 +206,22 @@ export class GoogleOauthService {
           internalDate: internalDate as any,
         };
 
-        console.log({ emailPayload });
+        console.log('Email Payload: ', emailPayload);
 
-        const insertResult = await this.repo.insertEmailIfNotExists(emailPayload);
-        if (insertResult.inserted) {
-          console.log(`\nInserted message ${messageId} thread ${threadId}`);
-        } else {
-          console.log(`Message ${messageId} already exists (duplicate)`);
-        }
+        await this.repo.insertEmailIfNotExists(emailPayload);
       } catch (err) {
         console.error('Failed to process message ' + msgRef.id, err?.message || err);
-        // Continue with next message — do not block
       }
-
-      await this.repo.updateGoogleAccount(account.userId, {
-        lastHistoryId: newHistoryId,
-      });
     }
+
+    await this.repo.updateGoogleAccount(account.userId, {
+      lastHistoryId: newHistoryId,
+    });
   }
 
   async parseGmailMessageBody(gmailMessageData: any): Promise<{ text?: string; html?: string }> {
     const raw = gmailMessageData.raw || gmailMessageData.rawMessage;
+
     if (raw) {
       const buffer = Buffer.from(this.base64UrlToBase64(raw), 'base64');
       const parsed = await simpleParser(buffer);
@@ -227,7 +237,9 @@ export class GoogleOauthService {
         parts.find((p: any) => p.mimeType === 'text/plain') ||
         parts.find((p: any) => p.mimeType === 'text/html') ||
         parts[0];
+
       let bodyBuffer: Buffer;
+
       if (best && best.body && best.body.data) {
         bodyBuffer = Buffer.from(this.base64UrlToBase64(best.body.data), 'base64');
         const rawMime = `${headers}\r\n\r\n` + bodyBuffer.toString('utf8');
@@ -235,7 +247,7 @@ export class GoogleOauthService {
         return { text: parsed.text || undefined, html: parsed.html || undefined };
       }
     } catch (err) {
-      // swallow; fallback below
+      console.error(err);
     }
 
     return { text: gmailMessageData.snippet || undefined };
@@ -289,5 +301,23 @@ export class GoogleOauthService {
       .trim();
 
     return lines || null;
+  }
+
+  private isHtmlHeavy(body: any) {
+    if (!body) return false;
+
+    const lower = body.toLowerCase();
+
+    const heavyTags = ['<table', '<td', '<tr', '<style', 'font-size', 'color:', '<div', '<span'];
+
+    const tagCount = (body.match(/<[^>]+>/g) || []).length;
+
+    return tagCount > 10 || heavyTags.some((t) => lower.includes(t));
+  }
+
+  private isLikelyCustomerEmail(body: any) {
+    if (!body) return true;
+    const tagCount = (body.match(/<[^>]+>/g) || []).length;
+    return tagCount < 5;
   }
 }

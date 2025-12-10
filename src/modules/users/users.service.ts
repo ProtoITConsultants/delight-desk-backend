@@ -1,12 +1,11 @@
 import { sql } from 'drizzle-orm';
 import { CreateUserDto } from './dto/index.dto';
-import { UserRepository } from './users.repository';
 import { ForbiddenException, Injectable } from '@nestjs/common';
-import { GoogleOauthRepository } from '../google-oauth/google-oauth.repository';
-import { MicrosoftOauthRepository } from '../microsoft-oauth/microsoft-oauth.repository';
-import { UserStoreConnectionsRepository } from '../woocommerce-oauth/user-store-connections.repository';
+import { UserRepository } from '../../database/repos/users.repository';
+import { GoogleOauthRepository } from '../../database/repos/google-oauth.repository';
+import { MicrosoftOauthRepository } from '../../database/repos/microsoft-oauth.repository';
+import { UserStoreConnectionsRepository } from '../../database/repos/user-store-connections.repository';
 import type {
-  UserDetail,
   MeResponse,
   GetUsersResponse,
   DeleteUserResponse,
@@ -150,5 +149,9 @@ export class UsersService {
     };
 
     return connectionsDetailTemplate;
+  }
+
+  async initializeUser(userId: string): Promise<boolean> {
+    return await this.userRepo.initializeUser(userId);
   }
 }

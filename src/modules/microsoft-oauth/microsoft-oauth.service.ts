@@ -2,7 +2,7 @@ import axios from 'axios';
 import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { Client } from '@microsoft/microsoft-graph-client';
-import { MicrosoftOauthRepository } from './microsoft-oauth.repository';
+import { MicrosoftOauthRepository } from 'src/database/repos/microsoft-oauth.repository';
 
 @Injectable()
 export class MicrosoftOauthService {

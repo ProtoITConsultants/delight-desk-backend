@@ -9,3 +9,6 @@ export * from './email.schema';
 export * from './subscription.schema';
 export * from './subscription_history.schema';
 export * from './invoices.schema';
+export * from './agent.schema';
+export * from './user_agent.schema';
+export * from './system_setting.schema';

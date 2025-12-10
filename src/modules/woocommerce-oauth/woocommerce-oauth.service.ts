@@ -1,8 +1,8 @@
-import { Injectable, BadRequestException, ConflictException } from '@nestjs/common';
-import { UserStoreConnectionsRepository } from './user-store-connections.repository';
-import { InitializeWooOAuthDto, ManualConnectWooDto } from './dto/index.dto';
 import { ConfigService } from '@nestjs/config';
 import WooCommerceRestApi from '@woocommerce/woocommerce-rest-api';
+import { InitializeWooOAuthDto, ManualConnectWooDto } from './dto/index.dto';
+import { Injectable, BadRequestException, ConflictException } from '@nestjs/common';
+import { UserStoreConnectionsRepository } from '../../database/repos/user-store-connections.repository';
 
 @Injectable()
 export class WooCommerceOAuthService {

@@ -1,0 +1,1 @@
+ALTER TABLE "system_settings" ADD CONSTRAINT "system_settings_user_id_unique" UNIQUE("user_id");

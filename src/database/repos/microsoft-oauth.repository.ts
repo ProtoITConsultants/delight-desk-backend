@@ -3,7 +3,7 @@ import { Inject, Injectable } from '@nestjs/common';
 import { userOAuthAccounts } from '../../database/schema';
 import { NodePgDatabase } from 'drizzle-orm/node-postgres';
 import { DATABASE_CONNECTION } from '../../database/database.module';
-import { MicrosoftAccount } from './types/microsoft-account.interface';
+import { MicrosoftAccount } from 'src/modules/microsoft-oauth/types/microsoft-account.interface';
 
 @Injectable()
 export class MicrosoftOauthRepository {

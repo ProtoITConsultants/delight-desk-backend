@@ -1,57 +1,39 @@
-import { Controller, Get, Post, Body, Param, BadRequestException, Req } from '@nestjs/common';
+import { SessionGuard } from 'src/guards/session.guard';
 import { WooCommerceService } from './woocommerce.service';
+import { CurrentUserId } from 'src/decorators/current-user.decorator';
+import { InitializeWooOAuthDto, ManualConnectWooDto } from './dto/index.dto';
+import { Controller, Body, Post, Delete, UseGuards, Response, Get, Res } from '@nestjs/common';
 
 @Controller('woocommerce')
 export class WooCommerceController {
-  constructor(private readonly wooService: WooCommerceService) {}
+  constructor(private readonly wooOAuthService: WooCommerceService) {}
 
-  // Get all products
-  @Get('products')
-  async getProducts(@Req() req: any) {
-    const userId = req?.cookies?.userId || req?.session?.userId || req?.user?.userId;
-    if (!userId) {
-      throw new BadRequestException('User not logged in');
-    }
-    return this.wooService.getProducts(String(userId));
+  @UseGuards(SessionGuard)
+  @Post('init-oauth')
+  async initOAuth(@CurrentUserId() userId: string, @Body() body: InitializeWooOAuthDto) {
+    return this.wooOAuthService.initializeOAuth(userId, body);
   }
 
-  // Get all orders
-  @Get('orders')
-  async getOrders(@Req() req: any) {
-    const userId = req?.cookies?.userId || req?.session?.userId || req?.user?.userId;
-    if (!userId) {
-      throw new BadRequestException('User not logged in');
-    }
-    return this.wooService.getOrders(String(userId));
+  @Post('callback')
+  async handleCallback(@Body() body: any, @Response() res: any) {
+    await this.wooOAuthService.handleCallback(body);
+    return res.redirect(process.env.FRONTEND_CONNECTIONS_PAGE_URL);
   }
 
-  // Get all customers
-  @Get('customers')
-  async getCustomers(@Req() req: any) {
-    const userId = req?.cookies?.userId || req?.session?.userId || req?.user?.userId;
-    if (!userId) {
-      throw new BadRequestException('User not logged in');
-    }
-    return this.wooService.getCustomers(String(userId));
+  @Get('callback')
+  async handleCallbackGet(@Res() res: any) {
+    return res.redirect(process.env.FRONTEND_CONNECTIONS_PAGE_URL);
   }
 
-  // Create a new order
-  @Post('orders')
-  async createOrder(@Body() orderData: any, @Req() req: any) {
-    const userId = req?.cookies?.userId || req?.session?.userId || req?.user?.userId;
-    if (!userId) {
-      throw new BadRequestException('User not logged in');
-    }
-    return this.wooService.createOrder(String(userId), orderData);
+  @UseGuards(SessionGuard)
+  @Post('manual-connect')
+  async manualConnect(@CurrentUserId() userId: string, @Body() body: ManualConnectWooDto) {
+    return this.wooOAuthService.manualConnect(userId, body);
   }
-  // Get Order By ID
-  @Get('orders/:id')
-  async getOrder(@Param('id') id: string, @Req() req: any) {
-    const userId = req?.cookies?.userId || req?.session?.userId || req?.user?.userId;
-    if (!userId) {
-      throw new BadRequestException('User not logged in');
-    }
-    const orderId = parseInt(id, 10);
-    return this.wooService.getOrderById(String(userId), orderId);
+
+  @UseGuards(SessionGuard)
+  @Delete('disconnect')
+  async disconnectWooCommerce(@CurrentUserId() userId: string) {
+    return this.wooOAuthService.disconnectWooCommerce(userId);
   }
 }

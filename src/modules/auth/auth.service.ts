@@ -1,23 +1,17 @@
-import {
-  Injectable,
-  UnauthorizedException,
-  BadRequestException,
-  NotFoundException,
-} from '@nestjs/common';
-import { ConfigService } from '@nestjs/config';
-
-import { UsersService } from 'src/modules/users/users.service';
-import { SignupDto, LoginDto, ForgotPasswordDto, ResetPasswordDto } from './dto/index.dto';
-import { randomUUID } from 'crypto';
 import * as bcrypt from 'bcrypt';
+import { randomUUID } from 'crypto';
+import { ConfigService } from '@nestjs/config';
+import { UsersService } from 'src/modules/users/users.service';
 import { SendgridService } from '../sendgrid/sendgrid.service';
+import { Injectable, BadRequestException, NotFoundException } from '@nestjs/common';
+import { SignupDto, LoginDto, ForgotPasswordDto, ResetPasswordDto } from './dto/index.dto';
 
 @Injectable()
 export class AuthService {
   constructor(
     private readonly usersService: UsersService,
-    private readonly sendgridService: SendgridService,
     private readonly configService: ConfigService,
+    private readonly sendgridService: SendgridService,
   ) {}
 
   async signup(dto: SignupDto, session: Record<string, any>) {

@@ -9,7 +9,6 @@ import { ContactUsModule } from './modules/contact-us/contact-us.module';
 import { WooCommerceModule } from './modules/woocommerce/woocommerce.module';
 import { GoogleOauthModule } from './modules/google-oauth/google-oauth.module';
 import { MicrosoftOauthModule } from './modules/microsoft-oauth/microsoft-oauth.module';
-import { WooCommerceOAuthModule } from './modules/woocommerce-oauth/woocommerce-oauth.module';
 
 @Module({
   imports: [
@@ -22,10 +21,9 @@ import { WooCommerceOAuthModule } from './modules/woocommerce-oauth/woocommerce-
     BillingModule,
     AccountsModule,
     ContactUsModule,
-    GoogleOauthModule,
     WooCommerceModule,
+    GoogleOauthModule,
     MicrosoftOauthModule,
-    WooCommerceOAuthModule,
   ],
   controllers: [],
   providers: [],

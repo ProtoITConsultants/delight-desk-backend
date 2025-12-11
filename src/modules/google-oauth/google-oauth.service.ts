@@ -156,6 +156,8 @@ export class GoogleOauthService {
 
         const gmailLabels = msg.labelIds || [];
 
+        console.log({ gmailLabels });
+
         const irrelevantLabels = [
           'SPAM',
           'TRASH',
@@ -208,7 +210,9 @@ export class GoogleOauthService {
 
         console.log('Email Payload: ', emailPayload);
 
-        await this.repo.insertEmailIfNotExists(emailPayload);
+        const { inserted } = await this.repo.insertEmailIfNotExists(emailPayload);
+        if (inserted) {
+        }
       } catch (err) {
         console.error('Failed to process message ' + msgRef.id, err?.message || err);
       }

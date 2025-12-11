@@ -25,15 +25,21 @@ export class UserAgentsRepository {
       requiresModeration?: boolean;
     },
   ) {
-    return this.db
+    const updates: Partial<typeof userAgents.$inferInsert> = {
+      updatedAt: new Date(),
+    };
+
+    if (fields.isEnabled !== undefined) {
+      updates.isEnabled = fields.isEnabled;
+    }
+
+    if (fields.requiresModeration !== undefined) {
+      updates.requiresModeration = fields.requiresModeration;
+    }
+
+    await this.db
       .update(userAgents)
-      .set({
-        ...(fields.isEnabled !== undefined && { isEnabled: fields.isEnabled }),
-        ...(fields.requiresModeration !== undefined && {
-          requiresModeration: fields.requiresModeration,
-        }),
-        updatedAt: new Date(),
-      })
+      .set(updates)
       .where(and(eq(userAgents.userId, userId), eq(userAgents.agentId, agentId)));
   }
 }

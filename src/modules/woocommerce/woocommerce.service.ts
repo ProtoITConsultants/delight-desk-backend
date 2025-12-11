@@ -1,87 +1,150 @@
-import { Injectable, InternalServerErrorException, NotFoundException } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import WooCommerceRestApi from '@woocommerce/woocommerce-rest-api';
+import { WooCommerceRestApiService } from './woocommerce-rest-api.service';
+import { InitializeWooOAuthDto, ManualConnectWooDto } from './dto/index.dto';
+import {
+  Injectable,
+  ConflictException,
+  BadRequestException,
+  InternalServerErrorException,
+} from '@nestjs/common';
 import { UserStoreConnectionsRepository } from '../../database/repos/user-store-connections.repository';
 
 @Injectable()
 export class WooCommerceService {
-  constructor(private readonly storeConnectionsRepo: UserStoreConnectionsRepository) {}
+  constructor(
+    private readonly configService: ConfigService,
+    private readonly storeRepo: UserStoreConnectionsRepository,
+    private readonly wooCommerceRestApiService: WooCommerceRestApiService,
+  ) {}
 
-  private async initWooCommerceClient(userId: string) {
-    const connection = await this.storeConnectionsRepo.findByPlatform(userId, 'woocommerce');
+  async initializeOAuth(userId: string, body: InitializeWooOAuthDto) {
+    if (await this.storeRepo.userHasStore(userId)) {
+      throw new ConflictException('Store already exists');
+    }
+
+    const storeUrl = this.sanitizeStoreUrl(body.storeUrl);
+    const requestTokenUrl = `${storeUrl}wc-auth/v1/authorize`;
+    const callbackUrl = this.configService.get('WOOCOMMERCE_OAUTH_CALLBACK_URL');
+
+    const payload = {
+      userId,
+      storeUrl,
+    };
+
+    const encoded = Buffer.from(JSON.stringify(payload)).toString('base64');
+
+    const redirectUrl =
+      requestTokenUrl +
+      `?app_name=DelightDesk` +
+      `&scope=read_write` +
+      `&user_id=${encodeURIComponent(encoded)}` +
+      `&return_url=${encodeURIComponent(callbackUrl)}` +
+      `&callback_url=${encodeURIComponent(callbackUrl)}`;
+
+    return {
+      redirectUrl,
+    };
+  }
+
+  async handleCallback(body: any) {
+    const { user_id, consumer_key, consumer_secret } = body;
+
+    const decoded = JSON.parse(Buffer.from(user_id, 'base64').toString('utf8'));
+
+    await this.storeRepo.create({
+      userId: decoded.userId,
+      platform: 'woocommerce',
+      storeUrl: decoded.storeUrl,
+      connectionMethod: 'oauth',
+      apiKey: consumer_key,
+      apiSecret: consumer_secret,
+      isActive: true,
+    });
+  }
+
+  async manualConnect(userId: string, body: ManualConnectWooDto) {
+    if (await this.storeRepo.userHasStore(userId)) {
+      throw new ConflictException('Store already exists');
+    }
+
+    const { storeUrl, consumerKey, consumerSecret } = body;
+    const sanitizedUrl = this.sanitizeStoreUrl(storeUrl);
+
+    const wc = new WooCommerceRestApi({
+      url: sanitizedUrl,
+      consumerKey,
+      consumerSecret,
+      version: 'wc/v3',
+    });
+
+    try {
+      await wc.get('system_status');
+    } catch (err: any) {
+      const message = err?.response?.data?.message || 'Invalid WooCommerce credentials';
+      throw new BadRequestException(message);
+    }
+
+    await this.storeRepo.create({
+      userId,
+      platform: 'woocommerce',
+      storeUrl: sanitizedUrl,
+      connectionMethod: 'manual',
+      apiKey: consumerKey,
+      apiSecret: consumerSecret,
+      isActive: true,
+    });
+
+    return { message: 'WooCommerce store connected successfully' };
+  }
+
+  async disconnectWooCommerce(userId: string) {
+    const connection = await this.storeRepo.findByPlatform(userId, 'woocommerce');
 
     if (!connection) {
-      throw new NotFoundException('WooCommerce store connection not found for this user');
+      throw new BadRequestException('No WooCommerce OAuth connection found for this user');
     }
+    await this.storeRepo.delete(connection.id, userId);
+    return { message: 'WooCommerce OAuth connection deleted successfully' };
+  }
 
-    const { storeUrl, apiKey, apiSecret, connectionMethod } = connection;
+  async getWoocommerceTrackingPluginStatus(
+    userId: string,
+  ): Promise<{ status: 'active' | 'inactive' }> {
+    const perPage = 100;
+    const totalToCheck = 100;
+    let ordersWithTrackingNumber = 0;
 
-    if (!storeUrl) {
-      throw new NotFoundException('WooCommerce store URL is missing');
-    }
+    try {
+      while (ordersWithTrackingNumber < totalToCheck) {
+        const orders = await this.wooCommerceRestApiService.getOrders(userId, perPage);
 
-    if (connectionMethod === 'apiKey') {
-      if (!apiKey || !apiSecret) {
-        throw new NotFoundException('WooCommerce API credentials are incomplete');
+        if (!orders || orders.length === 0) break;
+
+        for (const order of orders) {
+          const hasTracking = order.meta_data?.some(
+            (md) => md?.key === '_wc_shipment_tracking_items',
+          );
+          if (hasTracking) {
+            ordersWithTrackingNumber++;
+            if (ordersWithTrackingNumber >= totalToCheck) break;
+          }
+        }
       }
 
-      return new WooCommerceRestApi({
-        url: storeUrl,
-        consumerKey: apiKey,
-        consumerSecret: apiSecret,
-        version: 'wc/v3',
-        queryStringAuth: true,
-      });
-    }
-
-    throw new NotFoundException(`Invalid connection method: ${connectionMethod}`);
-  }
-  async getProducts(userId: string) {
-    try {
-      const api = await this.initWooCommerceClient(userId);
-      const response = await api.get('products', { per_page: 50 });
-      return response.data;
+      return { status: ordersWithTrackingNumber >= totalToCheck ? 'active' : 'inactive' };
     } catch (error) {
-      throw new InternalServerErrorException(error.response?.data || error.message);
+      console.error('Error fetching WooCommerce orders:', error);
+      throw new InternalServerErrorException('Failed to get WooCommerce tracking plugin status');
     }
   }
 
-  async getOrders(userId: string) {
-    try {
-      const api = await this.initWooCommerceClient(userId);
-      const response = await api.get('orders', { per_page: 20 });
-      return response.data;
-    } catch (error) {
-      throw new InternalServerErrorException(error.response?.data || error.message);
+  sanitizeStoreUrl(url: string) {
+    let clean = url.trim();
+    if (!clean.startsWith('http')) {
+      throw new BadRequestException('Invalid store URL');
     }
-  }
-
-  async getCustomers(userId: string) {
-    try {
-      const api = await this.initWooCommerceClient(userId);
-      const response = await api.get('customers', { per_page: 10 });
-      return response.data;
-    } catch (error) {
-      throw new InternalServerErrorException(error.response?.data || error.message);
-    }
-  }
-
-  async createOrder(userId: string, orderData: any) {
-    try {
-      const api = await this.initWooCommerceClient(userId);
-      const response = await api.post('orders', orderData);
-      return response.data;
-    } catch (error) {
-      throw new InternalServerErrorException(error.response?.data || error.message);
-    }
-  }
-
-  async getOrderById(userId: string, orderId: number) {
-    try {
-      const api = await this.initWooCommerceClient(userId);
-      const response = await api.get(`orders/${orderId}`);
-      return response.data;
-    } catch (error) {
-      throw new InternalServerErrorException(error.response?.data || error.message);
-    }
+    if (!clean.endsWith('/')) clean += '/';
+    return clean;
   }
 }

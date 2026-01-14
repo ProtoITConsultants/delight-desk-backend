@@ -1,0 +1,1 @@
+ALTER TABLE "emails" ADD COLUMN "direction" varchar(10);

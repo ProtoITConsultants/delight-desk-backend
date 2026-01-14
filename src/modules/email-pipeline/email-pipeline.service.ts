@@ -1,0 +1,65 @@
+import { EmailEntity } from 'src/database/schema';
+import { BadRequestException, ConflictException, Injectable } from '@nestjs/common';
+import { ClassificationUtil } from './utils/classification.util';
+import { TemporalService } from 'nestjs-temporal-core';
+import { EmailThreadsRepository } from '../../database/repos/email-threads.repository';
+import { stateQuery } from './temporal/workflows/wismo.workflow';
+import { AgentsService } from '../agents/agents.service';
+import { AgentType } from '../../common/agent-types';
+import { WorkFlowInput, WorkflowState } from './types';
+import { threadMessage } from './temporal/workflows/email.workflow';
+import { ConfigService } from '@nestjs/config';
+import { WorkflowNotFoundError } from '@temporalio/common';
+
+@Injectable()
+export class EmailPipelineService {
+  constructor(
+    private readonly agentsService: AgentsService,
+    private readonly configService: ConfigService,
+    private readonly temporalService: TemporalService,
+    private readonly emailThreadsRepo: EmailThreadsRepository,
+    private readonly classificationService: ClassificationUtil,
+  ) {}
+
+  async processEmail(email: EmailEntity) {
+    const workflowId = `workflow-thread-${email.threadId}`;
+    const classification = await this.classificationService.classify(email.id);
+    const { isEnabled } = await this.agentsService.getAgentSettings(
+      classification.category as AgentType,
+      email,
+    );
+
+    if (!isEnabled) {
+      return;
+    }
+
+    const workflowInput: WorkFlowInput = { email, classification };
+    const thread = await this.emailThreadsRepo.findById(email.threadId);
+
+    if (!thread.workflowId) {
+      await this.temporalService.startWorkflow('processEmailWorkflow', [workflowInput], {
+        workflowId: workflowId,
+        taskQueue: this.configService.get('TEMPORAL_TASK_QUEUE'),
+      });
+
+      await this.emailThreadsRepo.updateById(thread.id, { workflowId });
+    }
+
+    if (thread.workflowId) {
+      try {
+        const handle: any = await this.temporalService.getWorkflowHandle(thread.workflowId);
+        await handle.signal(threadMessage, workflowInput);
+      } catch (error) {
+        if (error instanceof WorkflowNotFoundError) {
+          throw new ConflictException(error.message);
+        }
+        throw new BadRequestException(error.message);
+      }
+    }
+  }
+
+  async getWorkflowState(workflowId: string): Promise<WorkflowState> {
+    const handle: any = await this.temporalService.getWorkflowHandle(workflowId);
+    return await handle.query(stateQuery);
+  }
+}

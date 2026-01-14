@@ -1,4 +1,4 @@
-import { Controller, Param, Get } from '@nestjs/common';
+import { Controller, Get, Param } from '@nestjs/common';
 import { SubscriptionService } from './subscription.service';
 
 @Controller('subscriptions')

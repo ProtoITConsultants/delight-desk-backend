@@ -3,6 +3,7 @@ import { Pool } from 'pg';
 import { agents } from '../schema/agent.schema';
 
 import * as dotenv from 'dotenv';
+
 dotenv.config();
 
 const pool = new Pool({

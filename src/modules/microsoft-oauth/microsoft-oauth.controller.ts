@@ -4,17 +4,17 @@ import { SessionGuard } from 'src/guards/session.guard';
 import { MicrosoftOauthService } from './microsoft-oauth.service';
 import { CurrentUserId } from 'src/decorators/current-user.decorator';
 import {
-  Get,
-  Req,
-  Res,
+  BadRequestException,
   Body,
+  Controller,
+  Delete,
+  Get,
+  HttpStatus,
   Post,
   Query,
-  Delete,
+  Req,
+  Res,
   UseGuards,
-  Controller,
-  HttpStatus,
-  BadRequestException,
 } from '@nestjs/common';
 
 @Controller('microsoft-oauth')

@@ -1,12 +1,12 @@
 import {
   IsEmail,
-  IsNotEmpty,
-  IsString,
-  MinLength,
-  IsOptional,
   IsInt,
-  Min,
+  IsNotEmpty,
+  IsOptional,
+  IsString,
   Max,
+  Min,
+  MinLength,
 } from 'class-validator';
 import { Exclude, Type } from 'class-transformer';
 

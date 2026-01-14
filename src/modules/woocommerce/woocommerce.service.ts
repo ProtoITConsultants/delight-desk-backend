@@ -2,13 +2,13 @@ import { ConfigService } from '@nestjs/config';
 import WooCommerceRestApi from '@woocommerce/woocommerce-rest-api';
 import { WooCommerceRestApiService } from './woocommerce-rest-api.service';
 import { InitializeWooOAuthDto, ManualConnectWooDto } from './dto/index.dto';
+import { UserStoreConnectionsRepository } from '../../database/repos/user-store-connections.repository';
 import {
-  Injectable,
-  ConflictException,
   BadRequestException,
+  ConflictException,
+  Injectable,
   InternalServerErrorException,
 } from '@nestjs/common';
-import { UserStoreConnectionsRepository } from '../../database/repos/user-store-connections.repository';
 
 @Injectable()
 export class WooCommerceService {
@@ -112,7 +112,7 @@ export class WooCommerceService {
     userId: string,
   ): Promise<{ status: 'active' | 'inactive' }> {
     const perPage = 100;
-    const totalToCheck = 100;
+    const totalToCheck = 40;
     let ordersWithTrackingNumber = 0;
 
     try {

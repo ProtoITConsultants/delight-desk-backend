@@ -1,4 +1,4 @@
-import { Body, Controller, Delete, Get, Patch, Put, Session, UseGuards } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Patch, Session, UseGuards } from '@nestjs/common';
 import { AccountsService } from './accounts.service';
 import { SessionGuard } from 'src/guards/session.guard';
 import { CurrentUserId } from 'src/decorators/current-user.decorator';

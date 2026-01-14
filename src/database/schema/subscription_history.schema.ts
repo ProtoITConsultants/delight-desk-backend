@@ -1,4 +1,4 @@
-import { pgTable, uuid, timestamp } from 'drizzle-orm/pg-core';
+import { pgTable, timestamp, uuid } from 'drizzle-orm/pg-core';
 import { billingPlans, subscriptions } from './index';
 
 export const subscriptionHistory = pgTable('subscription_history', {

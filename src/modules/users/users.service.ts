@@ -6,9 +6,9 @@ import { GoogleOauthRepository } from '../../database/repos/google-oauth.reposit
 import { MicrosoftOauthRepository } from '../../database/repos/microsoft-oauth.repository';
 import { UserStoreConnectionsRepository } from '../../database/repos/user-store-connections.repository';
 import type {
-  MeResponse,
-  GetUsersResponse,
   DeleteUserResponse,
+  GetUsersResponse,
+  MeResponse,
   VerifyAdminResponse,
 } from './dto/response.dto';
 

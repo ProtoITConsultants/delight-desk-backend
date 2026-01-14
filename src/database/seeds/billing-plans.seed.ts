@@ -3,6 +3,7 @@ import { Pool } from 'pg';
 import { billingPlans } from '../schema/billing_plan.schema';
 
 import * as dotenv from 'dotenv';
+
 dotenv.config();
 
 const pool = new Pool({

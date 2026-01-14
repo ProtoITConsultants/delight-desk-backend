@@ -11,14 +11,6 @@ export class MicrosoftOauthService {
     private readonly repo: MicrosoftOauthRepository,
   ) {}
 
-  private getClient(token: string): Client {
-    return Client.init({
-      authProvider: (done) => {
-        done(null, token);
-      },
-    });
-  }
-
   async accountExists(userId: string) {
     return await this.repo.accountExists(userId);
   }
@@ -31,75 +23,6 @@ export class MicrosoftOauthService {
 
   async disconnectMicrosoftAccount(userId: string) {
     return await this.repo.removeExistingAccount(userId);
-  }
-
-  private getGraphClient(accessToken: string): Client {
-    return Client.init({
-      authProvider: (done) => {
-        done(null, accessToken);
-      },
-    });
-  }
-
-  private async refreshAccessToken(userId: string, currentAccount: any): Promise<any> {
-    const refreshToken = currentAccount.refreshToken;
-
-    if (!refreshToken) {
-      throw new Error('No refresh token available for user');
-    }
-
-    try {
-      const tokenUrl = 'https://login.microsoftonline.com/common/oauth2/v2.0/token';
-
-      const data = new URLSearchParams({
-        grant_type: 'refresh_token',
-        refresh_token: refreshToken,
-        client_id: process.env.MICROSOFT_CLIENT_ID!,
-        client_secret: process.env.MICROSOFT_CLIENT_SECRET!,
-        scope:
-          process.env.MICROSOFT_SCOPES ||
-          'https://graph.microsoft.com/Mail.Read https://graph.microsoft.com/Mail.ReadWrite https://graph.microsoft.com/Mail.Send https://graph.microsoft.com/User.Read offline_access',
-      });
-
-      const response = await axios.post(tokenUrl, data.toString(), {
-        headers: {
-          'Content-Type': 'application/x-www-form-urlencoded',
-        },
-      });
-
-      const { access_token, refresh_token, expires_in } = response.data as any;
-
-      const updatedAccount = {
-        ...currentAccount,
-        accessToken: access_token,
-        refreshToken: refresh_token || refreshToken,
-        expiresAt: new Date(Date.now() + expires_in * 1000),
-      };
-
-      await this.repo.updateMicrosoftAccount(currentAccount.userId, {
-        accessToken: access_token,
-        refreshToken: refresh_token || refreshToken,
-        expiresAt: new Date(Date.now() + expires_in * 1000),
-      });
-
-      return updatedAccount;
-    } catch (error) {
-      throw new Error('Failed to refresh access token');
-    }
-  }
-
-  private async getValidAccount(userId: string): Promise<any> {
-    const account = await this.repo.getMicrosoftAccount(userId);
-
-    if (!account) {
-      throw new Error('Microsoft account not connected');
-    }
-
-    if (new Date(account.expiresAt).getTime() <= Date.now()) {
-      return await this.refreshAccessToken(userId, account);
-    }
-
-    return account;
   }
 
   async getGraphClientForUser(userId: string): Promise<Client> {
@@ -231,6 +154,83 @@ export class MicrosoftOauthService {
 
       // await this.handleIncomingMail(account.userId, message);
     }
+  }
+
+  private getClient(token: string): Client {
+    return Client.init({
+      authProvider: (done) => {
+        done(null, token);
+      },
+    });
+  }
+
+  private getGraphClient(accessToken: string): Client {
+    return Client.init({
+      authProvider: (done) => {
+        done(null, accessToken);
+      },
+    });
+  }
+
+  private async refreshAccessToken(userId: string, currentAccount: any): Promise<any> {
+    const refreshToken = currentAccount.refreshToken;
+
+    if (!refreshToken) {
+      throw new Error('No refresh token available for user');
+    }
+
+    try {
+      const tokenUrl = 'https://login.microsoftonline.com/common/oauth2/v2.0/token';
+
+      const data = new URLSearchParams({
+        grant_type: 'refresh_token',
+        refresh_token: refreshToken,
+        client_id: process.env.MICROSOFT_CLIENT_ID!,
+        client_secret: process.env.MICROSOFT_CLIENT_SECRET!,
+        scope:
+          process.env.MICROSOFT_SCOPES ||
+          'https://graph.microsoft.com/Mail.Read https://graph.microsoft.com/Mail.ReadWrite https://graph.microsoft.com/Mail.Send https://graph.microsoft.com/User.Read offline_access',
+      });
+
+      const response = await axios.post(tokenUrl, data.toString(), {
+        headers: {
+          'Content-Type': 'application/x-www-form-urlencoded',
+        },
+      });
+
+      const { access_token, refresh_token, expires_in } = response.data as any;
+
+      const updatedAccount = {
+        ...currentAccount,
+        accessToken: access_token,
+        refreshToken: refresh_token || refreshToken,
+        expiresAt: new Date(Date.now() + expires_in * 1000),
+      };
+
+      await this.repo.updateMicrosoftAccount(currentAccount.userId, {
+        accessToken: access_token,
+        refreshToken: refresh_token || refreshToken,
+        expiresAt: new Date(Date.now() + expires_in * 1000),
+      });
+
+      return updatedAccount;
+    } catch (error) {
+      throw new Error('Failed to refresh access token');
+    }
+  }
+
+  private async getValidAccount(userId: string): Promise<any> {
+    const account = await this.repo.getMicrosoftAccount(userId);
+
+    if (!account) {
+      throw new Error('Microsoft account not connected');
+    }
+
+    if (new Date(account.expiresAt).getTime() <= Date.now()) {
+      return await this.refreshAccessToken(userId, account);
+    }
+
+    return account;
   }
 
   private async handleIncomingMail(userId: string, message: any) {

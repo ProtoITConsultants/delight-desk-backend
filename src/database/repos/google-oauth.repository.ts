@@ -1,8 +1,8 @@
-import { eq, and } from 'drizzle-orm';
+import { and, eq } from 'drizzle-orm';
 import { Inject, Injectable } from '@nestjs/common';
 import { NodePgDatabase } from 'drizzle-orm/node-postgres';
-import { DATABASE_CONNECTION } from '../../database/database.module';
-import { userOAuthAccounts, emailThreads, emails } from '../../database/schema';
+import { DATABASE_CONNECTION } from '../database.module';
+import { emails, emailThreads, userOAuthAccounts } from '../schema';
 import { GoogleAccount } from 'src/modules/google-oauth/types/google-account.interface';
 
 @Injectable()
@@ -102,8 +102,8 @@ export class GoogleOauthRepository {
 
   async insertEmailIfNotExists(payload: any) {
     try {
-      await this.db.insert(emails).values(payload);
-      return { inserted: true };
+      const insertedEmail = await this.db.insert(emails).values(payload).returning();
+      return { inserted: true, insertedEmail: insertedEmail[0] };
     } catch (err: any) {
       return { inserted: false };
     }

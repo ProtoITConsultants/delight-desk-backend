@@ -3,13 +3,16 @@ import { simpleParser } from 'mailparser';
 import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { GoogleAccount } from './types/google-account.interface';
+import { EmailPipelineService } from '../email-pipeline/email-pipeline.service';
 import { GoogleOauthRepository } from 'src/database/repos/google-oauth.repository';
+import { EmailEntity } from 'src/database/schema';
 
 @Injectable()
 export class GoogleOauthService {
   constructor(
     private readonly repo: GoogleOauthRepository,
     private readonly configService: ConfigService,
+    private readonly emailPipelineService: EmailPipelineService,
   ) {}
 
   async accountExists(userId: string) {
@@ -23,21 +26,6 @@ export class GoogleOauthService {
 
   async disconnectGoogleAccount(userId: string) {
     return await this.repo.removeExistingAccount(userId);
-  }
-
-  private getOAuth2Client(refreshToken?: string, accessToken?: string) {
-    const oauth2Client = new google.auth.OAuth2(
-      process.env.GOOGLE_CLIENT_ID,
-      process.env.GOOGLE_CLIENT_SECRET,
-      process.env.GOOGLE_CALLBACK_URL,
-    );
-
-    oauth2Client.setCredentials({
-      access_token: accessToken,
-      refresh_token: refreshToken,
-    });
-
-    return oauth2Client;
   }
 
   async getGmailClient(userId: string) {
@@ -80,7 +68,12 @@ export class GoogleOauthService {
 
   async sendEmail(
     userId: string,
-    { to, subject, message }: { to: string; subject: string; message: string },
+    {
+      to,
+      subject,
+      message,
+      threadId,
+    }: { to: string; subject: string; message: string; threadId: string },
   ) {
     const gmail = await this.getGmailClient(userId);
 
@@ -102,6 +95,53 @@ export class GoogleOauthService {
     return { success: true };
   }
 
+  async replyToGmailThread(
+    userId: string,
+    to: string,
+    subject: string,
+    message: string,
+    threadId: string,
+  ) {
+    const gmail = await this.getGmailClient(userId);
+
+    const thread = await gmail.users.threads.get({
+      userId: 'me',
+      id: threadId,
+    });
+
+    const lastMessage = thread.data.messages?.slice(-1)[0];
+    const headers = lastMessage?.payload?.headers || [];
+    const messageId = headers.find((h) => h.name === 'Message-ID')?.value;
+
+    if (!messageId) {
+      throw new Error('Message-ID not found for thread');
+    }
+
+    const raw = [
+      `To: ${to}`,
+      `Subject: Re: ${subject}`,
+      `In-Reply-To: ${messageId}`,
+      `References: ${messageId}`,
+      'Content-Type: text/plain; charset="utf-8"',
+      '',
+      message,
+    ].join('\n');
+
+    const encoded = Buffer.from(raw)
+      .toString('base64')
+      .replace(/\+/g, '-')
+      .replace(/\//g, '_')
+      .replace(/=+$/, '');
+
+    await gmail.users.messages.send({
+      userId: 'me',
+      requestBody: {
+        raw: encoded,
+        threadId,
+      },
+    });
+  }
+
   async markEmailAsRead(userId: string, messageId: string): Promise<{ success: boolean }> {
     const gmail = await this.getGmailClient(userId);
 
@@ -116,6 +156,10 @@ export class GoogleOauthService {
 
   async processNewEmails(email: string, newHistoryId: string | number) {
     const account = await this.repo.getGoogleAccountByEmail(email);
+    if (!account) {
+      return;
+    }
+
     const gmail = await this.getGmailClient(account.userId);
     const startHistoryId = account.lastHistoryId ? account.lastHistoryId.toString() : null;
 
@@ -153,36 +197,21 @@ export class GoogleOauthService {
         });
 
         const msg = messageDetails.data;
-
         const gmailLabels = msg.labelIds || [];
-
-        console.log({ gmailLabels });
-
         const irrelevantLabels = [
           'SPAM',
+          'DRAFT',
           'TRASH',
-          'CATEGORY_PROMOTIONS',
+          'CATEGORY_FORUMS',
           'CATEGORY_SOCIAL',
           'CATEGORY_UPDATES',
-          'CATEGORY_FORUMS',
+          'CATEGORY_PROMOTIONS',
         ];
 
         if (gmailLabels.some((label) => irrelevantLabels.includes(label))) {
           continue;
         }
 
-        const messageId = msg.id;
-        const threadId = msg.threadId as string;
-        const headers = (msg.payload?.headers || []).reduce(
-          (acc: any, h: any) => ({ ...acc, [h.name.toLowerCase()]: h.value }),
-          {},
-        );
-
-        const from = headers['from'] || null;
-        const to = headers['to'] || null;
-        const cc = headers['cc'] || null;
-        const subject = headers['subject'] || null;
-        const internalDate = msg.internalDate ? new Date(Number(msg.internalDate)) : null;
         const snippet = msg.snippet || null;
 
         const { text, html } = await this.parseGmailMessageBody(msg);
@@ -193,7 +222,20 @@ export class GoogleOauthService {
           return;
         }
 
+        const messageId = msg.id;
+        const threadId = msg.threadId as string;
+        const headers = (msg.payload?.headers || []).reduce(
+          (acc: any, h: any) => ({ ...acc, [h.name.toLowerCase()]: h.value }),
+          {},
+        );
+        const from = headers['from'] || null;
+        const to = headers['to'] || null;
+        const cc = headers['cc'] || null;
+        const subject = headers['subject'] || null;
+        const internalDate = msg.internalDate ? new Date(Number(msg.internalDate)) : null;
         const thread = await this.repo.upsertThread(account.userId, threadId, subject);
+        const emailSentLabel = 'SENT';
+        const isIncomingEmail = gmailLabels[0] !== emailSentLabel;
 
         const emailPayload = {
           messageId: messageId,
@@ -206,12 +248,13 @@ export class GoogleOauthService {
           subject,
           body,
           internalDate: internalDate as any,
+          status: isIncomingEmail ? 'processing' : 'default_sent',
+          direction: isIncomingEmail ? 'incoming' : 'outgoing',
         };
 
-        console.log('Email Payload: ', emailPayload);
-
-        const { inserted } = await this.repo.insertEmailIfNotExists(emailPayload);
-        if (inserted) {
+        const { inserted, insertedEmail } = await this.repo.insertEmailIfNotExists(emailPayload);
+        if (inserted && insertedEmail && isIncomingEmail) {
+          await this.triggerEmailPipeline(insertedEmail);
         }
       } catch (err) {
         console.error('Failed to process message ' + msgRef.id, err?.message || err);
@@ -278,6 +321,21 @@ export class GoogleOauthService {
     return out;
   }
 
+  private getOAuth2Client(refreshToken?: string, accessToken?: string) {
+    const oauth2Client = new google.auth.OAuth2(
+      process.env.GOOGLE_CLIENT_ID,
+      process.env.GOOGLE_CLIENT_SECRET,
+      process.env.GOOGLE_CALLBACK_URL,
+    );
+
+    oauth2Client.setCredentials({
+      access_token: accessToken,
+      refresh_token: refreshToken,
+    });
+
+    return oauth2Client;
+  }
+
   private extractLatestReply(body: string | null): string | null {
     if (!body) return null;
 
@@ -323,5 +381,15 @@ export class GoogleOauthService {
     if (!body) return true;
     const tagCount = (body.match(/<[^>]+>/g) || []).length;
     return tagCount < 5;
+  }
+
+  private async triggerEmailPipeline(email: EmailEntity) {
+    setImmediate(async () => {
+      try {
+        await this.emailPipelineService.processEmail(email);
+      } catch (error) {
+        console.error(`Pipeline failed for email ${email.id}:`, error);
+      }
+    });
   }
 }

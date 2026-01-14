@@ -12,3 +12,4 @@ export * from './invoices.schema';
 export * from './agent.schema';
 export * from './user_agent.schema';
 export * from './system_setting.schema';
+export * from './escalation.schema';

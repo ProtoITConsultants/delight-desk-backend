@@ -1,12 +1,12 @@
 import {
   Controller,
-  Get,
-  Query,
-  Param,
   Delete,
-  ParseUUIDPipe,
-  UseGuards,
   ForbiddenException,
+  Get,
+  Param,
+  ParseUUIDPipe,
+  Query,
+  UseGuards,
 } from '@nestjs/common';
 import { UsersService } from './users.service';
 import { GetUsersDto } from './dto/index.dto';

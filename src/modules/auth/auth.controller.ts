@@ -1,6 +1,6 @@
 import { Body, Controller, Post, Session } from '@nestjs/common';
 import { AuthService } from './auth.service';
-import { SignupDto, ForgotPasswordDto, LoginDto, ResetPasswordDto } from './dto/index.dto';
+import { ForgotPasswordDto, LoginDto, ResetPasswordDto, SignupDto } from './dto/index.dto';
 import { SubscriptionService } from '../billing/subscriptions/subscription.service';
 
 @Controller('auth')

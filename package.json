@@ -13,10 +13,13 @@
     "db:generate": "drizzle-kit generate",
     "db:migrate": "drizzle-kit migrate",
     "seed:billingPlans": "ts-node src/database/seeds/billing-plans.seed.ts",
-    "seed:agents": "ts-node src/database/seeds/agents.seed.ts"
+    "seed:agents": "ts-node src/database/seeds/agents.seed.ts",
+    "test:pipeline": "ts-node -r tsconfig-paths/register tests/test-email-pipeline.ts"
   },
   "dependencies": {
+    "@aftership/tracking-sdk": "^15.0.1",
     "@microsoft/microsoft-graph-client": "^3.0.7",
+    "@nestjs/axios": "^4.0.1",
     "@nestjs/common": "^11.0.1",
     "@nestjs/config": "^4.0.2",
     "@nestjs/core": "^11.0.1",
@@ -24,6 +27,10 @@
     "@nestjs/passport": "^11.0.5",
     "@nestjs/platform-express": "^11.0.1",
     "@sendgrid/mail": "^8.1.6",
+    "@temporalio/client": "^1.14.0",
+    "@temporalio/common": "^1.14.0",
+    "@temporalio/worker": "^1.14.0",
+    "@temporalio/workflow": "^1.14.0",
     "@woocommerce/woocommerce-rest-api": "^1.0.2",
     "axios": "^1.13.2",
     "bcrypt": "^6.0.0",
@@ -37,6 +44,7 @@
     "googleapis": "^160.0.0",
     "mailparser": "^3.9.0",
     "morgan": "^1.10.1",
+    "nestjs-temporal-core": "^3.2.0",
     "openai": "^6.10.0",
     "passport": "^0.7.0",
     "passport-google-oauth20": "^2.0.0",

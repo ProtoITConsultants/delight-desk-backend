@@ -1,4 +1,4 @@
-import { pgTable, uuid, text, timestamp } from 'drizzle-orm/pg-core';
+import { pgTable, text, timestamp, uuid } from 'drizzle-orm/pg-core';
 import { users } from './index';
 
 export const userOAuthAccounts = pgTable('user_oauth_accounts', {
@@ -20,7 +20,7 @@ export const userOAuthAccounts = pgTable('user_oauth_accounts', {
   subscriptionId: text('subscription_id').unique(),
   subscriptionExpiry: timestamp('subscription_expiry'),
 
-  // For google watch management
+  // For Google watch management
   lastHistoryId: text('last_history_id'),
 
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),

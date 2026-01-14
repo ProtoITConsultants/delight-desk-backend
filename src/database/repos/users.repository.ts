@@ -1,8 +1,8 @@
 import { eq, sql } from 'drizzle-orm';
-import { Injectable, Inject } from '@nestjs/common';
+import { Inject, Injectable } from '@nestjs/common';
 import type { NodePgDatabase } from 'drizzle-orm/node-postgres';
 import { DATABASE_CONNECTION } from 'src/database/database.module';
-import { users, agents, userAgents, systemSettings } from 'src/database/schema/index';
+import { agents, systemSettings, userAgents, users } from 'src/database/schema/index';
 
 @Injectable()
 export class UserRepository {

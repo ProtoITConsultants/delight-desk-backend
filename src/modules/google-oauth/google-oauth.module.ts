@@ -2,12 +2,13 @@ import { Module } from '@nestjs/common';
 import { PassportModule } from '@nestjs/passport';
 import { GoogleStrategy } from './google.strategy';
 import { GoogleOauthService } from './google-oauth.service';
-import { DatabaseModule } from 'src/database/database.module';
 import { GoogleOauthController } from './google-oauth.controller';
 import { GoogleOauthRepository } from '../../database/repos/google-oauth.repository';
+import { EmailPipelineModule } from '../email-pipeline/email-pipeline.module';
+import { InfraModule } from '../email-pipeline/temporal/infra.module';
 
 @Module({
-  imports: [PassportModule.register({ session: true }), DatabaseModule],
+  imports: [PassportModule.register({ session: true }), InfraModule, EmailPipelineModule],
   controllers: [GoogleOauthController],
   providers: [GoogleOauthService, GoogleOauthRepository, GoogleStrategy],
   exports: [GoogleOauthService],

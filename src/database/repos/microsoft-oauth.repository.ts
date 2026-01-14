@@ -1,4 +1,4 @@
-import { eq, and } from 'drizzle-orm';
+import { and, eq } from 'drizzle-orm';
 import { Inject, Injectable } from '@nestjs/common';
 import { userOAuthAccounts } from '../../database/schema';
 import { NodePgDatabase } from 'drizzle-orm/node-postgres';

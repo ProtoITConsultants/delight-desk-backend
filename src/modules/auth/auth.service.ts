@@ -3,8 +3,8 @@ import { randomUUID } from 'crypto';
 import { ConfigService } from '@nestjs/config';
 import { UsersService } from 'src/modules/users/users.service';
 import { SendgridService } from '../sendgrid/sendgrid.service';
-import { Injectable, BadRequestException, NotFoundException } from '@nestjs/common';
-import { SignupDto, LoginDto, ForgotPasswordDto, ResetPasswordDto } from './dto/index.dto';
+import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { ForgotPasswordDto, LoginDto, ResetPasswordDto, SignupDto } from './dto/index.dto';
 
 @Injectable()
 export class AuthService {

@@ -3,12 +3,12 @@ import { WooCommerceService } from './woocommerce.service';
 import { DatabaseModule } from 'src/database/database.module';
 import { WooCommerceController } from './woocommerce.controller';
 import { WooCommerceRestApiService } from './woocommerce-rest-api.service';
-import { UserStoreConnectionsRepository } from '../../database/repos/user-store-connections.repository';
+import { RepositoriesModule } from '../../database/repositories.module';
 
 @Module({
-  imports: [DatabaseModule],
+  imports: [DatabaseModule, RepositoriesModule],
   controllers: [WooCommerceController],
-  providers: [WooCommerceService, UserStoreConnectionsRepository, WooCommerceRestApiService],
-  exports: [WooCommerceService],
+  providers: [WooCommerceService, WooCommerceRestApiService],
+  exports: [WooCommerceService, WooCommerceRestApiService],
 })
 export class WooCommerceModule {}

@@ -5,11 +5,17 @@ import { DatabaseModule } from 'src/database/database.module';
 import { MicrosoftOauthService } from './microsoft-oauth.service';
 import { MicrosoftOauthController } from './microsoft-oauth.controller';
 import { MicrosoftOauthRepository } from '../../database/repos/microsoft-oauth.repository';
+import { AfterShipTrackingsRepository } from '../../database/repos/aftership-trackings.repository';
+import { AftershipService } from '../aftership/aftership.service';
 
 @Module({
   imports: [PassportModule.register({ session: true }), DatabaseModule],
   controllers: [MicrosoftOauthController],
-  providers: [MicrosoftOauthService, MicrosoftOauthRepository, MicrosoftStrategy],
+  providers: [
+    MicrosoftOauthService,
+    MicrosoftOauthRepository,
+    MicrosoftStrategy,
+  ],
   exports: [MicrosoftOauthService],
 })
 export class MicrosoftOauthModule {}

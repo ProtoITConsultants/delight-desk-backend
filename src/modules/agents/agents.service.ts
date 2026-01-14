@@ -1,25 +1,41 @@
-import { AgentTypes } from 'src/common/agent-types';
+import { AgentType, AgentTypes } from 'src/common/agent-types';
 import { WooCommerceService } from '../woocommerce/woocommerce.service';
+import { WooCommerceRestApiService } from '../woocommerce/woocommerce-rest-api.service';
 import { AgentsRepository } from 'src/database/repos/agents.repository';
-import { UpdateSystemSettingsDto, UpdateUserAgentDto } from './agents.dto';
+import {
+  UpdateSystemSettingsDto,
+  UpdateUserAgentDto,
+  WismoPreviewDto,
+  WismoPreviewResponse,
+} from './agents.dto';
 import { UserAgentsRepository } from 'src/database/repos/user-agents.repository';
 import { SystemSettingsRepository } from 'src/database/repos/system-settings.repository';
 import { UserStoreConnectionsRepository } from 'src/database/repos/user-store-connections.repository';
+import { UserRepository } from 'src/database/repos/users.repository';
 import {
   BadRequestException,
   ConflictException,
   Injectable,
+  InternalServerErrorException,
   NotFoundException,
 } from '@nestjs/common';
+import { EmailEntity } from '../../database/schema';
+import { OpenAIService } from '../openai/openai.service';
+import { OrderDetails, OrderExtractionResult } from '../email-pipeline/types';
+import { AftershipService } from '../aftership/aftership.service';
 
 @Injectable()
 export class AgentsService {
   constructor(
+    private readonly openaiService: OpenAIService,
     private readonly agentsRepo: AgentsRepository,
     private readonly userAgentsRepo: UserAgentsRepository,
     private readonly wooCommerceService: WooCommerceService,
+    private readonly wooCommerceRestApiService: WooCommerceRestApiService,
+    private readonly aftershipService: AftershipService,
     private readonly storeRepo: UserStoreConnectionsRepository,
     private readonly systemSettingsRepo: SystemSettingsRepository,
+    private readonly userRepo: UserRepository,
   ) {}
 
   async getAgentsForUser(userId: string) {
@@ -46,28 +62,6 @@ export class AgentsService {
     await this.userAgentsRepo.update(userId, agentId, updateData);
   }
 
-  private async handleWismoEnable(userId: string, isEnabled: boolean) {
-    if (isEnabled) {
-      const hasStore = await this.storeRepo.userHasStore(userId);
-      if (!hasStore) {
-        throw new ConflictException(
-          'Please connect the WooCommerce store before enabling WISMO agent',
-        );
-      }
-
-      const { status } = await this.wooCommerceService.getWoocommerceTrackingPluginStatus(userId);
-      if (status !== 'active') {
-        throw new ConflictException(
-          'You do not have enough tracking info to proceed for WISMO agent',
-        );
-      }
-
-      await this.updateSystemSettings(userId, { hasTrackingPluginForWoocommerce: true });
-    } else {
-      await this.updateSystemSettings(userId, { hasTrackingPluginForWoocommerce: false });
-    }
-  }
-
   async getSystemSettings(userId: string) {
     const settings = await this.systemSettingsRepo.findByUser(userId);
     if (!settings) throw new NotFoundException('Settings not found');
@@ -78,5 +72,225 @@ export class AgentsService {
     const settings = await this.systemSettingsRepo.findByUser(userId);
     if (!settings) throw new NotFoundException('Settings not found');
     await this.systemSettingsRepo.update(userId, dto);
+  }
+
+  private async handleWismoEnable(userId: string, isEnabled: boolean) {
+    if (isEnabled) {
+      const hasStore = await this.storeRepo.userHasStore(userId);
+      if (!hasStore) {
+        throw new ConflictException(
+          'Please connect the WooCommerce store before enabling WISMO agent',
+        );
+      }
+
+      // TODO: Debug axios error later
+      // const { status } = await this.wooCommerceService.getWoocommerceTrackingPluginStatus(userId);
+      // if (status !== 'active') {
+      //   throw new ConflictException(
+      //     'You do not have enough tracking info to proceed for WISMO agent',
+      //   );
+      // }
+
+      await this.updateSystemSettings(userId, { hasTrackingPluginForWoocommerce: true });
+    } else {
+      await this.updateSystemSettings(userId, { hasTrackingPluginForWoocommerce: false });
+    }
+  }
+
+  async getAgentSettings(agentType: AgentType, email: EmailEntity) {
+    const userAgents = await this.agentsRepo.getAgentsForUser(email.userId);
+    const currentAgent = userAgents.find((agent) => agent.type == agentType);
+    return {
+      isEnabled: currentAgent?.isEnabled,
+      requiresModeration: currentAgent?.requiresModeration,
+    };
+  }
+
+  async extractOrderNumber(email: EmailEntity): Promise<OrderExtractionResult> {
+    const prompt = `
+          Extract order number(s) from the following email. Look for patterns like:
+          - Order #123
+          - Order number: 123
+          - #123
+          - Order ID: 123
+
+          Email Subject: ${email.subject}
+          Email Body: ${email.body}
+
+          Return JSON:
+          {
+            "orderNumbers": ["123"],
+            "customerQuery": "brief summary of what customer is asking"
+          }
+          `;
+    const messages = [
+      {
+        role: 'system',
+        content: 'You are an expert at extracting order numbers from customer emails.',
+      },
+      {
+        role: 'user',
+        content: prompt,
+      },
+    ];
+    const temperature = 0.1;
+    const response_format = { type: 'json_object' };
+
+    const response = await this.openaiService.createChatCompletion(
+      messages,
+      temperature,
+      response_format,
+    );
+
+    return JSON.parse(response.choices[0].message.content || '{}');
+  }
+
+  async generateWismoPreview(userId: string, dto: WismoPreviewDto): Promise<WismoPreviewResponse> {
+    const hasStore = await this.storeRepo.userHasStore(userId);
+    if (!hasStore) {
+      throw new NotFoundException(
+        'Please connect your WooCommerce store before using WISMO preview',
+      );
+    }
+
+    const isEmail = dto.query.includes('@');
+    let order: any;
+
+    try {
+      if (isEmail) {
+        order = await this.wooCommerceRestApiService.getMostRecentOrderByEmail(userId, dto.query);
+        if (!order) {
+          throw new NotFoundException(`No orders found for customer email: ${dto.query}`);
+        }
+      } else {
+        order = await this.wooCommerceRestApiService.getOrderById(userId, dto.query);
+      }
+    } catch (error) {
+      if (error instanceof NotFoundException) {
+        throw error;
+      }
+      console.error(error);
+      throw new NotFoundException(`Order not found: ${dto.query}`);
+    }
+
+    const orderDetails = this.formatWooCommerceOrder(order);
+
+    let tracking: any = null;
+    let hasTracking = false;
+
+    if (orderDetails.trackingNumber && orderDetails.trackingProvider) {
+      try {
+        tracking = await this.aftershipService.createTracking(
+          orderDetails.trackingNumber,
+          orderDetails.trackingProvider,
+          parseInt(orderDetails.orderId),
+        );
+        hasTracking = true;
+      } catch (error) {
+        // Continue without tracking
+        console.log('Failed to fetch tracking, continuing without it:', error.message);
+      }
+    }
+
+    let aiResponse: string;
+    try {
+      aiResponse = await this.generateAiResponseForWismo(orderDetails, tracking);
+    } catch (error) {
+      throw new InternalServerErrorException('Failed to generate AI response');
+    }
+
+    const user = await this.userRepo.findById(userId);
+    if (!user) {
+      throw new NotFoundException('User not found');
+    }
+
+    const signature = this.formatUserSignature(user);
+
+    return {
+      from: user.signatureEmail || user.email,
+      to: orderDetails.customerInfo.email,
+      subject: `Re: Order Status Inquiry - Order #${orderDetails.orderId}`,
+      body: aiResponse,
+      signature,
+      orderDetails: {
+        orderId: orderDetails.orderId,
+        status: orderDetails.status,
+        trackingNumber: orderDetails.trackingNumber,
+      },
+      hasTracking,
+    };
+  }
+
+  private formatWooCommerceOrder(order: any): OrderDetails {
+    return {
+      orderId: order.id.toString(),
+      status: order.status,
+      trackingNumber: order.meta_data?.find((m: any) => m.key === '_wc_shipment_tracking_items')
+        ?.value?.[0]?.['tracking_number'],
+      trackingProvider: order.meta_data?.find((m: any) => m.key === '_wc_shipment_tracking_items')
+        ?.value?.[0]?.['tracking_provider'],
+      customerInfo: {
+        name: `${order.billing.first_name} ${order.billing.last_name}`,
+        email: order.billing.email,
+      },
+      items: order.line_items.map((item: any) => ({
+        name: item.name,
+        quantity: item.quantity,
+        total: item.total,
+      })),
+    };
+  }
+
+  private formatUserSignature(user: any): string {
+    const parts: string[] = [];
+
+    if (user.signatureName) parts.push(user.signatureName);
+    if (user.signatureTitle) parts.push(user.signatureTitle);
+    if (user.signatureCompany) parts.push(user.signatureCompany);
+    if (user.signaturePhone) parts.push(`Phone: ${user.signaturePhone}`);
+    if (user.signatureEmail) parts.push(`Email: ${user.signatureEmail}`);
+
+    return parts.length > 0 ? `\n\n---\n${parts.join('\n')}` : '\n\nCustomer Support Team';
+  }
+
+  private async generateAiResponseForWismo(
+    orderDetails: OrderDetails,
+    trackingDetails: any | null,
+  ): Promise<string> {
+    const prompt = `
+      Generate an empathetic customer service response for this order status inquiry based on the available information.
+
+      Order Information: ${JSON.stringify(orderDetails, null, 2)}
+
+      Tracking Details: ${trackingDetails ? JSON.stringify(trackingDetails, null, 2) : 'No tracking information available yet'}
+
+      Write a helpful, empathetic response that:
+      1. Thanks the customer
+      2. Provides clear order status
+      3. Includes tracking details if available (tracking number, carrier, current status, estimated delivery)
+      4. If no tracking available, explain that the order is being prepared and tracking will be available soon
+      5. Sets expectations for delivery
+      6. Offers help if needed
+      7. Keep it under 300 tokens
+      8. Do not include a signature or sign-off
+
+      Important: Only include information that is actually available in the data provided above. Do not make up tracking numbers, delivery dates, or other details.
+      `;
+
+    const messages = [
+      {
+        role: 'system',
+        content: 'You are a helpful customer service agent providing order status updates.',
+      },
+      {
+        role: 'user',
+        content: prompt,
+      },
+    ];
+    const temperature = 0.7;
+
+    const response = await this.openaiService.createChatCompletion(messages, temperature);
+
+    return response.choices[0].message.content || '';
   }
 }

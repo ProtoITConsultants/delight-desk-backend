@@ -1,4 +1,4 @@
-import { pgTable, uuid, text, decimal, timestamp } from 'drizzle-orm/pg-core';
+import { decimal, pgTable, text, timestamp, uuid } from 'drizzle-orm/pg-core';
 import { subscriptions } from './index';
 
 export const invoices = pgTable('invoices', {

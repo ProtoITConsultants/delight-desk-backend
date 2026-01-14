@@ -1,12 +1,13 @@
-import { NestFactory } from '@nestjs/core';
-import { NestExpressApplication } from '@nestjs/platform-express';
-import { ValidationPipe } from '@nestjs/common';
-import { AppModule } from './app.module';
-import session from 'express-session';
-import pgSession from 'connect-pg-simple';
 import { Pool } from 'pg';
-import { ConfigService } from '@nestjs/config';
 import morgan from 'morgan';
+import session from 'express-session';
+import { AppModule } from './app.module';
+import pgSession from 'connect-pg-simple';
+import * as bodyParser from 'body-parser';
+import { NestFactory } from '@nestjs/core';
+import { ConfigService } from '@nestjs/config';
+import { ValidationPipe } from '@nestjs/common';
+import { NestExpressApplication } from '@nestjs/platform-express';
 
 async function bootstrap() {
   const app = await NestFactory.create<NestExpressApplication>(AppModule);
@@ -58,9 +59,19 @@ async function bootstrap() {
     }),
   );
 
+  app.use(
+    bodyParser.json({
+      verify: (req: any, res, buf) => {
+        req.rawBody = buf;
+      },
+    }),
+  );
+
   const port = Number(configService.get<string>('PORT'));
 
   app.use(morgan('dev'));
+
+  app.enableShutdownHooks();
 
   await app.listen(port);
 }

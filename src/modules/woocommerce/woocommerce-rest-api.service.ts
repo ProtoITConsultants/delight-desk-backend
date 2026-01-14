@@ -6,6 +6,55 @@ import { UserStoreConnectionsRepository } from '../../database/repos/user-store-
 export class WooCommerceRestApiService {
   constructor(private readonly storeConnectionsRepo: UserStoreConnectionsRepository) {}
 
+  async getOrders(userId: string, perPage: number = 20) {
+    try {
+      const api = await this.initWooCommerceClient(userId);
+      const response = await api.get('orders', { per_page: perPage });
+      return response.data;
+    } catch (error) {
+      console.error(error);
+      return null;
+    }
+  }
+
+  async getOrderById(userId: string, orderId: string) {
+    try {
+      const api = await this.initWooCommerceClient(userId);
+      const response = await api.get(`orders/${orderId}`);
+      return response.data;
+    } catch (error) {
+      throw new InternalServerErrorException(error.response?.data || error.message);
+    }
+  }
+
+  async getMostRecentOrderByEmail(userId: string, email: string) {
+    try {
+      const api = await this.initWooCommerceClient(userId);
+
+      const customersRes = await api.get('customers', {
+        email,
+        per_page: 1,
+      });
+
+      const customer = customersRes.data?.[0];
+
+      if (!customer) {
+        return null;
+      }
+
+      const ordersRes = await api.get('orders', {
+        customer: customer.id,
+        per_page: 1,
+        orderby: 'date',
+        order: 'desc',
+      });
+
+      return ordersRes.data?.[0] ?? null;
+    } catch (error) {
+      throw error;
+    }
+  }
+
   private async initWooCommerceClient(userId: string) {
     const connection = await this.storeConnectionsRepo.findByPlatform(userId, 'woocommerce');
 
@@ -25,56 +74,5 @@ export class WooCommerceRestApiService {
       consumerSecret: apiSecret,
       version: 'wc/v3',
     });
-  }
-
-  async getProducts(userId: string) {
-    try {
-      const api = await this.initWooCommerceClient(userId);
-      const response = await api.get('products', { per_page: 50 });
-      return response.data;
-    } catch (error) {
-      throw new InternalServerErrorException(error.response?.data || error.message);
-    }
-  }
-
-  async getOrders(userId: string, perPage: number = 20) {
-    try {
-      const api = await this.initWooCommerceClient(userId);
-      const response = await api.get('orders', { per_page: perPage });
-      return response.data;
-    } catch (error) {
-      console.error(error);
-      return null;
-    }
-  }
-
-  async getCustomers(userId: string) {
-    try {
-      const api = await this.initWooCommerceClient(userId);
-      const response = await api.get('customers', { per_page: 10 });
-      return response.data;
-    } catch (error) {
-      throw new InternalServerErrorException(error.response?.data || error.message);
-    }
-  }
-
-  async createOrder(userId: string, orderData: any) {
-    try {
-      const api = await this.initWooCommerceClient(userId);
-      const response = await api.post('orders', orderData);
-      return response.data;
-    } catch (error) {
-      throw new InternalServerErrorException(error.response?.data || error.message);
-    }
-  }
-
-  async getOrderById(userId: string, orderId: number) {
-    try {
-      const api = await this.initWooCommerceClient(userId);
-      const response = await api.get(`orders/${orderId}`);
-      return response.data;
-    } catch (error) {
-      throw new InternalServerErrorException(error.response?.data || error.message);
-    }
   }
 }

@@ -4,18 +4,18 @@ import { SessionGuard } from 'src/guards/session.guard';
 import { GoogleOauthService } from './google-oauth.service';
 import { CurrentUserId } from 'src/decorators/current-user.decorator';
 import {
-  Req,
-  Get,
-  Res,
-  Body,
-  Post,
-  Delete,
-  HttpCode,
-  Redirect,
-  UseGuards,
-  HttpStatus,
-  Controller,
   BadRequestException,
+  Body,
+  Controller,
+  Delete,
+  Get,
+  HttpCode,
+  HttpStatus,
+  Post,
+  Redirect,
+  Req,
+  Res,
+  UseGuards,
 } from '@nestjs/common';
 
 @Controller('google-oauth')
@@ -30,6 +30,7 @@ export class GoogleOauthController {
   @UseGuards(SessionGuard)
   async googleLogin(@Req() req: any) {
     const userId = req.session.userId;
+    // const userId = '9d1ec857-9115-427b-95ed-e84afe4b3577';
     const existingAccount = await this.googleService.accountExists(userId);
     if (existingAccount) {
       throw new BadRequestException('An account already connected');
@@ -49,7 +50,7 @@ export class GoogleOauthController {
   @UseGuards(AuthGuard('google'))
   async googleCallback(@Req() req: any, @Res() res: any) {
     const userId = req.session?.userId;
-    // const userId = '6a9bd2af-76e4-4376-a996-c73cbd0d0d6d';
+    // const userId = '9d1ec857-9115-427b-95ed-e84afe4b3577';
     const googleAccount = req.user;
     const scopes = req.query.scope?.toString().split(' ') || [];
 
@@ -88,24 +89,21 @@ export class GoogleOauthController {
 
   @Post('gmail/webhook')
   @HttpCode(200)
-  async handleGmailWebhook(@Body() body: any) {
+  handleGmailWebhook(@Body() body: any) {
     const message = body?.message?.data;
-    if (!message) {
-      return { status: 'no_message' };
-    }
+    if (!message) return;
 
-    try {
-      const decoded = JSON.parse(Buffer.from(message, 'base64').toString('utf-8'));
-      const userEmail = decoded.emailAddress;
-      const historyId = decoded.historyId;
+    const decoded = JSON.parse(Buffer.from(message, 'base64').toString('utf-8'));
+    const userEmail = decoded.emailAddress;
+    const historyId = decoded.historyId;
 
-      console.log(`Webhook received for ${userEmail}, historyId: ${historyId}`);
+    // console.log(`Webhook received for ${userEmail}, historyId: ${historyId}`);
 
-      return;
-
-      this.googleService.processNewEmails(userEmail, historyId);
-    } catch (error) {
-      console.error('Error handling webhook:', error);
-    }
+    this.googleService
+      .processNewEmails(userEmail, historyId)
+      .then((response) => {})
+      .catch((error) => {
+        console.error('Error handling webhook:', error);
+      });
   }
 }

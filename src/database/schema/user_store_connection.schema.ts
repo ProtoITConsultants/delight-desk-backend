@@ -1,4 +1,4 @@
-import { pgTable, varchar, boolean, timestamp, uuid } from 'drizzle-orm/pg-core';
+import { boolean, pgTable, timestamp, uuid, varchar } from 'drizzle-orm/pg-core';
 import { users } from './index';
 
 export const userStoreConnections = pgTable('user_store_connections', {

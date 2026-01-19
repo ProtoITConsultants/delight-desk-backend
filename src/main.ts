@@ -3,7 +3,6 @@ import morgan from 'morgan';
 import session from 'express-session';
 import { AppModule } from './app.module';
 import pgSession from 'connect-pg-simple';
-import * as bodyParser from 'body-parser';
 import { NestFactory } from '@nestjs/core';
 import { ConfigService } from '@nestjs/config';
 import { ValidationPipe } from '@nestjs/common';
@@ -13,6 +12,8 @@ async function bootstrap() {
   const app = await NestFactory.create<NestExpressApplication>(AppModule);
 
   const configService = app.get(ConfigService);
+  const isProd = configService.get<string>('NODE_ENV') === 'production';
+  const port = Number(configService.get<string>('PORT'));
 
   const origins = configService
     .get<string>('CORS_ORIGINS', '')
@@ -26,9 +27,9 @@ async function bootstrap() {
     credentials: true,
   });
 
-  const PgSession = pgSession(session);
-
   app.set('trust proxy', 1);
+
+  const PgSession = pgSession(session);
 
   app.use(
     session({
@@ -42,13 +43,13 @@ async function bootstrap() {
         tableName: 'user_sessions',
       }),
       secret: configService.get<string>('SESSION_SECRET') as string,
-      resave: true,
+      resave: false,
       saveUninitialized: false,
       cookie: {
         httpOnly: true,
         maxAge: Number(configService.get<string>('SESSION_MAX_AGE')),
-        secure: configService.get<string>('NODE_ENV') === 'production',
-        sameSite: 'none',
+        secure: isProd,
+        sameSite: isProd ? 'none' : 'lax',
       },
     }),
   );
@@ -58,16 +59,6 @@ async function bootstrap() {
       whitelist: true,
     }),
   );
-
-  app.use(
-    bodyParser.json({
-      verify: (req: any, res, buf) => {
-        req.rawBody = buf;
-      },
-    }),
-  );
-
-  const port = Number(configService.get<string>('PORT'));
 
   app.use(morgan('dev'));
 

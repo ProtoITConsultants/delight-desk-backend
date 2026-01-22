@@ -1,0 +1,1 @@
+ALTER TABLE "approval_queue" ADD COLUMN "email_date" text;

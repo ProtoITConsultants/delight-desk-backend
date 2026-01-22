@@ -1,0 +1,19 @@
+ALTER TABLE "emails" DROP COLUMN "is_read";--> statement-breakpoint
+ALTER TABLE "emails" DROP COLUMN "execution_id";--> statement-breakpoint
+ALTER TABLE "emails" DROP COLUMN "status";--> statement-breakpoint
+ALTER TABLE "emails" DROP COLUMN "confidence";--> statement-breakpoint
+ALTER TABLE "emails" DROP COLUMN "category";--> statement-breakpoint
+ALTER TABLE "emails" DROP COLUMN "priority";--> statement-breakpoint
+ALTER TABLE "emails" DROP COLUMN "agent_type";--> statement-breakpoint
+ALTER TABLE "emails" DROP COLUMN "response";--> statement-breakpoint
+ALTER TABLE "emails" DROP COLUMN "metadata";--> statement-breakpoint
+ALTER TABLE "emails" DROP COLUMN "approved_by";--> statement-breakpoint
+ALTER TABLE "emails" DROP COLUMN "approved_at";--> statement-breakpoint
+ALTER TABLE "emails" DROP COLUMN "rejected_by";--> statement-breakpoint
+ALTER TABLE "emails" DROP COLUMN "rejected_at";--> statement-breakpoint
+ALTER TABLE "emails" DROP COLUMN "rejection_reason";--> statement-breakpoint
+ALTER TABLE "emails" DROP COLUMN "edited_by";--> statement-breakpoint
+ALTER TABLE "emails" DROP COLUMN "resolved_at";--> statement-breakpoint
+ALTER TABLE "emails" DROP COLUMN "escalated_at";--> statement-breakpoint
+ALTER TABLE "emails" DROP COLUMN "escalation_reason";--> statement-breakpoint
+ALTER TABLE "emails" DROP COLUMN "updated_at";

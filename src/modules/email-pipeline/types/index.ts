@@ -32,7 +32,7 @@ export enum EscalationType {
   TRACKING_RETRY_THRESHOLD_EXCEEDED = 'tracking_retry_threshold_exceeded',
   INCONSISTENT_DATA = 'inconsistent_data',
   MANUAL_ESCALATION = 'manual_escalation',
-  AFTERSHIP_EXCEPTION = 'aftership_exception'
+  AFTERSHIP_EXCEPTION = 'aftership_exception',
 }
 
 export enum HumanDecision {
@@ -59,8 +59,8 @@ export interface HumanResponse {
 }
 
 export interface WorkflowState {
-  emailData?: WorkFlowInput;
-  classification?: ClassificationResult;
+  email: EmailEntity;
+  classification: ClassificationResult;
   orderNumber?: string;
   wooOrder?: OrderDetails;
   aftershipTracking?: Tracking;
@@ -68,6 +68,8 @@ export interface WorkflowState {
   lastTrackingTag?: string;
   escalation?: EscalationContext;
   humanResponse?: HumanResponse;
+  plannedActions: any[];
+  approvalQueueId?: string;
   status?: 'processing' | 'awaiting_human' | 'completed' | 'failed' | 'cancelled' | 'escalated';
   lastUpdated?: Date;
 }

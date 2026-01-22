@@ -27,10 +27,10 @@ export class GoogleOauthController {
 
   @Get('login')
   @Redirect()
-  @UseGuards(SessionGuard)
+  // @UseGuards(SessionGuard)
   async googleLogin(@Req() req: any) {
-    const userId = req.session.userId;
-    // const userId = '9d1ec857-9115-427b-95ed-e84afe4b3577';
+    // const userId = req.session.userId;
+    const userId = '9d1ec857-9115-427b-95ed-e84afe4b3577';
     const existingAccount = await this.googleService.accountExists(userId);
     if (existingAccount) {
       throw new BadRequestException('An account already connected');
@@ -49,8 +49,8 @@ export class GoogleOauthController {
   @Get('callback')
   @UseGuards(AuthGuard('google'))
   async googleCallback(@Req() req: any, @Res() res: any) {
-    const userId = req.session?.userId;
-    // const userId = '9d1ec857-9115-427b-95ed-e84afe4b3577';
+    // const userId = req.session?.userId;
+    const userId = '9d1ec857-9115-427b-95ed-e84afe4b3577';
     const googleAccount = req.user;
     const scopes = req.query.scope?.toString().split(' ') || [];
 
@@ -97,13 +97,10 @@ export class GoogleOauthController {
     const userEmail = decoded.emailAddress;
     const historyId = decoded.historyId;
 
-    // console.log(`Webhook received for ${userEmail}, historyId: ${historyId}`);
+    console.log(`Webhook received for ${userEmail}, historyId: ${historyId}`);
 
-    this.googleService
-      .processNewEmails(userEmail, historyId)
-      .then((response) => {})
-      .catch((error) => {
-        console.error('Error handling webhook:', error);
-      });
+    this.googleService.processNewEmails(userEmail, historyId).catch((error) => {
+      console.error('Error handling webhook:', error);
+    });
   }
 }

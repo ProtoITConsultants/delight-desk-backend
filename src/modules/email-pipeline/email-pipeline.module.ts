@@ -1,4 +1,4 @@
-import { Module } from '@nestjs/common';
+import { Module, forwardRef } from '@nestjs/common';
 import { EmailPipelineService } from './email-pipeline.service';
 import { EmailActivities } from './temporal/activities/email.activities';
 import { InfraModule } from './temporal/infra.module';
@@ -10,7 +10,7 @@ import { ClassificationUtil } from './utils/classification.util';
 import { GoogleOauthService } from '../google-oauth/google-oauth.service';
 import { AgentsModule } from '../agents/agents.module';
 import { OpenAIModule } from '../openai/openai.module';
-import { AiAssistantModule } from '../agents/ai-assistant/ai-assistant.module';
+import { AiAssistantModule } from '../ai-assistant/ai-assistant.module';
 
 @Module({
   imports: [
@@ -20,7 +20,7 @@ import { AiAssistantModule } from '../agents/ai-assistant/ai-assistant.module';
     AftershipModule,
     AgentsModule,
     OpenAIModule,
-    AiAssistantModule,
+    forwardRef(() => AiAssistantModule),
   ],
   controllers: [EmailPipelineController],
   providers: [EmailPipelineService, EmailActivities, ClassificationUtil, GoogleOauthService],

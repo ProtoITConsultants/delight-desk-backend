@@ -2,11 +2,26 @@ import { SessionGuard } from 'src/guards/session.guard';
 import { WooCommerceService } from './woocommerce.service';
 import { CurrentUserId } from 'src/decorators/current-user.decorator';
 import { InitializeWooOAuthDto, ManualConnectWooDto } from './dto/index.dto';
-import { Body, Controller, Delete, Get, Post, Res, Response, UseGuards } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Delete,
+  Get,
+  Param,
+  Post,
+  Query,
+  Res,
+  Response,
+  UseGuards,
+} from '@nestjs/common';
+import { WooCommerceRestApiService } from './woocommerce-rest-api.service';
 
 @Controller('woocommerce')
 export class WooCommerceController {
-  constructor(private readonly wooCommerceService: WooCommerceService) {}
+  constructor(
+    private readonly wooCommerceService: WooCommerceService,
+    private readonly wooCommerceRestApiService: WooCommerceRestApiService,
+  ) {}
 
   @UseGuards(SessionGuard)
   @Post('init-oauth')
@@ -35,5 +50,20 @@ export class WooCommerceController {
   @Delete('disconnect')
   disconnectWooCommerce(@CurrentUserId() userId: string) {
     return this.wooCommerceService.disconnectWooCommerce(userId);
+  }
+
+  @UseGuards(SessionGuard)
+  @Get('order')
+  getOrders(@CurrentUserId() userId: string, @Query('perPage') perPage: string) {
+    return this.wooCommerceRestApiService.getOrders(userId, Number(perPage));
+  }
+
+  @UseGuards(SessionGuard)
+  @Get('order/:customerEmail/recent')
+  getMostRecentOrderByEmail(
+    @CurrentUserId() userId: string,
+    @Param('customerEmail') customerEmail: string,
+  ) {
+    return this.wooCommerceRestApiService.getMostRecentOrderByEmail(userId, customerEmail);
   }
 }

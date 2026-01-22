@@ -13,3 +13,5 @@ export * from './agent.schema';
 export * from './user_agent.schema';
 export * from './system_setting.schema';
 export * from './escalation.schema';
+export * from './approval_queue.schema';
+export * from './ai_assistant_email_signature.schema';

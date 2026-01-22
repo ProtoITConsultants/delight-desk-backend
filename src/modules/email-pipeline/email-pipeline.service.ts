@@ -3,7 +3,7 @@ import { BadRequestException, ConflictException, Injectable } from '@nestjs/comm
 import { ClassificationUtil } from './utils/classification.util';
 import { TemporalService } from 'nestjs-temporal-core';
 import { EmailThreadsRepository } from '../../database/repos/email-threads.repository';
-import { stateQuery } from './temporal/workflows/wismo.workflow';
+import { humanResponseSignal, stateQuery } from './temporal/workflows/wismo.workflow';
 import { AgentsService } from '../agents/agents.service';
 import { AgentType } from '../../common/agent-types';
 import { WorkFlowInput, WorkflowState } from './types';
@@ -23,7 +23,8 @@ export class EmailPipelineService {
 
   async processEmail(email: EmailEntity) {
     const workflowId = `workflow-thread-${email.threadId}`;
-    const classification = await this.classificationService.classify(email.id);
+    const classification = await this.classificationService.classify(email);
+
     const { isEnabled } = await this.agentsService.getAgentSettings(
       classification.category as AgentType,
       email,
@@ -61,5 +62,15 @@ export class EmailPipelineService {
   async getWorkflowState(workflowId: string): Promise<WorkflowState> {
     const handle: any = await this.temporalService.getWorkflowHandle(workflowId);
     return await handle.query(stateQuery);
+  }
+
+  async sendApprovalSignalToWorkflow(workflowId: string, humanResponse: any) {
+    try {
+      const handle: any = await this.temporalService.getWorkflowHandle(workflowId);
+      await handle.signal(humanResponseSignal, humanResponse);
+    } catch (error) {
+      console.error('Failed to send signal to workflow:', error);
+      throw new Error('Failed to send approval signal to workflow');
+    }
   }
 }

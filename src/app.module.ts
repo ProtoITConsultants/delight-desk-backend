@@ -8,6 +8,8 @@ import { AccountsModule } from './modules/accounts/accounts.module';
 import { ContactUsModule } from './modules/contact-us/contact-us.module';
 import { WooCommerceModule } from './modules/woocommerce/woocommerce.module';
 import { GoogleOauthModule } from './modules/google-oauth/google-oauth.module';
+import { AiAssistantModule } from './modules/ai-assistant/ai-assistant.module';
+import { ApprovalQueueModule } from './modules/approval-queue/approval-queue.module';
 import { MicrosoftOauthModule } from './modules/microsoft-oauth/microsoft-oauth.module';
 
 @Module({
@@ -24,6 +26,8 @@ import { MicrosoftOauthModule } from './modules/microsoft-oauth/microsoft-oauth.
     WooCommerceModule,
     GoogleOauthModule,
     MicrosoftOauthModule,
+    ApprovalQueueModule,
+    AiAssistantModule,
   ],
   controllers: [],
   providers: [],

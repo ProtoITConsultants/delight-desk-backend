@@ -81,6 +81,7 @@ export class WooCommerceService {
     try {
       await wc.get('system_status');
     } catch (err: any) {
+      console.log({ err });
       const message = err?.response?.data?.message || 'Invalid WooCommerce credentials';
       throw new BadRequestException(message);
     }

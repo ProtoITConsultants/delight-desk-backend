@@ -1,19 +1,12 @@
 import { Injectable } from '@nestjs/common';
 import { OpenAIService } from '../../openai/openai.service';
-import { EmailsRepository } from '../../../database/repos/emails.repository';
 import { ClassificationResult } from '../types';
-
-
 
 @Injectable()
 export class ClassificationUtil {
-  constructor(
-    private readonly openaiService: OpenAIService,
-    private readonly emailsRepository: EmailsRepository,
-  ) {}
+  constructor(private readonly openaiService: OpenAIService) {}
 
-  async classify(emailId: string): Promise<ClassificationResult> {
-    const email = await this.emailsRepository.findById(emailId);
+  async classify(email: any): Promise<ClassificationResult> {
     const prompt = this.buildClassificationPrompt(email);
     const messages = [
       {
@@ -38,13 +31,6 @@ export class ClassificationUtil {
     const classification = JSON.parse(
       response.choices[0].message.content || '{}',
     ) as ClassificationResult;
-
-    await this.emailsRepository.update(emailId, {
-      category: classification.category,
-      confidence: classification.confidence,
-      priority: classification.priority,
-      sentiment: classification.sentiment,
-    });
 
     return classification;
   }

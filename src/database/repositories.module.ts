@@ -15,6 +15,8 @@ import { UserAgentsRepository } from './repos/user-agents.repository';
 import { UserRepository } from './repos/users.repository';
 import { EmailThreadsRepository } from './repos/email-threads.repository';
 import { EscalationsRepository } from './repos/escalations.repository';
+import { ApprovalQueueRepository } from './repos/approval-queue.repository';
+import { AiAssistantEmailSignatureRepository } from './repos/ai-assistant-email-signature.repository';
 
 @Module({
   imports: [DatabaseModule],
@@ -35,6 +37,8 @@ import { EscalationsRepository } from './repos/escalations.repository';
     UserStoreConnectionsRepository,
     UserRepository,
     EscalationsRepository,
+    ApprovalQueueRepository,
+    AiAssistantEmailSignatureRepository,
   ],
   exports: [
     EmailsRepository,
@@ -53,6 +57,8 @@ import { EscalationsRepository } from './repos/escalations.repository';
     UserStoreConnectionsRepository,
     UserRepository,
     EscalationsRepository,
+    ApprovalQueueRepository,
+    AiAssistantEmailSignatureRepository,
   ],
 })
 export class RepositoriesModule {}

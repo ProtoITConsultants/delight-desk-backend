@@ -9,11 +9,14 @@ export class WooCommerceRestApiService {
   async getOrders(userId: string, perPage: number = 20) {
     try {
       const api = await this.initWooCommerceClient(userId);
-      const response = await api.get('orders', { per_page: perPage });
+      const response = await api.get('orders', {
+        per_page: perPage,
+        orderby: 'date',
+        order: 'desc',
+      });
       return response.data;
     } catch (error) {
-      console.error(error);
-      return null;
+      throw error;
     }
   }
 
@@ -31,25 +34,14 @@ export class WooCommerceRestApiService {
     try {
       const api = await this.initWooCommerceClient(userId);
 
-      const customersRes = await api.get('customers', {
-        email,
-        per_page: 1,
-      });
-
-      const customer = customersRes.data?.[0];
-
-      if (!customer) {
-        return null;
-      }
-
-      const ordersRes = await api.get('orders', {
-        customer: customer.id,
+      const response = await api.get('orders', {
+        customer_email: email,
         per_page: 1,
         orderby: 'date',
         order: 'desc',
       });
 
-      return ordersRes.data?.[0] ?? null;
+      return response.data?.[0] ?? null;
     } catch (error) {
       throw error;
     }

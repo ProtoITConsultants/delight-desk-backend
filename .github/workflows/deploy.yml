@@ -31,6 +31,7 @@ jobs:
             [ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"
             npm ci
             npm run build
+            npm run db:migrate
             pm2 startOrReload ecosystem.config.js --update-env
             pm2 save
           EOF

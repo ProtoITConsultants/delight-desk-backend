@@ -31,6 +31,7 @@ export class EmailPipelineService {
     );
 
     if (!isEnabled) {
+      console.log('Agent Not Enabled.');
       return;
     }
 

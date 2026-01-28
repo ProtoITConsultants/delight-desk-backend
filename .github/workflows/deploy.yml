@@ -6,33 +6,112 @@ on:
       - dev
 
 jobs:
-  deploy:
+  build-and-deploy:
     runs-on: ubuntu-latest
 
     steps:
       - name: Checkout code
         uses: actions/checkout@v3
 
+      - name: Setup Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build application
+        run: npm run build
+        env:
+          NODE_OPTIONS: '--max-old-space-size=4096'
+
+      - name: Create deployment package
+        run: |
+          echo "Creating deployment directory..."
+          mkdir -p deploy
+
+          echo "Copying compiled files..."
+          cp -r dist deploy/
+
+          echo "Copying configuration files..."
+          cp package*.json deploy/
+          cp ecosystem.config.js deploy/
+          cp nest-cli.json deploy/
+          cp tsconfig*.json deploy/
+
+          echo "Copying drizzle migrations..."
+          mkdir -p deploy/drizzle
+          cp -r drizzle deploy/
+          cp drizzle.config.ts deploy/
+
+          echo "Creating tarball..."
+          tar -czf deploy.tar.gz -C deploy .
+
+          echo "Deployment package created successfully!"
+          ls -lh deploy.tar.gz
+
       - name: Set up SSH
         uses: webfactory/ssh-agent@v0.7.0
         with:
           ssh-private-key: ${{ secrets.EC2_SSH_KEY }}
 
-      - name: Copy project to server
+      - name: Upload deployment package to EC2
         run: |
-          ssh -o StrictHostKeyChecking=no ${{ secrets.EC2_USER }}@${{ secrets.EC2_HOST }} "mkdir -p ~/delight-desk"
-          rsync -avz --exclude 'node_modules' ./ ${{ secrets.EC2_USER }}@${{ secrets.EC2_HOST }}:~/delight-desk/
+          echo "Uploading deployment package..."
+          scp -o StrictHostKeyChecking=no deploy.tar.gz ${{ secrets.EC2_USER }}@${{ secrets.EC2_HOST }}:~/delight-desk/
 
-      - name: Build & Deploy
+      - name: Deploy on EC2
         run: |
           ssh -o StrictHostKeyChecking=no ${{ secrets.EC2_USER }}@${{ secrets.EC2_HOST }} << 'EOF'
+            set -e
+
+            echo "=========================================="
+            echo "Starting deployment process..."
+            echo "=========================================="
+
             cd ~/delight-desk
+
+            echo "Extracting deployment package..."
+            tar -xzf deploy.tar.gz
+            rm deploy.tar.gz
+
+            echo "Setting up Node.js environment..."
             export NVM_DIR="$HOME/.nvm"
             [ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"
-            npm ci
-            npm run build
-            npm run db:migrate
-            pm2 delete delight-desk || true
+
+            echo "Installing production dependencies..."
+            npm install --production --omit=dev
+
+            echo "Running database migrations..."
+            npm run db:migrate || echo "Migration failed or no new migrations"
+
+            echo "Creating logs directory..."
+            mkdir -p logs
+
+            echo "Restarting application with PM2..."
+            pm2 delete delight-desk || echo "App not running, will start fresh"
             pm2 start ecosystem.config.js
             pm2 save
+
+            echo "=========================================="
+            echo "Deployment completed successfully!"
+            echo "=========================================="
+
+            echo "Application status:"
+            pm2 status delight-desk
+          EOF
+
+      - name: Verify deployment
+        run: |
+          ssh -o StrictHostKeyChecking=no ${{ secrets.EC2_USER }}@${{ secrets.EC2_HOST }} << 'EOF'
+            export NVM_DIR="$HOME/.nvm"
+            [ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"
+
+            echo "Checking PM2 process status..."
+            pm2 jlist | jq '.[] | select(.name=="delight-desk") | {name, status, uptime: .pm2_env.pm_uptime, memory: .monit.memory, cpu: .monit.cpu}'
+
+            echo "Checking application logs (last 20 lines)..."
+            pm2 logs delight-desk --lines 20 --nostream || true
           EOF

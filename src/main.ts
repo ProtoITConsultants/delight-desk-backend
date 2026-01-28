@@ -7,6 +7,7 @@ import { NestFactory } from '@nestjs/core';
 import { ConfigService } from '@nestjs/config';
 import { ValidationPipe } from '@nestjs/common';
 import { NestExpressApplication } from '@nestjs/platform-express';
+import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 
 async function bootstrap() {
   const app = await NestFactory.create<NestExpressApplication>(AppModule);
@@ -61,6 +62,51 @@ async function bootstrap() {
   );
 
   app.use(morgan('dev'));
+
+  const config = new DocumentBuilder()
+    .setTitle('DelightDesk API')
+    .setDescription(
+      'B2B SaaS API for AI-powered email automation and customer support. ' +
+        'Integrates with Gmail, Outlook, WooCommerce, and AI (OpenAI GPT-4o) for automated email responses. ' +
+        '\n\n**Authentication**: This API uses session-based authentication with HTTP-only cookies. ' +
+        'To test authenticated endpoints via Swagger UI, first login via the /auth/login endpoint, ' +
+        'then the session cookie will be automatically included in subsequent requests.',
+    )
+    .setVersion('1.0.0')
+    .addCookieAuth('connect.sid', {
+      type: 'apiKey',
+      in: 'cookie',
+      name: 'connect.sid',
+      description: 'Session cookie (automatically set after login)',
+    })
+    .addTag('Authentication', 'User signup, login, logout, and password reset')
+    .addTag('Users', 'User management and profile operations')
+    .addTag('Accounts', 'Account profile and settings management')
+    .addTag('Agents', 'AI agent configuration and system settings')
+    .addTag(
+      'AI Assistant',
+      'Escalation management, email signatures, and AI-powered response generation',
+    )
+    .addTag('Approval Queue', 'Human-in-the-loop approval workflow for AI actions')
+    .addTag('Google OAuth', 'Gmail OAuth integration')
+    .addTag('Microsoft OAuth', 'Outlook OAuth integration')
+    .addTag('WooCommerce', 'E-commerce store integration')
+    .addTag('Contact', 'Contact form submissions')
+    .build();
+
+  const document = SwaggerModule.createDocument(app, config);
+  SwaggerModule.setup('api-docs', app, document, {
+    customSiteTitle: 'DelightDesk API Documentation',
+    customCss: '.swagger-ui .topbar { display: none }',
+    swaggerOptions: {
+      persistAuthorization: true,
+      tagsSorter: 'alpha',
+      operationsSorter: 'alpha',
+    },
+  });
+
+  console.log(`📚 Swagger UI available at: {baseUrl}/api-docs`);
+  console.log(`📄 OpenAPI JSON available at: {baseUrl}/api-docs-json`);
 
   app.enableShutdownHooks();
 

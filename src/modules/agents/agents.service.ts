@@ -204,14 +204,12 @@ export class AgentsService {
       throw new NotFoundException('User not found');
     }
 
-    const signature = this.formatUserSignature(user);
-
     return {
-      from: user.signatureEmail || user.email,
+      from: user.email,
       to: orderDetails.customerInfo.email,
       subject: `Re: Order Status Inquiry - Order #${orderDetails.orderId}`,
       body: aiResponse,
-      signature,
+      signature: '',
       orderDetails: {
         orderId: orderDetails.orderId,
         status: orderDetails.status,
@@ -239,18 +237,6 @@ export class AgentsService {
         total: item.total,
       })),
     };
-  }
-
-  private formatUserSignature(user: any): string {
-    const parts: string[] = [];
-
-    if (user.signatureName) parts.push(user.signatureName);
-    if (user.signatureTitle) parts.push(user.signatureTitle);
-    if (user.signatureCompany) parts.push(user.signatureCompany);
-    if (user.signaturePhone) parts.push(`Phone: ${user.signaturePhone}`);
-    if (user.signatureEmail) parts.push(`Email: ${user.signatureEmail}`);
-
-    return parts.length > 0 ? `\n\n---\n${parts.join('\n')}` : '\n\nCustomer Support Team';
   }
 
   private async generateAiResponseForWismo(

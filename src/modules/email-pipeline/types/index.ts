@@ -72,6 +72,9 @@ export interface WorkflowState {
   approvalQueueId?: string;
   status?: 'processing' | 'awaiting_human' | 'completed' | 'failed' | 'cancelled' | 'escalated';
   lastUpdated?: Date;
+  // Track responses per action (by approval item ID)
+  // This is Temporal-safe: stored in workflow state, replayed correctly on restart
+  actionResponses?: Record<string, HumanResponse>;
 }
 
 export interface OrderExtractionResult {
@@ -109,3 +112,6 @@ export interface WorkFlowInput {
   email: EmailEntity;
   classification: ClassificationResult;
 }
+
+// Export workflow action types
+export * from './workflow-actions.types';

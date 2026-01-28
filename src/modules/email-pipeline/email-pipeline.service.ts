@@ -65,10 +65,16 @@ export class EmailPipelineService {
     return await handle.query(stateQuery);
   }
 
-  async sendApprovalSignalToWorkflow(workflowId: string, humanResponse: any) {
+  async sendApprovalSignalToWorkflow(
+    workflowId: string,
+    humanResponse: any,
+    approvalItemId?: string,
+  ) {
     try {
       const handle: any = await this.temporalService.getWorkflowHandle(workflowId);
-      await handle.signal(humanResponseSignal, humanResponse);
+      // Pass both the human response and the approval item ID
+      // This allows the workflow to route the response to the correct action
+      await handle.signal(humanResponseSignal, humanResponse, approvalItemId);
     } catch (error) {
       console.error('Failed to send signal to workflow:', error);
       throw new Error('Failed to send approval signal to workflow');

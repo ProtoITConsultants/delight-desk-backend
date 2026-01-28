@@ -1,6 +1,7 @@
 import { InferSelectModel } from 'drizzle-orm';
-import { jsonb, pgTable, text, timestamp, uuid, varchar } from 'drizzle-orm/pg-core';
+import { boolean, integer, jsonb, pgTable, text, timestamp, uuid, varchar } from 'drizzle-orm/pg-core';
 import { users } from './user.schema';
+import { escalations } from './escalation.schema';
 
 export const approvalQueue = pgTable('approval_queue', {
   id: uuid('id').primaryKey().defaultRandom(),
@@ -11,10 +12,10 @@ export const approvalQueue = pgTable('approval_queue', {
 
   threadId: uuid('thread_id').notNull(),
 
-  workflowId: varchar('workflow_id', { length: 255 }).notNull(),
+  workflowId: varchar('workflow_id', { length: 255 }).notNull().unique(),
   workflowRunId: varchar('workflow_run_id', { length: 255 }).notNull(),
 
-  // pending, approved, rejected
+  // Workflow status: pending (no actions executed), in_progress (first action started), completed (all actions done), escalated (any action failed)
   status: varchar('status', { length: 50 }).default('pending').notNull(),
 
   // wismo, refund, subscription, etc.
@@ -33,23 +34,16 @@ export const approvalQueue = pgTable('approval_queue', {
   priority: varchar('priority', { length: 20 }), // low, medium, high, urgent
   sentiment: varchar('sentiment', { length: 20 }), // positive, neutral, negative
 
-  // AI Generated Response
-  proposedResponse: text('proposed_response').notNull(),
-  editedResponse: text('edited_response'),
-
   // Workflow metadata
   workflowMetadata: jsonb('workflow_metadata'), // Contains order details, tracking info, etc.
   plannedSteps: jsonb('planned_steps'), // Array of planned workflow steps
 
-  // Review info
-  reviewedBy: uuid('reviewed_by').references(() => users.id),
-  reviewedAt: timestamp('reviewed_at', { withTimezone: true }),
-  rejectionReason: text('rejection_reason'),
-  reviewNotes: text('review_notes'),
+  // Escalation tracking (if workflow escalated)
+  escalationId: uuid('escalation_id').references(() => escalations.id),
+  escalatedAt: timestamp('escalated_at', { withTimezone: true }),
 
-  // Execution info
-  executedAt: timestamp('executed_at', { withTimezone: true }),
-  executionResult: jsonb('execution_result'),
+  // Completion tracking
+  completedAt: timestamp('completed_at', { withTimezone: true }),
 
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),

@@ -5,9 +5,9 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { ApprovalQueueRepository } from '../../database/repos/approval-queue.repository';
+import { ApprovalQueueActionsRepository } from '../../database/repos/approval-queue-actions.repository';
 import {
   ApprovalQueueStatsResponse,
-  ApproveItemDto,
   EditAndApproveDto,
   GetApprovalQueueDto,
   RejectItemDto,
@@ -19,6 +19,7 @@ import { EmailPipelineService } from '../email-pipeline/email-pipeline.service';
 export class ApprovalQueueService {
   constructor(
     private readonly approvalQueueRepository: ApprovalQueueRepository,
+    private readonly approvalQueueActionsRepository: ApprovalQueueActionsRepository,
     private readonly emailPipelineService: EmailPipelineService,
   ) {}
 
@@ -41,37 +42,42 @@ export class ApprovalQueueService {
 
     const totalPages = Math.ceil(totalItems / limit);
 
+    // For each workflow, get action counts
+    const itemsWithActions = await Promise.all(
+      items.map(async (item) => {
+        const stats = await this.approvalQueueActionsRepository.getActionStats(item.approval.id);
+
+        return {
+          id: item.approval.id,
+          userId: item.approval.userId,
+          emailId: item.approval.emailId,
+          threadId: item.approval.threadId,
+          workflowId: item.approval.workflowId,
+          workflowRunId: item.approval.workflowRunId,
+          status: item.approval.status,
+          agentType: item.approval.agentType,
+          customerEmail: item.approval.customerEmail,
+          customerName: item.approval.customerName,
+          emailSubject: item.approval.emailSubject,
+          category: item.approval.category,
+          confidence: item.approval.confidence,
+          priority: item.approval.priority,
+          sentiment: item.approval.sentiment,
+          workflowMetadata: item.approval.workflowMetadata,
+          plannedSteps: item.approval.plannedSteps,
+          escalationId: item.approval.escalationId,
+          escalatedAt: item.approval.escalatedAt,
+          completedAt: item.approval.completedAt,
+          createdAt: item.approval.createdAt,
+          updatedAt: item.approval.updatedAt,
+          actionCount: stats.total,
+          pendingActionCount: stats.pending,
+        };
+      }),
+    );
+
     return {
-      data: items.map((item) => ({
-        id: item.approval.id,
-        userId: item.approval.userId,
-        emailId: item.approval.emailId,
-        threadId: item.approval.threadId,
-        workflowId: item.approval.workflowId,
-        workflowRunId: item.approval.workflowRunId,
-        status: item.approval.status,
-        agentType: item.approval.agentType,
-        customerEmail: item.approval.customerEmail,
-        customerName: item.approval.customerName,
-        emailSubject: item.approval.emailSubject,
-        emailBody: item.approval.emailBody,
-        category: item.approval.category,
-        confidence: item.approval.confidence,
-        priority: item.approval.priority,
-        sentiment: item.approval.sentiment,
-        proposedResponse: item.approval.proposedResponse,
-        editedResponse: item.approval.editedResponse,
-        workflowMetadata: item.approval.workflowMetadata,
-        plannedSteps: item.approval.plannedSteps,
-        reviewedBy: item.approval.reviewedBy,
-        reviewedAt: item.approval.reviewedAt,
-        rejectionReason: item.approval.rejectionReason,
-        reviewNotes: item.approval.reviewNotes,
-        executedAt: item.approval.executedAt,
-        executionResult: item.approval.executionResult,
-        createdAt: item.approval.createdAt,
-        updatedAt: item.approval.updatedAt,
-      })),
+      data: itemsWithActions,
       pagination: {
         currentPage: page,
         totalPages,
@@ -84,10 +90,10 @@ export class ApprovalQueueService {
   }
 
   async getApprovalQueueById(userId: string, id: string): Promise<any> {
-    const item = await this.approvalQueueRepository.findByIdWithDetails(id, userId);
+    const item = await this.approvalQueueRepository.findByIdWithActions(id, userId);
 
     if (!item) {
-      throw new NotFoundException('Approval queue item not found');
+      throw new NotFoundException('Approval queue workflow not found');
     }
 
     const activityLog = await this.approvalQueueRepository.getActivityLog(id);
@@ -109,16 +115,11 @@ export class ApprovalQueueService {
       confidence: item.approval.confidence,
       priority: item.approval.priority,
       sentiment: item.approval.sentiment,
-      proposedResponse: item.approval.proposedResponse,
-      editedResponse: item.approval.editedResponse,
       workflowMetadata: item.approval.workflowMetadata,
       plannedSteps: item.approval.plannedSteps,
-      reviewedBy: item.approval.reviewedBy,
-      reviewedAt: item.approval.reviewedAt,
-      rejectionReason: item.approval.rejectionReason,
-      reviewNotes: item.approval.reviewNotes,
-      executedAt: item.approval.executedAt,
-      executionResult: item.approval.executionResult,
+      escalationId: item.approval.escalationId,
+      escalatedAt: item.approval.escalatedAt,
+      completedAt: item.approval.completedAt,
       createdAt: item.approval.createdAt,
       updatedAt: item.approval.updatedAt,
       email: item.email
@@ -135,6 +136,25 @@ export class ApprovalQueueService {
             threadId: item.thread.threadId,
           }
         : undefined,
+      actions: item.actions.map((action) => ({
+        id: action.id,
+        actionType: action.actionType,
+        actionStep: action.actionStep,
+        actionStatus: action.actionStatus,
+        description: action.description,
+        metadata: action.metadata,
+        autoApproved: action.autoApproved,
+        reviewedBy: action.reviewedBy,
+        reviewedAt: action.reviewedAt,
+        reviewNotes: action.reviewNotes,
+        executedAt: action.executedAt,
+        executionResult: action.executionResult,
+        executionError: action.executionError,
+        escalatedDuringExecution: action.escalatedDuringExecution,
+        escalationId: action.escalationId,
+        createdAt: action.createdAt,
+        updatedAt: action.updatedAt,
+      })),
       activityLog: activityLog.map((log) => ({
         id: log.id,
         approvalQueueId: log.approvalQueueId,
@@ -147,109 +167,148 @@ export class ApprovalQueueService {
     };
   }
 
-  async approveItem(userId: string, id: string, reviewedBy: string, dto: ApproveItemDto) {
-    const item = await this.approvalQueueRepository.findById(id, userId);
+  async approveAction(userId: string, actionId: string, reviewedBy: string) {
+    const action = await this.approvalQueueActionsRepository.findById(actionId);
 
-    if (!item) {
-      throw new NotFoundException('Approval queue item not found');
+    if (!action) {
+      throw new NotFoundException('Action not found');
     }
 
-    if (item.userId !== userId) {
-      throw new ForbiddenException('You do not have permission to approve this item');
+    const workflow = await this.approvalQueueRepository.findById(action.approvalQueueId, userId);
+
+    if (!workflow) {
+      throw new NotFoundException('Workflow not found');
     }
 
-    if (item.status !== 'pending') {
-      throw new BadRequestException(`Cannot approve item with status: ${item.status}`);
+    if (workflow.userId !== userId) {
+      throw new ForbiddenException('You do not have permission to approve this action');
     }
 
-    // Update approval queue status
-    const updated = await this.approvalQueueRepository.approveItem(
-      id,
-      userId,
+    if (action.actionStatus !== 'pending_approval') {
+      throw new BadRequestException(`Cannot approve action with status: ${action.actionStatus}`);
+    }
+
+    // Update action status
+    const updated = await this.approvalQueueActionsRepository.updateAction(actionId, {
+      actionStatus: 'approved',
       reviewedBy,
-      dto.notes,
-    );
+      reviewedAt: new Date(),
+    });
 
     // Send signal to Temporal workflow to continue execution
-    await this.emailPipelineService.sendApprovalSignalToWorkflow(item.workflowId, {
-      decision: HumanDecision.APPROVE,
-      respondedBy: reviewedBy,
-      respondedAt: new Date(),
-      notes: dto.notes,
-    });
+    // Pass the action ID so the workflow can route the response to the correct action
+    await this.emailPipelineService.sendApprovalSignalToWorkflow(
+      workflow.workflowId,
+      {
+        decision: HumanDecision.APPROVE,
+        respondedBy: reviewedBy,
+        respondedAt: new Date(),
+      },
+      actionId, // Pass action ID
+    );
 
     return updated;
   }
 
-  async rejectItem(userId: string, id: string, reviewedBy: string, dto: RejectItemDto) {
-    const item = await this.approvalQueueRepository.findById(id, userId);
+  async rejectAction(userId: string, actionId: string, reviewedBy: string, dto: RejectItemDto) {
+    const action = await this.approvalQueueActionsRepository.findById(actionId);
 
-    if (!item) {
-      throw new NotFoundException('Approval queue item not found');
+    if (!action) {
+      throw new NotFoundException('Action not found');
     }
 
-    if (item.userId !== userId) {
-      throw new ForbiddenException('You do not have permission to reject this item');
+    const workflow = await this.approvalQueueRepository.findById(action.approvalQueueId, userId);
+
+    if (!workflow) {
+      throw new NotFoundException('Workflow not found');
     }
 
-    if (item.status !== 'pending') {
-      throw new BadRequestException(`Cannot reject item with status: ${item.status}`);
+    if (workflow.userId !== userId) {
+      throw new ForbiddenException('You do not have permission to reject this action');
     }
 
-    // Update approval queue status
-    const updated = await this.approvalQueueRepository.rejectItem(
-      id,
-      userId,
+    if (action.actionStatus !== 'pending_approval') {
+      throw new BadRequestException(`Cannot reject action with status: ${action.actionStatus}`);
+    }
+
+    // Update action status
+    const updated = await this.approvalQueueActionsRepository.updateAction(actionId, {
+      actionStatus: 'rejected',
       reviewedBy,
-      dto.reason,
-      dto.notes,
-    );
+      reviewedAt: new Date(),
+      reviewNotes: `${dto.reason}${dto.notes ? ` - ${dto.notes}` : ''}`,
+    });
 
     // Send signal to Temporal workflow
-    await this.emailPipelineService.sendApprovalSignalToWorkflow(item.workflowId, {
-      decision: HumanDecision.REJECT,
-      respondedBy: reviewedBy,
-      respondedAt: new Date(),
-      notes: dto.notes,
-    });
+    // Pass the action ID so the workflow can route the response to the correct action
+    await this.emailPipelineService.sendApprovalSignalToWorkflow(
+      workflow.workflowId,
+      {
+        decision: HumanDecision.REJECT,
+        respondedBy: reviewedBy,
+        respondedAt: new Date(),
+        notes: dto.notes,
+      },
+      actionId, // Pass action ID
+    );
 
     return updated;
   }
 
-  async editAndApprove(userId: string, id: string, reviewedBy: string, dto: EditAndApproveDto) {
-    const item = await this.approvalQueueRepository.findById(id, userId);
+  async editAndApprove(
+    userId: string,
+    actionId: string,
+    reviewedBy: string,
+    dto: EditAndApproveDto,
+  ) {
+    const action = await this.approvalQueueActionsRepository.findById(actionId);
 
-    if (!item) {
-      throw new NotFoundException('Approval queue item not found');
+    if (!action) {
+      throw new NotFoundException('Action not found');
     }
 
-    if (item.userId !== userId) {
-      throw new ForbiddenException('You do not have permission to edit this item');
+    const workflow = await this.approvalQueueRepository.findById(action.approvalQueueId, userId);
+
+    if (!workflow) {
+      throw new NotFoundException('Workflow not found');
     }
 
-    if (item.status !== 'pending') {
-      throw new BadRequestException(`Cannot edit item with status: ${item.status}`);
+    if (workflow.userId !== userId) {
+      throw new ForbiddenException('You do not have permission to edit this action');
     }
 
-    // Update approval queue with edited response
-    const updated = await this.approvalQueueRepository.editAndApprove(
-      id,
-      userId,
+    if (action.actionStatus !== 'pending_approval') {
+      throw new BadRequestException(`Cannot edit action with status: ${action.actionStatus}`);
+    }
+
+    // Update action with edited response
+    const actionMetadata = action.metadata || {};
+    const updated = await this.approvalQueueActionsRepository.updateAction(actionId, {
+      actionStatus: 'approved',
       reviewedBy,
-      dto.editedResponse,
-      dto.notes,
-    );
+      reviewedAt: new Date(),
+      reviewNotes: dto.notes,
+      metadata: {
+        ...(typeof actionMetadata === 'object' ? actionMetadata : {}),
+        editedResponse: dto.editedResponse,
+      },
+    });
 
     // Send signal to Temporal workflow with edited response
-    await this.emailPipelineService.sendApprovalSignalToWorkflow(item.workflowId, {
-      decision: HumanDecision.MODIFY_AND_APPROVE,
-      modifiedData: {
-        message: dto.editedResponse,
+    // Pass the action ID so the workflow can route the response to the correct action
+    await this.emailPipelineService.sendApprovalSignalToWorkflow(
+      workflow.workflowId,
+      {
+        decision: HumanDecision.MODIFY_AND_APPROVE,
+        modifiedData: {
+          message: dto.editedResponse,
+        },
+        respondedBy: reviewedBy,
+        respondedAt: new Date(),
+        notes: dto.notes,
       },
-      respondedBy: reviewedBy,
-      respondedAt: new Date(),
-      notes: dto.notes,
-    });
+      actionId, // Pass action ID
+    );
 
     return updated;
   }

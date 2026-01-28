@@ -1,7 +1,9 @@
 import { Controller, Get } from '@nestjs/common';
 import { EmailPipelineService } from './email-pipeline.service';
 import { EmailEntity } from '../../database/schema';
+import { ApiExcludeController } from '@nestjs/swagger';
 
+@ApiExcludeController()
 @Controller('email-pipeline')
 export class EmailPipelineController {
   constructor(private readonly emailPipelineService: EmailPipelineService) {}

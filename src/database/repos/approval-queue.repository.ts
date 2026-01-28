@@ -2,16 +2,7 @@ import { Inject, Injectable } from '@nestjs/common';
 import { and, desc, eq, inArray, sql } from 'drizzle-orm';
 import { NodePgDatabase } from 'drizzle-orm/node-postgres';
 import { DATABASE_CONNECTION } from '../database.module';
-import { approvalQueue, approvalQueueActivityLog, emails, emailThreads } from '../schema';
-
-export interface GetApprovalQueueFilters {
-  userId: string;
-  status?: string[];
-  agentType?: string;
-  priority?: string[];
-  limit?: number;
-  offset?: number;
-}
+import { approvalQueue, approvalQueueActions, approvalQueueActivityLog, emails, emailThreads } from '../schema';
 
 @Injectable()
 export class ApprovalQueueRepository {
@@ -25,7 +16,7 @@ export class ApprovalQueueRepository {
       approvalQueueId: created.id,
       userId: data.userId,
       action: 'created',
-      description: 'Approval queue item created',
+      description: 'Approval queue workflow created',
       metadata: {
         agentType: data.agentType,
         category: data.category,
@@ -45,6 +36,15 @@ export class ApprovalQueueRepository {
     return item;
   }
 
+  async findByWorkflowId(workflowId: string, userId: string) {
+    const [item] = await this.db
+      .select()
+      .from(approvalQueue)
+      .where(and(eq(approvalQueue.workflowId, workflowId), eq(approvalQueue.userId, userId)));
+
+    return item;
+  }
+
   async findByIdWithDetails(id: string, userId: string) {
     const [item] = await this.db
       .select({
@@ -58,6 +58,22 @@ export class ApprovalQueueRepository {
       .where(and(eq(approvalQueue.id, id), eq(approvalQueue.userId, userId)));
 
     return item;
+  }
+
+  async findByIdWithActions(id: string, userId: string) {
+    const item = await this.findByIdWithDetails(id, userId);
+    if (!item) return null;
+
+    const actions = await this.db
+      .select()
+      .from(approvalQueueActions)
+      .where(eq(approvalQueueActions.approvalQueueId, id))
+      .orderBy(approvalQueueActions.actionStep);
+
+    return {
+      ...item,
+      actions,
+    };
   }
 
   async getApprovalQueueWithFilters(filters: {
@@ -149,93 +165,12 @@ export class ApprovalQueueRepository {
     return updated;
   }
 
-  async approveItem(id: string, userId: string, reviewedBy: string, notes?: string) {
+  async updateStatus(id: string, userId: string, status: string, additionalData?: Partial<typeof approvalQueue.$inferInsert>) {
     const [updated] = await this.db
       .update(approvalQueue)
       .set({
-        status: 'approved',
-        reviewedBy,
-        reviewedAt: new Date(),
-        reviewNotes: notes,
-        updatedAt: new Date(),
-      })
-      .where(and(eq(approvalQueue.id, id), eq(approvalQueue.userId, userId)))
-      .returning();
-
-    await this.logActivity({
-      approvalQueueId: id,
-      userId: reviewedBy,
-      action: 'approved',
-      description: 'Item approved for execution',
-      metadata: { notes },
-    });
-
-    return updated;
-  }
-
-  async rejectItem(id: string, userId: string, reviewedBy: string, reason: string, notes?: string) {
-    const [updated] = await this.db
-      .update(approvalQueue)
-      .set({
-        status: 'rejected',
-        reviewedBy,
-        reviewedAt: new Date(),
-        rejectionReason: reason,
-        reviewNotes: notes,
-        updatedAt: new Date(),
-      })
-      .where(and(eq(approvalQueue.id, id), eq(approvalQueue.userId, userId)))
-      .returning();
-
-    await this.logActivity({
-      approvalQueueId: id,
-      userId: reviewedBy,
-      action: 'rejected',
-      description: 'Item rejected',
-      metadata: { reason, notes },
-    });
-
-    return updated;
-  }
-
-  async editAndApprove(
-    id: string,
-    userId: string,
-    reviewedBy: string,
-    editedResponse: string,
-    notes?: string,
-  ) {
-    const [updated] = await this.db
-      .update(approvalQueue)
-      .set({
-        status: 'edited',
-        editedResponse,
-        reviewedBy,
-        reviewedAt: new Date(),
-        reviewNotes: notes,
-        updatedAt: new Date(),
-      })
-      .where(and(eq(approvalQueue.id, id), eq(approvalQueue.userId, userId)))
-      .returning();
-
-    await this.logActivity({
-      approvalQueueId: id,
-      userId: reviewedBy,
-      action: 'edited',
-      description: 'Response edited and approved',
-      metadata: { hasEdits: true, notes },
-    });
-
-    return updated;
-  }
-
-  async markAsExecuted(id: string, userId: string, executionResult?: any) {
-    const [updated] = await this.db
-      .update(approvalQueue)
-      .set({
-        status: 'executed',
-        executedAt: new Date(),
-        executionResult,
+        status,
+        ...additionalData,
         updatedAt: new Date(),
       })
       .where(and(eq(approvalQueue.id, id), eq(approvalQueue.userId, userId)))
@@ -244,12 +179,29 @@ export class ApprovalQueueRepository {
     await this.logActivity({
       approvalQueueId: id,
       userId,
-      action: 'executed',
-      description: 'Workflow executed successfully',
-      metadata: executionResult,
+      action: 'status_updated',
+      description: `Workflow status updated to: ${status}`,
+      metadata: { status, ...additionalData },
     });
 
     return updated;
+  }
+
+  async markAsInProgress(id: string, userId: string) {
+    return this.updateStatus(id, userId, 'in_progress');
+  }
+
+  async markAsCompleted(id: string, userId: string) {
+    return this.updateStatus(id, userId, 'completed', {
+      completedAt: new Date(),
+    });
+  }
+
+  async markAsEscalated(id: string, userId: string, escalationId: string) {
+    return this.updateStatus(id, userId, 'escalated', {
+      escalationId,
+      escalatedAt: new Date(),
+    });
   }
 
   async logActivity(data: typeof approvalQueueActivityLog.$inferInsert) {
@@ -270,9 +222,9 @@ export class ApprovalQueueRepository {
       .select({
         total: sql<number>`count(*)::int`,
         pending: sql<number>`count(*) filter (where ${approvalQueue.status} = 'pending')::int`,
-        approved: sql<number>`count(*) filter (where ${approvalQueue.status} = 'approved')::int`,
-        rejected: sql<number>`count(*) filter (where ${approvalQueue.status} = 'rejected')::int`,
-        executed: sql<number>`count(*) filter (where ${approvalQueue.status} = 'executed')::int`,
+        inProgress: sql<number>`count(*) filter (where ${approvalQueue.status} = 'in_progress')::int`,
+        completed: sql<number>`count(*) filter (where ${approvalQueue.status} = 'completed')::int`,
+        escalated: sql<number>`count(*) filter (where ${approvalQueue.status} = 'escalated')::int`,
       })
       .from(approvalQueue)
       .where(eq(approvalQueue.userId, userId));

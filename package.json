@@ -6,7 +6,8 @@
   "private": true,
   "license": "UNLICENSED",
   "scripts": {
-    "start:dev": "nest start swc -w",
+    "start:dev": "nest start --watch",
+    "start:debug": "nest start --debug --watch",
     "build": "nest build",
     "format:check": "prettier --check .",
     "format": "prettier --write .",
@@ -26,6 +27,7 @@
     "@nestjs/mapped-types": "*",
     "@nestjs/passport": "^11.0.5",
     "@nestjs/platform-express": "^11.0.1",
+    "@nestjs/swagger": "^11.2.5",
     "@sendgrid/mail": "^8.1.6",
     "@temporalio/client": "^1.14.0",
     "@temporalio/common": "^1.14.0",
@@ -52,7 +54,8 @@
     "passport-oauth2": "^1.8.0",
     "pg": "^8.16.3",
     "reflect-metadata": "^0.2.2",
-    "rxjs": "^7.8.1"
+    "rxjs": "^7.8.1",
+    "swagger-ui-express": "^5.0.1"
   },
   "devDependencies": {
     "@eslint/eslintrc": "^3.2.0",

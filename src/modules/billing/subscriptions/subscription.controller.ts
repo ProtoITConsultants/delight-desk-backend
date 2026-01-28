@@ -1,4 +1,5 @@
 import { Controller, Get, Param } from '@nestjs/common';
+import { ApiExcludeEndpoint } from '@nestjs/swagger';
 import { SubscriptionService } from './subscription.service';
 
 @Controller('subscriptions')
@@ -6,6 +7,7 @@ export class SubscriptionController {
   constructor(private readonly subscriptionService: SubscriptionService) {}
 
   @Get('subscriptions/:userId')
+  @ApiExcludeEndpoint()
   getUserSubscriptions(@Param('userId') userId: string) {
     return this.subscriptionService.getUserSubscriptions(userId);
   }

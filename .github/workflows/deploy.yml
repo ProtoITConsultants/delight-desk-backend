@@ -42,15 +42,19 @@ jobs:
           cp tsconfig*.json deploy/
 
           echo "Copying drizzle migrations..."
-          mkdir -p deploy/drizzle
           cp -r drizzle deploy/
           cp drizzle.config.ts deploy/
 
           echo "Creating tarball..."
-          tar -czf deploy.tar.gz -C deploy .
+          cd deploy
+          tar -czf ../deploy.tar.gz .
+          cd ..
 
           echo "Deployment package created successfully!"
           ls -lh deploy.tar.gz
+
+          echo "Checking tarball contents..."
+          tar -tzf deploy.tar.gz | head -20
 
       - name: Set up SSH
         uses: webfactory/ssh-agent@v0.7.0
@@ -81,8 +85,16 @@ jobs:
             export NVM_DIR="$HOME/.nvm"
             [ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"
 
+            echo "Verifying extracted files..."
+            ls -la
+            echo "Checking dist directory..."
+            ls -la dist/ || echo "dist directory not found!"
+
             echo "Installing production dependencies..."
-            npm install --production --omit=dev
+            npm install --omit=dev
+
+            echo "Installing drizzle-kit for migrations..."
+            npm install drizzle-kit --no-save
 
             echo "Running database migrations..."
             npm run db:migrate || echo "Migration failed or no new migrations"

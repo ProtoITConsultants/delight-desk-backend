@@ -89,6 +89,10 @@ jobs:
             ls -la
             echo "Checking dist directory..."
             ls -la dist/ || echo "dist directory not found!"
+            echo "Checking for main.js..."
+            find dist -name "main.js" -type f || echo "main.js not found!"
+            echo "Verifying ecosystem.config.js..."
+            cat ecosystem.config.js | grep "script:"
 
             echo "Installing production dependencies..."
             npm install --omit=dev

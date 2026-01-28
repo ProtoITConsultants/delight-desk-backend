@@ -1,0 +1,53 @@
+import { InferSelectModel } from 'drizzle-orm';
+import {
+  boolean,
+  integer,
+  jsonb,
+  pgTable,
+  text,
+  timestamp,
+  uuid,
+  varchar,
+} from 'drizzle-orm/pg-core';
+import { approvalQueue } from './approval_queue.schema';
+import { escalations } from './escalation.schema';
+
+export const approvalQueueActions = pgTable('approval_queue_actions', {
+  id: uuid('id').primaryKey().defaultRandom(),
+
+  // Reference to parent approval queue item (workflow)
+  approvalQueueId: uuid('approval_queue_id')
+    .notNull()
+    .references(() => approvalQueue.id, { onDelete: 'cascade' }),
+
+  // Action-specific fields
+  actionType: varchar('action_type', { length: 100 }).notNull(), // MARK_EMAIL_READ, EXTRACT_ORDER, etc.
+  actionStep: integer('action_step').notNull(), // Sequential step number (1, 2, 3...)
+  actionStatus: varchar('action_status', { length: 50 }).notNull(), // pending_approval, approved, executing, executed, failed, escalated, rejected
+
+  // Action description/details
+  description: text('description').notNull(),
+
+  // Action metadata (order details, tracking info, etc.)
+  metadata: jsonb('metadata'),
+
+  // Approval tracking
+  autoApproved: boolean('auto_approved').default(false).notNull(), // True if moderation disabled
+  reviewedBy: uuid('reviewed_by'), // User who reviewed this action
+  reviewedAt: timestamp('reviewed_at', { withTimezone: true }),
+  reviewNotes: text('review_notes'),
+
+  // Execution tracking
+  executedAt: timestamp('executed_at', { withTimezone: true }),
+  executionResult: jsonb('execution_result'),
+  executionError: jsonb('execution_error'), // Error details if action failed
+
+  // Escalation tracking
+  escalatedDuringExecution: boolean('escalated_during_execution').default(false).notNull(),
+  escalationId: uuid('escalation_id').references(() => escalations.id),
+
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
+});
+
+export type ApprovalQueueActionEntity = InferSelectModel<typeof approvalQueueActions>;

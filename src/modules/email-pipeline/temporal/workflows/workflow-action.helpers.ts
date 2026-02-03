@@ -1,5 +1,9 @@
 import { condition, log, proxyActivities } from '@temporalio/workflow';
-import type { EmailActivities } from '../activities/email.activities';
+
+// Import activity types
+import type { ApprovalQueueActivities } from '../activities/shared/approval-queue.activities';
+import type { EscalationActivities } from '../activities/shared/escalation.activities';
+
 import {
   ActionConfig,
   ActionExecutionContext,
@@ -15,6 +19,25 @@ import {
   UpdateActionData,
 } from '../../types';
 
+// Proxy approval queue activities
+const approvalQueueActivities = proxyActivities<typeof ApprovalQueueActivities.prototype>({
+  startToCloseTimeout: '1 minute',
+  retry: {
+    initialInterval: '5s',
+    maximumAttempts: 3,
+  },
+});
+
+// Proxy escalation activities
+const escalationActivities = proxyActivities<typeof EscalationActivities.prototype>({
+  startToCloseTimeout: '3 minutes',
+  retry: {
+    initialInterval: '10s',
+    maximumAttempts: 3,
+  },
+});
+
+// Destructure activities for easier use
 const {
   createApprovalQueueItem,
   findApprovalQueueByWorkflowId,
@@ -23,15 +46,9 @@ const {
   updateApprovalQueueStatus,
   markActionAsExecuted,
   markActionAsEscalated,
-  createEscalation,
-  generateEscalationResponse,
-} = proxyActivities<typeof EmailActivities.prototype>({
-  startToCloseTimeout: '5 minutes',
-  retry: {
-    initialInterval: '10s',
-    maximumAttempts: 3,
-  },
-});
+} = approvalQueueActivities;
+
+const { createEscalation, generateEscalationResponse } = escalationActivities;
 
 /**
  * Main function to execute a workflow action with approval and escalation handling

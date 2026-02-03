@@ -7,7 +7,14 @@ import {
   sleep,
   workflowInfo,
 } from '@temporalio/workflow';
-import type { EmailActivities } from '../activities/email.activities';
+
+// Import activity types
+import type { EmailActivities } from '../activities/shared/email.activities';
+import type { AiIdentityActivities } from '../activities/shared/ai-identity.activities';
+import type { WismoOrderActivities } from '../activities/agents/wismo/wismo-order.activities';
+import type { WismoTrackingActivities } from '../activities/agents/wismo/wismo-tracking.activities';
+import type { WismoMessageActivities } from '../activities/agents/wismo/wismo-messages.activities';
+
 import {
   ActionExecutionContext,
   EscalationError,
@@ -20,27 +27,64 @@ import {
 } from '../../types';
 import { executeWorkflowAction } from './workflow-action.helpers';
 
-const {
-  extractOrderNumberFromEmail,
-  getMostRecentOrderByEmail,
-  getWooCommerceOrderById,
-  createAfterShipTracking,
-  fetchAfterShipStatus,
-  sendCustomerNotificationViaGmailThread,
-  getUserAgentSettings,
-  getAiIdentity,
-  generateAcknowledgementMessage,
-  generateOrderInfoRequestMessage,
-  generateTrackingUpdateNotification,
-  checkForCustomerReplyInThread,
-  markEmailAsRead,
-} = proxyActivities<typeof EmailActivities.prototype>({
+// Proxy shared activities
+const emailActivities = proxyActivities<typeof EmailActivities.prototype>({
+  startToCloseTimeout: '2 minutes',
+  retry: {
+    initialInterval: '10s',
+    maximumAttempts: 3,
+  },
+});
+
+const aiIdentityActivities = proxyActivities<typeof AiIdentityActivities.prototype>({
+  startToCloseTimeout: '30 seconds',
+  retry: {
+    initialInterval: '5s',
+    maximumAttempts: 3,
+  },
+});
+
+// Proxy WISMO-specific activities
+const wismoOrderActivities = proxyActivities<typeof WismoOrderActivities.prototype>({
   startToCloseTimeout: '5 minutes',
   retry: {
     initialInterval: '10s',
     maximumAttempts: 3,
   },
 });
+
+const wismoTrackingActivities = proxyActivities<typeof WismoTrackingActivities.prototype>({
+  startToCloseTimeout: '3 minutes',
+  retry: {
+    initialInterval: '10s',
+    maximumAttempts: 3,
+  },
+});
+
+const wismoMessageActivities = proxyActivities<typeof WismoMessageActivities.prototype>({
+  startToCloseTimeout: '2 minutes',
+  retry: {
+    initialInterval: '10s',
+    maximumAttempts: 3,
+  },
+});
+
+// Destructure activities for easier use
+const { sendCustomerNotificationViaGmailThread, checkForCustomerReplyInThread, markEmailAsRead } =
+  emailActivities;
+
+const { getUserAgentSettings, getAiIdentity } = aiIdentityActivities;
+
+const { extractOrderNumberFromEmail, getMostRecentOrderByEmail, getWooCommerceOrderById } =
+  wismoOrderActivities;
+
+const { createAfterShipTracking, fetchAfterShipStatus } = wismoTrackingActivities;
+
+const {
+  generateAcknowledgementMessage,
+  generateOrderInfoRequestMessage,
+  generateTrackingUpdateNotification,
+} = wismoMessageActivities;
 
 export const humanResponseSignal = defineSignal<[HumanResponse, string?]>('humanResponse');
 export const stateQuery = defineQuery<WorkflowState>('state');
@@ -774,12 +818,16 @@ export async function handleWismo(wfInput: WorkFlowInput): Promise<string> {
     // Workflow Complete - Mark as Completed
     // ==========================================
     if (state.approvalQueueId) {
-      const { updateApprovalQueueStatus: updateStatusActivity } = proxyActivities<
-        typeof EmailActivities.prototype
+      const approvalQueueActivitiesForCompletion = proxyActivities<
+        typeof import('../activities/shared/approval-queue.activities').ApprovalQueueActivities.prototype
       >({
         startToCloseTimeout: '1 minute',
       });
-      await updateStatusActivity(state.approvalQueueId, email.userId, 'completed');
+      await approvalQueueActivitiesForCompletion.updateApprovalQueueStatus(
+        state.approvalQueueId,
+        email.userId,
+        'completed',
+      );
       log.info('Workflow marked as completed');
     }
 

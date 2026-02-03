@@ -3,7 +3,17 @@ import { Module } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { HttpModule } from '@nestjs/axios';
 import { DatabaseModule } from '../../../database/database.module';
-import { EmailActivities } from './activities/email.activities';
+
+// Shared activities
+import { EmailActivities } from './activities/shared/email.activities';
+import { ApprovalQueueActivities } from './activities/shared/approval-queue.activities';
+import { EscalationActivities } from './activities/shared/escalation.activities';
+import { AiIdentityActivities } from './activities/shared/ai-identity.activities';
+
+// WISMO-specific activities
+import { WismoOrderActivities } from './activities/agents/wismo/wismo-order.activities';
+import { WismoTrackingActivities } from './activities/agents/wismo/wismo-tracking.activities';
+import { WismoMessageActivities } from './activities/agents/wismo/wismo-messages.activities';
 
 @Module({
   imports: [
@@ -33,7 +43,17 @@ import { EmailActivities } from './activities/email.activities';
           taskQueue: taskQueue,
           worker: {
             workflowsPath: require.resolve('./workflows/email.workflow'),
-            activityClasses: [EmailActivities],
+            activityClasses: [
+              // Shared activities
+              EmailActivities,
+              ApprovalQueueActivities,
+              EscalationActivities,
+              AiIdentityActivities,
+              // WISMO-specific activities
+              WismoOrderActivities,
+              WismoTrackingActivities,
+              WismoMessageActivities,
+            ],
             autoStart: true,
           },
         };

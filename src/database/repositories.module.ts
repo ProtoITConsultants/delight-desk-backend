@@ -17,6 +17,7 @@ import { SystemSettingsRepository } from './repos/system-settings.repository';
 import { MicrosoftOauthRepository } from './repos/microsoft-oauth.repository';
 import { UserStoreConnectionsRepository } from './repos/user-store-connections.repository';
 import { AiAssistantEmailSignatureRepository } from './repos/ai-assistant-email-signature.repository';
+import { AiIdentityRepository } from './repos/ai-identity.repository';
 
 @Module({
   imports: [DatabaseModule],
@@ -39,6 +40,7 @@ import { AiAssistantEmailSignatureRepository } from './repos/ai-assistant-email-
     UserStoreConnectionsRepository,
     UserStoreConnectionsRepository,
     AiAssistantEmailSignatureRepository,
+    AiIdentityRepository,
   ],
   exports: [
     EmailsRepository,
@@ -59,6 +61,7 @@ import { AiAssistantEmailSignatureRepository } from './repos/ai-assistant-email-
     ApprovalQueueActionsRepository,
     AiAssistantEmailSignatureRepository,
     ApiRateLimitRepository,
+    AiIdentityRepository,
   ],
 })
 export class RepositoriesModule {}

@@ -28,6 +28,7 @@ const {
   fetchAfterShipStatus,
   sendCustomerNotificationViaGmailThread,
   getUserAgentSettings,
+  getAiIdentity,
   generateAcknowledgementMessage,
   generateOrderInfoRequestMessage,
   generateTrackingUpdateNotification,
@@ -48,7 +49,7 @@ const CLASSIFICATION_CONFIDENCE_THRESHOLD = 70;
 const MAX_TRACKING_RETRIES_IN_DAYS = 7;
 const TRACKING_RETRY_INTERVAL = '2 hours';
 const STATUS_CHECK_INTERVAL = '2 hours';
-const CUSTOMER_REPLY_CHECK_INTERVAL = '6 hours';
+const CUSTOMER_REPLY_CHECK_INTERVAL = '10 minutes';
 const MAX_CUSTOMER_REPLY_WAIT_DAYS = 3;
 
 export async function handleWismo(wfInput: WorkFlowInput): Promise<string> {
@@ -62,54 +63,6 @@ export async function handleWismo(wfInput: WorkFlowInput): Promise<string> {
     escalation: {},
     humanResponse: {},
     actionResponses: {}, // Track responses per action (Temporal-safe workflow state)
-    plannedActions: [
-      { step: 1, action: 'Mark Email as Read', description: 'Mark incoming email as read' },
-      {
-        step: 2,
-        action: 'Verify AI Confidence',
-        description: 'Verify classification confidence threshold',
-      },
-      {
-        step: 3,
-        action: 'Extract Order Number',
-        description: 'Detect order number from email or find by customer email',
-      },
-      {
-        step: 3.1,
-        action: 'Request Order Info (Optional)',
-        description: 'Request order info from customer and wait for reply',
-      },
-      {
-        step: 4,
-        action: 'Fetch Order Details',
-        description: 'Fetch order details from WooCommerce',
-      },
-      {
-        step: 5,
-        action: 'Send Acknowledgement',
-        description: 'Send acknowledgement email (if moderation enabled)',
-      },
-      {
-        step: 6,
-        action: 'Wait for Tracking',
-        description: 'Wait for tracking number to become available',
-      },
-      {
-        step: 7,
-        action: 'Create AfterShip Tracking',
-        description: 'Create tracking in AfterShip',
-      },
-      {
-        step: 8,
-        action: 'Monitor Tracking',
-        description: 'Monitor tracking status and send updates until delivered',
-      },
-      {
-        step: 9,
-        action: 'Send Final Notification',
-        description: 'Send delivery confirmation to customer',
-      },
-    ],
     status: 'processing',
     lastUpdated: new Date(),
   };
@@ -140,6 +93,9 @@ export async function handleWismo(wfInput: WorkFlowInput): Promise<string> {
 
   // Get agent settings to determine if moderation is required
   const agentSettings = await getUserAgentSettings(email.userId, 'wismo');
+
+  // Get AI identity configuration for email personalization
+  const aiIdentity = await getAiIdentity(email.userId);
 
   // Create execution context for all actions
   const context: ActionExecutionContext = {
@@ -243,15 +199,20 @@ export async function handleWismo(wfInput: WorkFlowInput): Promise<string> {
               email.userId,
               extractEmail(email.fromEmail as string) as string,
             );
-            state.orderNumber = order['id'].toString() || order['number'].toString();
-            state.wooOrder = formatWooCommerceOrder(order);
+
+            // Check if order exists before accessing properties
+            if (order && order.id) {
+              state.orderNumber = order['id'].toString() || order['number'].toString();
+              state.wooOrder = formatWooCommerceOrder(order);
+            } else {
+              // No order found - don't escalate, let Action 3.1 handle follow-up
+              log.info(
+                'No order found - will proceed to Action 3.1 to request order info from customer',
+              );
+            }
           } catch (error) {
-            log.error('Most Recent Order Error', { error });
-            throw new EscalationError(
-              EscalationType.ORDER_NOT_FOUND,
-              'Could not extract order number from email or find by customer email',
-              { customerEmail: email.fromEmail },
-            );
+            // Error fetching order - don't escalate, let Action 3.1 handle follow-up
+            log.error('Most Recent Order Error - will proceed to Action 3.1', { error });
           }
         } else {
           // @ts-ignore
@@ -301,6 +262,7 @@ export async function handleWismo(wfInput: WorkFlowInput): Promise<string> {
           const followUpMessage = await generateOrderInfoRequestMessage(
             customerName,
             orderDetection?.customerQuery || 'order status inquiry',
+            aiIdentity,
           );
 
           // Send follow-up email
@@ -317,7 +279,7 @@ export async function handleWismo(wfInput: WorkFlowInput): Promise<string> {
           // Wait for customer reply with periodic checks
           let customerReplied = false;
           let replyCheckCount = 0;
-          const maxChecks = (MAX_CUSTOMER_REPLY_WAIT_DAYS * 24) / 6;
+          const maxChecks = (MAX_CUSTOMER_REPLY_WAIT_DAYS * 24 * 60) / 10;
           let lastMessageId = email.messageId;
 
           while (!customerReplied && replyCheckCount < maxChecks) {
@@ -483,6 +445,7 @@ export async function handleWismo(wfInput: WorkFlowInput): Promise<string> {
             state.orderNumber as string,
             state.wooOrder?.customerInfo?.name || 'Customer',
             orderDetection?.customerQuery || 'order status inquiry',
+            aiIdentity,
           );
 
           await sendCustomerNotificationViaGmailThread(
@@ -658,12 +621,19 @@ export async function handleWismo(wfInput: WorkFlowInput): Promise<string> {
 
           // Check if status changed
           if (latestTracking.tag && latestTracking.tag !== state.lastTrackingTag) {
+            // Use courier-specific tracking link, fallback to tracking number only if not available
+            const trackingLink =
+              latestTracking.courier_tracking_link ||
+              latestTracking.tracking_number ||
+              'Not available';
+
             // Generate notification message
             const notificationMessage = await generateTrackingUpdateNotification(
               state.orderNumber as string,
               latestTracking.tag,
-              `https://track.aftership.com/${latestTracking.tracking_number}`,
+              trackingLink,
               state.wooOrder?.customerInfo?.name || 'Customer',
+              aiIdentity,
             );
 
             // Send notification via Gmail thread
@@ -744,12 +714,19 @@ export async function handleWismo(wfInput: WorkFlowInput): Promise<string> {
         requiresUserData: true, // May need edited message from user
       },
       async () => {
+        // Use courier-specific tracking link for final notification
+        const trackingLink =
+          state.aftershipTracking?.courier_tracking_link ||
+          state.aftershipTracking?.tracking_number ||
+          'Not available';
+
         // Generate the final notification message
         const finalNotification = await generateTrackingUpdateNotification(
           state.orderNumber as string,
           'Delivered',
-          `https://track.aftership.com/${state.aftershipTracking?.tracking_number}`,
+          trackingLink,
           state.wooOrder?.customerInfo?.name || 'Customer',
+          aiIdentity,
         );
 
         // If moderation is enabled and user provided modified message, use it

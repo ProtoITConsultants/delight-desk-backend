@@ -14,7 +14,7 @@ async function bootstrap() {
 
   const configService = app.get(ConfigService);
   const isProd = configService.get<string>('NODE_ENV') === 'production';
-  const port = Number(configService.get<string>('PORT'));
+  const port = Number(configService.get<string>('PORT')) || 3000;
 
   const origins = configService
     .get<string>('CORS_ORIGINS', '')
@@ -23,7 +23,7 @@ async function bootstrap() {
     .filter((origin) => origin.length > 0);
 
   app.enableCors({
-    origin: origins,
+    origin: origins.length > 0 ? origins : '*',
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
     credentials: true,
   });
@@ -37,9 +37,7 @@ async function bootstrap() {
       store: new PgSession({
         pool: new Pool({
           connectionString: configService.get<string>('DATABASE_URL'),
-          ssl: {
-            rejectUnauthorized: false,
-          },
+          ssl: isProd ? { rejectUnauthorized: true } : { rejectUnauthorized: false },
         }),
         tableName: 'user_sessions',
       }),
@@ -48,7 +46,7 @@ async function bootstrap() {
       saveUninitialized: false,
       cookie: {
         httpOnly: true,
-        maxAge: Number(configService.get<string>('SESSION_MAX_AGE')),
+        maxAge: Number(configService.get<string>('SESSION_MAX_AGE')) || 24 * 60 * 60 * 1000,
         secure: isProd,
         sameSite: isProd ? 'none' : 'lax',
       },
@@ -61,7 +59,7 @@ async function bootstrap() {
     }),
   );
 
-  app.use(morgan('dev'));
+  app.use(morgan(isProd ? 'combined' : 'dev'));
 
   const config = new DocumentBuilder()
     .setTitle('DelightDesk API')
@@ -87,6 +85,10 @@ async function bootstrap() {
       'AI Assistant',
       'Escalation management, email signatures, and AI-powered response generation',
     )
+    .addTag(
+      'AI Team Center - Identity',
+      'Configure AI agent identity, personality, and email signature for consistent customer communication',
+    )
     .addTag('Approval Queue', 'Human-in-the-loop approval workflow for AI actions')
     .addTag('Google OAuth', 'Gmail OAuth integration')
     .addTag('Microsoft OAuth', 'Outlook OAuth integration')
@@ -105,12 +107,17 @@ async function bootstrap() {
     },
   });
 
-  console.log(`📚 Swagger UI available at: {baseUrl}/api-docs`);
-  console.log(`📄 OpenAPI JSON available at: {baseUrl}/api-docs-json`);
+  const baseUrl = `http://localhost:${port}`;
+  console.log(`🚀 Application is running on: ${baseUrl}`);
+  console.log(`📚 Swagger UI available at: ${baseUrl}/api-docs`);
+  console.log(`📄 OpenAPI JSON available at: ${baseUrl}/api-docs-json`);
 
   app.enableShutdownHooks();
 
   await app.listen(port);
 }
 
-void bootstrap();
+void bootstrap().catch((err) => {
+  console.error('❌ Failed to start application:', err);
+  process.exit(1);
+});

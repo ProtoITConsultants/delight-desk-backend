@@ -41,9 +41,24 @@ export class WooCommerceRestApiService {
         order: 'desc',
       });
 
-      return response.data?.[0] ?? null;
+      const order = response.data?.[0];
+
+      // Validate that the returned order actually matches the requested email
+      // WooCommerce may return orders even when the email filter doesn't match
+      if (order && order.billing?.email?.toLowerCase() !== email.toLowerCase()) {
+        return null;
+      }
+
+      return order ?? null;
     } catch (error) {
-      throw error;
+      // Log error and return null to allow workflow to continue to Action 3.1
+      // This handles timeouts, network errors, and other API failures gracefully
+      console.error('Error fetching most recent order by email:', {
+        email,
+        error: error.message,
+        code: error.code,
+      });
+      return null;
     }
   }
 
@@ -65,6 +80,7 @@ export class WooCommerceRestApiService {
       consumerKey: apiKey,
       consumerSecret: apiSecret,
       version: 'wc/v3',
+      timeout: 30000, // 30 second timeout for API requests
     });
   }
 }

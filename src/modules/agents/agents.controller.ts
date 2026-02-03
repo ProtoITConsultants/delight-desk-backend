@@ -15,7 +15,14 @@ import {
   UseInterceptors,
 } from '@nestjs/common';
 import { RateLimitInterceptor } from 'src/interceptors/rate-limit.interceptor';
-import { ApiTags, ApiOperation, ApiResponse, ApiCookieAuth, ApiParam, ApiBody } from '@nestjs/swagger';
+import {
+  ApiBody,
+  ApiCookieAuth,
+  ApiOperation,
+  ApiParam,
+  ApiResponse,
+  ApiTags,
+} from '@nestjs/swagger';
 
 @ApiTags('Agents')
 @ApiCookieAuth('connect.sid')
@@ -27,7 +34,8 @@ export class AgentsController {
   @Get()
   @ApiOperation({
     summary: 'Get all agents for user',
-    description: 'Retrieve all AI agents configured for the current user with their settings and status'
+    description:
+      'Retrieve all AI agents configured for the current user with their settings and status',
   })
   @ApiResponse({ status: 200, description: 'Agents list retrieved successfully' })
   @ApiResponse({ status: 401, description: 'Unauthorized - User not authenticated' })
@@ -39,7 +47,7 @@ export class AgentsController {
   @Get('/settings')
   @ApiOperation({
     summary: 'Get system settings',
-    description: 'Retrieve system-wide agent settings for the current user'
+    description: 'Retrieve system-wide agent settings for the current user',
   })
   @ApiResponse({ status: 200, description: 'System settings retrieved successfully' })
   @ApiResponse({ status: 401, description: 'Unauthorized - User not authenticated' })
@@ -51,7 +59,7 @@ export class AgentsController {
   @Patch('/settings')
   @ApiOperation({
     summary: 'Update system settings',
-    description: 'Update system-wide agent settings such as tracking plugin configuration'
+    description: 'Update system-wide agent settings such as tracking plugin configuration',
   })
   @ApiBody({ type: UpdateSystemSettingsDto })
   @ApiResponse({ status: 200, description: 'System settings updated successfully' })
@@ -65,7 +73,8 @@ export class AgentsController {
   @Patch(':agentId')
   @ApiOperation({
     summary: 'Update agent settings',
-    description: 'Update settings for a specific AI agent including enabled status and moderation requirements'
+    description:
+      'Update settings for a specific AI agent including enabled status and moderation requirements',
   })
   @ApiParam({ name: 'agentId', type: String, description: 'Agent ID to update' })
   @ApiBody({ type: UpdateUserAgentDto })
@@ -85,7 +94,8 @@ export class AgentsController {
   @Post('/wismo/preview')
   @ApiOperation({
     summary: 'Generate WISMO response preview',
-    description: 'Generate a preview of the "Where Is My Order" (WISMO) agent response for testing. Rate limited to 5 requests.'
+    description:
+      'Generate a preview of the "Where Is My Order" (WISMO) agent response for testing. Rate limited to 5 requests.',
   })
   @ApiBody({ type: WismoPreviewDto })
   @ApiResponse({ status: 200, description: 'WISMO preview generated successfully' })

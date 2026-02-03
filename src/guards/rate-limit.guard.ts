@@ -29,7 +29,7 @@ export class RateLimitGuard implements CanActivate {
     }
 
     const request = context.switchToHttp().getRequest();
-    const userId = request.userId;
+    const userId = request.session.userId;
 
     if (!userId) {
       // If no userId, skip rate limiting (shouldn't happen with SessionGuard)

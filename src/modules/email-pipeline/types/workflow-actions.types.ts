@@ -1,5 +1,5 @@
 import { EmailEntity } from '../../../database/schema';
-import { WorkflowState, EscalationType } from './index';
+import { EscalationType, WorkflowState } from './index';
 
 /**
  * Enum defining all possible action types in the WISMO workflow

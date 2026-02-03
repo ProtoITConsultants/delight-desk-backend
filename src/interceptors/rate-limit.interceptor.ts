@@ -23,7 +23,7 @@ export class RateLimitInterceptor implements NestInterceptor {
     }
 
     const request = context.switchToHttp().getRequest();
-    const userId = request.userId;
+    const userId = request.session.userId;
 
     if (!userId) {
       return next.handle();

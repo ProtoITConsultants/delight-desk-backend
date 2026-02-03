@@ -50,6 +50,13 @@ export class GoogleOauthRepository {
     return !!exists;
   }
 
+  async getAllGoogleAccounts() {
+    return this.db
+      .select()
+      .from(userOAuthAccounts)
+      .where(eq(userOAuthAccounts.provider, 'google'));
+  }
+
   async getGoogleAccountByEmail(email: string) {
     const [account] = await this.db
       .select()

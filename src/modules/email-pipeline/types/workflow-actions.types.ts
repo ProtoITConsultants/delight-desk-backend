@@ -37,7 +37,7 @@ export enum ActionStatus {
  */
 export interface ActionConfig {
   type: WismoActionType;
-  step: number;
+  step: number | string; // Supports both integers (1, 2, 3) and sub-steps (3.1, 3.2)
   description: string;
   requiresUserData?: boolean; // For actions like "edit response"
   metadata?: Record<string, any>;
@@ -123,7 +123,7 @@ export interface CreateApprovalQueueData {
 export interface CreateActionData {
   approvalQueueId: string;
   actionType: WismoActionType;
-  actionStep: number;
+  actionStep: number | string; // Supports both integers (1, 2, 3) and sub-steps (3.1, 3.2)
   actionStatus: ActionStatus;
   description: string;
   metadata?: Record<string, any>;
@@ -139,7 +139,7 @@ export interface CreateActionData {
  */
 export interface CreateApprovalItemData extends CreateApprovalQueueData {
   actionType: WismoActionType;
-  actionStep: number;
+  actionStep: number | string; // Supports both integers (1, 2, 3) and sub-steps (3.1, 3.2)
   actionStatus: ActionStatus;
   parentWorkflowId: string;
   previousActionId?: string;

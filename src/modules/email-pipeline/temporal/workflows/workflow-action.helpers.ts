@@ -93,7 +93,6 @@ export async function executeWorkflowAction<T>(
           orderNumber: context.state.orderNumber,
           currentStatus: context.state.status,
         },
-        plannedSteps: context.state.plannedActions,
       };
 
       const approvalQueue = await createApprovalQueueItem(approvalQueueData);
@@ -111,7 +110,7 @@ export async function executeWorkflowAction<T>(
   const actionData: CreateActionData = {
     approvalQueueId: context.approvalQueueId!,
     actionType: actionConfig.type,
-    actionStep: actionConfig.step,
+    actionStep: String(actionConfig.step), // Convert to string to support sub-steps like "3.1"
     actionStatus: context.requiresModeration
       ? ActionStatus.PENDING_APPROVAL
       : ActionStatus.APPROVED,

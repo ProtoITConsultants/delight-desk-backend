@@ -225,6 +225,27 @@
       "when": 1769607213481,
       "tag": "0031_quick_jubilee",
       "breakpoints": true
+    },
+    {
+      "idx": 32,
+      "version": "7",
+      "when": 1770046930131,
+      "tag": "0032_silly_gertrude_yorkes",
+      "breakpoints": true
+    },
+    {
+      "idx": 33,
+      "version": "7",
+      "when": 1770049158679,
+      "tag": "0033_mixed_human_torch",
+      "breakpoints": true
+    },
+    {
+      "idx": 34,
+      "version": "7",
+      "when": 1770110177249,
+      "tag": "0034_awesome_vector",
+      "breakpoints": true
     }
   ]
 }

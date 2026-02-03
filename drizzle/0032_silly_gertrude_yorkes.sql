@@ -1,0 +1,1 @@
+ALTER TABLE "approval_queue_actions" ALTER COLUMN "action_step" SET DATA TYPE varchar(10);

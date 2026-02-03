@@ -19,14 +19,10 @@ export class RateLimitGuard implements CanActivate {
   ) {}
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
-    const num = 5 + 5;
-
-    console.log('Rate Limit Guard');
     const rateLimitConfig = this.reflector.get<RateLimitConfig>(
       RATE_LIMIT_KEY,
       context.getHandler(),
     );
-
 
     if (!rateLimitConfig) {
       return true;

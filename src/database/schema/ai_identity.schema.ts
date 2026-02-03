@@ -12,10 +12,10 @@ export const aiIdentity = pgTable('ai_identity', {
     .references(() => users.id, { onDelete: 'cascade' }),
 
   // AI Agent Identity Fields
-  aiAgentName: text('ai_agent_name').notNull(), // e.g., "Sarah", "Alex"
+  aiAgentName: text('ai_agent_name'), // e.g., "Sarah", "Alex"
   businessType: text('business_type'), // e.g., "E-commerce", "SaaS"
   aiAgentTitle: text('ai_agent_title'), // e.g., "Customer Support Specialist"
-  emailSalutation: text('email_salutation').notNull().default('Hi'), // e.g., "Hi", "Hello", "Dear"
+  emailSalutation: text('email_salutation').default('Hi'), // e.g., "Hi", "Hello", "Dear"
 
   // Email Signature Fields
   companyNameForEmailSignature: text('company_name_for_email_signature'), // e.g., "Acme Corp"

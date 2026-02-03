@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable } from '@nestjs/common';
 import { AiIdentityRepository } from '../../database/repos/ai-identity.repository';
 import { CreateAiIdentityDto, GeneratedNameDto, UpdateAiIdentityDto } from './dto/ai-identity.dto';
 import { AiIdentityEntity } from '../../database/schema';
@@ -37,13 +37,21 @@ export class AiIdentityService {
   }
 
   async updateIdentity(userId: string, dto: UpdateAiIdentityDto): Promise<AiIdentityEntity> {
-    const existing = await this.aiIdentityRepository.findByUserId(userId);
-
-    if (!existing) {
-      throw new NotFoundException('AI identity not found for this user');
-    }
-
-    return this.aiIdentityRepository.update(userId, dto);
+    return await this.aiIdentityRepository.upsert({
+      userId,
+      aiAgentName: dto.aiAgentName as any,
+      businessType: dto.businessType || null,
+      aiAgentTitle: dto.aiAgentTitle || null,
+      emailSalutation: dto.emailSalutation as any,
+      companyNameForEmailSignature: dto.companyNameForEmailSignature || null,
+      signatureFooter: dto.signatureFooter || null,
+      brandVoice: dto.brandVoice || 'professional',
+      customBrandVoice: dto.customBrandVoice || null,
+      industrySpecificGuidance: dto.industrySpecificGuidance ?? false,
+      thankLoyalCustomers: dto.thankLoyalCustomers ?? false,
+      allowEmojiInResponses: dto.allowEmojiInResponses ?? false,
+      customInstructions: dto.customInstructions || null,
+    });
   }
 
   async generateNames(customerDescription: string): Promise<GeneratedNameDto[]> {

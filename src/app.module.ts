@@ -11,6 +11,7 @@ import { GoogleOauthModule } from './modules/google-oauth/google-oauth.module';
 import { AiAssistantModule } from './modules/ai-assistant/ai-assistant.module';
 import { ApprovalQueueModule } from './modules/approval-queue/approval-queue.module';
 import { MicrosoftOauthModule } from './modules/microsoft-oauth/microsoft-oauth.module';
+import { AiTeamCenterModule } from './modules/ai-team-center/ai-team-center.module';
 
 @Module({
   imports: [
@@ -28,6 +29,7 @@ import { MicrosoftOauthModule } from './modules/microsoft-oauth/microsoft-oauth.
     MicrosoftOauthModule,
     ApprovalQueueModule,
     AiAssistantModule,
+    AiTeamCenterModule,
   ],
   controllers: [],
   providers: [],

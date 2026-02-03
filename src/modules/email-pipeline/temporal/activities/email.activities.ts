@@ -11,6 +11,7 @@ import { AiAssistantService } from 'src/modules/ai-assistant/ai-assistant.servic
 import { EmailThreadsRepository } from 'src/database/repos/email-threads.repository';
 import { ApprovalQueueRepository } from 'src/database/repos/approval-queue.repository';
 import { ApprovalQueueActionsRepository } from 'src/database/repos/approval-queue-actions.repository';
+import { AiIdentityRepository } from 'src/database/repos/ai-identity.repository';
 
 @Injectable()
 @Activity()
@@ -24,6 +25,7 @@ export class EmailActivities {
     private readonly emailThreadsRepository: EmailThreadsRepository,
     private readonly approvalQueueRepository: ApprovalQueueRepository,
     private readonly approvalQueueActionsRepository: ApprovalQueueActionsRepository,
+    private readonly aiIdentityRepository: AiIdentityRepository,
   ) {}
 
   @ActivityMethod({ name: 'extractOrderNumberFromEmail' })
@@ -96,18 +98,28 @@ export class EmailActivities {
     };
   }
 
+  @ActivityMethod({ name: 'getAiIdentity' })
+  async getAiIdentity(userId: string): Promise<any> {
+    return this.aiIdentityRepository.findByUserId(userId);
+  }
+
   @ActivityMethod({ name: 'generateAcknowledgementMessage' })
   async generateAcknowledgementMessage(
     orderNumber: string,
     customerName: string,
     customerQuery: string,
+    aiIdentity?: any,
   ): Promise<string> {
+    const voiceContext = this.buildVoiceAndSettingsContext(aiIdentity);
+
     const prompt = `
       Generate a brief, friendly acknowledgement email for a customer who inquired about their order status.
 
       Order Number: ${orderNumber}
       Customer Name: ${customerName}
       Customer's Question: ${customerQuery}
+      ${aiIdentity?.aiAgentName ? `AI Agent Name: ${aiIdentity.aiAgentName}` : ''}
+      ${aiIdentity?.aiAgentTitle ? `AI Agent Title: ${aiIdentity.aiAgentTitle}` : ''}
 
       Write a warm acknowledgement that:
       1. Thanks the customer for reaching out
@@ -115,8 +127,9 @@ export class EmailActivities {
       3. Lets them know we're looking into it and will provide an update soon
       4. Sets a positive, reassuring tone
       5. Keeps it under 100 tokens
-      6. Do not include a signature or sign-off
-      7. Use a friendly, professional tone
+      6. Do not include a salutation (like "Hi" or "Hello") at the beginning
+      7. Do not include a signature or sign-off at the end
+${voiceContext}
 
       Important: This is just an acknowledgement, not the final response. Keep it brief and reassuring.
     `;
@@ -124,7 +137,7 @@ export class EmailActivities {
     const messages = [
       {
         role: 'system',
-        content: 'You are a helpful customer service agent acknowledging customer inquiries.',
+        content: `You are ${aiIdentity?.aiAgentName || 'a helpful customer service agent'}${aiIdentity?.aiAgentTitle ? `, ${aiIdentity.aiAgentTitle},` : ''} acknowledging customer inquiries.`,
       },
       {
         role: 'user',
@@ -138,19 +151,27 @@ export class EmailActivities {
       temperature,
     );
 
-    return response.choices[0].message.content || '';
+    const messageContent = response.choices[0].message.content || '';
+
+    // Format the message with AI identity
+    return this.formatMessageWithAiIdentity(messageContent, customerName, aiIdentity);
   }
 
   @ActivityMethod({ name: 'generateOrderInfoRequestMessage' })
   async generateOrderInfoRequestMessage(
     customerName: string,
     customerQuery: string,
+    aiIdentity?: any,
   ): Promise<string> {
+    const voiceContext = this.buildVoiceAndSettingsContext(aiIdentity);
+
     const prompt = `
       Generate a polite, helpful email asking a customer to provide their order information.
 
       Customer Name: ${customerName || 'there'}
       Customer's Original Question: ${customerQuery}
+      ${aiIdentity?.aiAgentName ? `AI Agent Name: ${aiIdentity.aiAgentName}` : ''}
+      ${aiIdentity?.aiAgentTitle ? `AI Agent Title: ${aiIdentity.aiAgentTitle}` : ''}
 
       Context: We couldn't find their order number in their email or match their email to recent orders.
 
@@ -163,7 +184,9 @@ export class EmailActivities {
       4. Reassures them we'll help as soon as they provide this info
       5. Uses a warm, apologetic tone (we want to help!)
       6. Keeps it under 120 tokens
-      7. Do not include a signature or sign-off
+      7. Do not include a salutation (like "Hi" or "Hello") at the beginning
+      8. Do not include a signature or sign-off at the end
+${voiceContext}
 
       Important: Be apologetic for the inconvenience but keep it positive and solution-focused.
     `;
@@ -171,7 +194,7 @@ export class EmailActivities {
     const messages = [
       {
         role: 'system',
-        content: 'You are a helpful customer service agent requesting order information.',
+        content: `You are ${aiIdentity?.aiAgentName || 'a helpful customer service agent'}${aiIdentity?.aiAgentTitle ? `, ${aiIdentity.aiAgentTitle},` : ''} requesting order information.`,
       },
       {
         role: 'user',
@@ -185,7 +208,10 @@ export class EmailActivities {
       temperature,
     );
 
-    return response.choices[0].message.content || '';
+    const messageContent = response.choices[0].message.content || '';
+
+    // Format the message with AI identity
+    return this.formatMessageWithAiIdentity(messageContent, customerName, aiIdentity);
   }
 
   @ActivityMethod({ name: 'checkForCustomerReplyInThread' })
@@ -262,7 +288,10 @@ export class EmailActivities {
     trackingStatus: string,
     trackingUrl: string,
     customerName: string,
+    aiIdentity?: any,
   ): Promise<string> {
+    const voiceContext = this.buildVoiceAndSettingsContext(aiIdentity);
+
     const prompt = `
       Generate a brief, friendly customer notification email for a shipping update.
 
@@ -270,14 +299,19 @@ export class EmailActivities {
       Tracking Status: ${trackingStatus}
       Tracking URL: ${trackingUrl}
       Customer Name: ${customerName}
+      ${aiIdentity?.aiAgentName ? `AI Agent Name: ${aiIdentity.aiAgentName}` : ''}
+      ${aiIdentity?.aiAgentTitle ? `AI Agent Title: ${aiIdentity.aiAgentTitle}` : ''}
 
       Write a concise, empathetic notification that:
       1. Informs the customer about the shipping update
       2. Explains what "${trackingStatus}" means in simple terms
       3. Includes the tracking URL for them to check details
       4. Keeps it under 150 tokens
-      5. Do not include a signature or sign-off
-      6. Use a warm, friendly tone
+      5. Do not include a salutation (like "Hi" or "Hello") at the beginning
+      6. Do not include a signature or sign-off at the end
+      7. NEVER mention third-party tracking services like AfterShip, ShipStation, or similar services
+      8. Present the tracking information as if it comes directly from the carrier/courier
+${voiceContext}
 
       Important: Focus on this specific status update. Keep it brief and actionable.
     `;
@@ -285,7 +319,7 @@ export class EmailActivities {
     const messages = [
       {
         role: 'system',
-        content: 'You are a helpful customer service agent providing shipping updates.',
+        content: `You are ${aiIdentity?.aiAgentName || 'a helpful customer service agent'}${aiIdentity?.aiAgentTitle ? `, ${aiIdentity.aiAgentTitle},` : ''} providing shipping updates.`,
       },
       {
         role: 'user',
@@ -299,7 +333,10 @@ export class EmailActivities {
       temperature,
     );
 
-    return response.choices[0].message.content || '';
+    const messageContent = response.choices[0].message.content || '';
+
+    // Format the message with AI identity
+    return this.formatMessageWithAiIdentity(messageContent, customerName, aiIdentity);
   }
 
   @ActivityMethod({ name: 'generateEscalationResponse' })
@@ -485,5 +522,108 @@ export class EmailActivities {
   @ActivityMethod({ name: 'markEmailAsRead' })
   async markEmailAsRead(userId: string, messageId: string): Promise<{ success: boolean }> {
     return this.googleOAuthService.markEmailAsRead(userId, messageId);
+  }
+
+  /**
+   * Helper method to build voice & settings instructions for AI prompts
+   */
+  private buildVoiceAndSettingsContext(aiIdentity?: any): string {
+    if (!aiIdentity) return '';
+
+    const parts: string[] = [];
+
+    // Brand Voice
+    if (aiIdentity.brandVoice) {
+      let voiceInstruction = '';
+      switch (aiIdentity.brandVoice) {
+        case 'friendly':
+          voiceInstruction =
+            'Use a warm, approachable, and conversational tone. Be personable and relatable while maintaining professionalism.';
+          break;
+        case 'professional':
+          voiceInstruction =
+            'Use a polished, business-appropriate tone. Be clear, concise, and respectful while maintaining warmth.';
+          break;
+        case 'sophisticated':
+          voiceInstruction =
+            'Use an elevated, refined tone. Be articulate and well-composed while remaining accessible and helpful.';
+          break;
+        case 'custom':
+          if (aiIdentity.customBrandVoice) {
+            voiceInstruction = `Brand Voice: ${aiIdentity.customBrandVoice}`;
+          }
+          break;
+      }
+      if (voiceInstruction) parts.push(voiceInstruction);
+    }
+
+    // Industry-specific guidance
+    if (aiIdentity.industrySpecificGuidance && aiIdentity.businessType) {
+      parts.push(
+        `Apply ${aiIdentity.businessType} industry best practices and terminology in your response.`,
+      );
+    }
+
+    // Thank loyal customers
+    if (aiIdentity.thankLoyalCustomers) {
+      parts.push(
+        'If this appears to be a repeat customer or loyal customer, acknowledge and thank them for their continued business.',
+      );
+    }
+
+    // Emoji policy
+    if (aiIdentity.allowEmojiInResponses) {
+      parts.push('You may use appropriate emojis sparingly to add warmth and personality.');
+    } else {
+      parts.push('Do not use emojis in your response.');
+    }
+
+    // Custom instructions
+    if (aiIdentity.customInstructions) {
+      parts.push(`Additional Guidelines: ${aiIdentity.customInstructions}`);
+    }
+
+    return parts.length > 0 ? `\n\n**Voice & Behavior Guidelines:**\n${parts.join('\n')}` : '';
+  }
+
+  /**
+   * Helper method to format email messages with AI identity (salutation and signature)
+   */
+  private formatMessageWithAiIdentity(
+    messageContent: string,
+    customerName: string,
+    aiIdentity?: any,
+  ): string {
+    const salutation = aiIdentity?.emailSalutation || 'Hi';
+    const agentName = aiIdentity?.aiAgentName || '';
+    const agentTitle = aiIdentity?.aiAgentTitle || '';
+    const companyName = aiIdentity?.companyNameForEmailSignature || '';
+    const signatureFooter = aiIdentity?.signatureFooter || '';
+
+    // Build salutation
+    const greeting = `${salutation} ${customerName},\n\n`;
+
+    // Build signature
+    let signature = '\n\n';
+    if (agentName) {
+      signature += agentName;
+      if (companyName || agentTitle) {
+        signature += '\n';
+      }
+    }
+    if (agentTitle) {
+      signature += agentTitle;
+      if (companyName) {
+        signature += '\n';
+      }
+    }
+    if (companyName) {
+      signature += companyName;
+    }
+    if (signatureFooter) {
+      signature += `\n\n${signatureFooter}`;
+    }
+
+    return `${greeting}${messageContent}${signature}`;
   }
 }

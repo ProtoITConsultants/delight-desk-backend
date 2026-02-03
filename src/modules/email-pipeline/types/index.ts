@@ -68,7 +68,6 @@ export interface WorkflowState {
   lastTrackingTag?: string;
   escalation?: EscalationContext;
   humanResponse?: HumanResponse;
-  plannedActions: any[];
   approvalQueueId?: string;
   status?: 'processing' | 'awaiting_human' | 'completed' | 'failed' | 'cancelled' | 'escalated';
   lastUpdated?: Date;

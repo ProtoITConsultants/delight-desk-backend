@@ -253,6 +253,20 @@
       "when": 1770143706027,
       "tag": "0035_mute_strong_guy",
       "breakpoints": true
+    },
+    {
+      "idx": 36,
+      "version": "7",
+      "when": 1770205123167,
+      "tag": "0036_lumpy_the_leader",
+      "breakpoints": true
+    },
+    {
+      "idx": 37,
+      "version": "7",
+      "when": 1770208998615,
+      "tag": "0037_public_omega_red",
+      "breakpoints": true
     }
   ]
 }

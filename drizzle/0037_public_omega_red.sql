@@ -1,0 +1,1 @@
+DROP TABLE "oauth_reauth_tokens" CASCADE;

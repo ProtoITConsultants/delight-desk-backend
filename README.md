@@ -187,6 +187,131 @@ pm2 start ecosystem.config.js
 pm2 save
 ```
 
+## Efficient Log Querying Strategies
+
+### 1. PM2 Native Commands (Basic)
+
+```bash
+# View last 100 lines of all logs
+pm2 logs delight-desk --lines 100
+
+# View only error logs
+pm2 logs delight-desk --err
+
+# View only output logs
+pm2 logs delight-desk --out
+
+# Real-time streaming (like tail -f)
+pm2 logs delight-desk
+
+# Clear all logs
+pm2 flush delight-desk
+```
+
+### 2. Direct File Access (Faster for Large Logs)
+
+Logs are stored in `logs/` directory as configured in `ecosystem.config.js`:
+- `logs/delight-desk-out.log` - Standard output
+- `logs/delight-desk-error.log` - Error output
+
+```bash
+# Last 100 lines
+tail -n 100 logs/delight-desk-out.log
+
+# Real-time monitoring
+tail -f logs/delight-desk-out.log
+
+# View errors only
+tail -f logs/delight-desk-error.log
+
+# Last 1000 lines from both files
+tail -n 1000 logs/delight-desk-*.log
+```
+
+### 3. Search for Specific Events (Structured Logs)
+
+The application uses structured logging with JSON objects containing event types, timestamps, and metadata:
+
+```bash
+# Search for token refresh events
+grep "token_refresh" logs/delight-desk-out.log
+
+# Search for errors
+grep "error" logs/delight-desk-out.log
+
+# Search by userId
+grep "userId.*abc-123" logs/delight-desk-out.log
+
+# Search by event type
+grep "event.*token_health_check_started" logs/delight-desk-out.log
+
+# Case-insensitive search
+grep -i "failed" logs/delight-desk-error.log
+```
+
+**Common event types to search for:**
+- `token_refresh_started` - Token refresh initiated
+- `token_refresh_success` - Token refreshed successfully
+- `token_refresh_failed` - Token refresh failed
+- `token_health_check_started` - Cron job started
+- `token_health_check_completed` - Cron job completed
+- `account_marked_disconnected` - Account needs reconnection
+- `reconnect_notification_sent` - Email sent to user
+
+### 4. Advanced Filtering with grep + tail
+
+```bash
+# Last 100 lines with "error"
+tail -n 100 logs/delight-desk-out.log | grep "error"
+
+# Real-time monitoring of specific events
+tail -f logs/delight-desk-out.log | grep "token_refresh"
+
+# Multiple patterns (OR)
+tail -f logs/delight-desk-out.log | grep -E "error|failed|disconnected"
+
+# Show context (3 lines before and after)
+grep -C 3 "token_refresh_failed" logs/delight-desk-out.log
+
+# Count occurrences
+grep -c "token_refresh_success" logs/delight-desk-out.log
+
+# Time-based queries (logs include timestamps: YYYY-MM-DD HH:mm:ss)
+grep "^2026-02-04" logs/delight-desk-out.log              # Specific date
+grep "^2026-02-04 14:" logs/delight-desk-out.log          # Specific hour
+awk '/2026-02-04 14:00/,/2026-02-04 15:00/' logs/delight-desk-out.log  # Time range
+
+# Useful one-liners
+# Count token refresh successes today
+grep "$(date +%Y-%m-%d)" logs/delight-desk-out.log | grep -c "token_refresh_success"
+
+# Show all unique event types
+grep -o '"event":"[^"]*"' logs/delight-desk-out.log | sort | uniq
+
+# Find all users who needed reconnection today
+grep "$(date +%Y-%m-%d)" logs/delight-desk-out.log | grep "user_reconnect_needed" | grep -o '"userId":"[^"]*"'
+
+# Get last 10 errors with context
+grep -B 2 -A 2 "error" logs/delight-desk-out.log | tail -n 50
+```
+
+**Quick health check script:**
+
+Create `logs/health-check.sh`:
+```bash
+#!/bin/bash
+echo "=== Last 24h Summary ==="
+echo "Token refreshes: $(grep -c "token_refresh_success" logs/delight-desk-out.log)"
+echo "Token failures: $(grep -c "token_refresh_failed" logs/delight-desk-out.log)"
+echo "Accounts disconnected: $(grep -c "account_marked_disconnected" logs/delight-desk-out.log)"
+echo "Cron executions: $(grep -c "token_health_check_started" logs/delight-desk-out.log)"
+echo ""
+echo "=== Recent Errors ==="
+tail -n 20 logs/delight-desk-error.log
+```
+
+Make it executable: `chmod +x logs/health-check.sh`
+
 ## Environment Variables
 
 Make sure these are set on your EC2 server in `~/.bashrc` or `~/.profile`:

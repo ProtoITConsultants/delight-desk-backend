@@ -1,4 +1,4 @@
-import { Module, forwardRef } from '@nestjs/common';
+import { forwardRef, Module } from '@nestjs/common';
 import { EmailPipelineService } from './email-pipeline.service';
 import { InfraModule } from './temporal/infra.module';
 import { RepositoriesModule } from '../../database/repositories.module';
@@ -6,7 +6,7 @@ import { EmailPipelineController } from './email-pipeline.controller';
 import { WooCommerceModule } from '../woocommerce/woocommerce.module';
 import { AftershipModule } from '../aftership/aftership.module';
 import { ClassificationUtil } from './utils/classification.util';
-import { GoogleOauthService } from '../google-oauth/google-oauth.service';
+import { GoogleOauthModule } from '../google-oauth/google-oauth.module';
 import { AgentsModule } from '../agents/agents.module';
 import { OpenAIModule } from '../openai/openai.module';
 import { AiAssistantModule } from '../ai-assistant/ai-assistant.module';
@@ -22,6 +22,7 @@ import { MessageFormattingHelper } from './temporal/activities/shared/message-fo
 import { WismoOrderActivities } from './temporal/activities/agents/wismo/wismo-order.activities';
 import { WismoTrackingActivities } from './temporal/activities/agents/wismo/wismo-tracking.activities';
 import { WismoMessageActivities } from './temporal/activities/agents/wismo/wismo-messages.activities';
+import { SendgridModule } from '../sendgrid/sendgrid.module';
 
 @Module({
   imports: [
@@ -31,13 +32,14 @@ import { WismoMessageActivities } from './temporal/activities/agents/wismo/wismo
     AftershipModule,
     AgentsModule,
     OpenAIModule,
+    SendgridModule,
     forwardRef(() => AiAssistantModule),
+    forwardRef(() => GoogleOauthModule),
   ],
   controllers: [EmailPipelineController],
   providers: [
     EmailPipelineService,
     ClassificationUtil,
-    GoogleOauthService,
     // Shared activities
     EmailActivities,
     ApprovalQueueActivities,

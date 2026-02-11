@@ -2,15 +2,11 @@ import { Injectable, Logger } from '@nestjs/common';
 import { gmail_v1 } from 'googleapis';
 import { GoogleOauthRepository } from 'src/database/repos/google-oauth.repository';
 import { EmailEntity } from 'src/database/schema';
-import { EmailPipelineService } from 'src/modules/email-pipeline/email-pipeline.service';
 import { GmailParserUtil } from '../utils/gmail-parser.util';
 import { EmailContentExtractorUtil } from '../utils/email-content-extractor.util';
 import { EmailClassificationService } from './email-classification.service';
-import {
-  GMAIL_API,
-  GMAIL_SENT_LABEL,
-  IRRELEVANT_GMAIL_LABELS,
-} from '../constants/gmail.constants';
+import { GMAIL_API, GMAIL_SENT_LABEL, IRRELEVANT_GMAIL_LABELS } from '../constants/gmail.constants';
+import { InfraService } from '../../temporal/infra.service';
 
 /**
  * Service for processing Gmail webhook notifications
@@ -24,7 +20,7 @@ export class GmailWebhookService {
     private readonly gmailParser: GmailParserUtil,
     private readonly contentExtractor: EmailContentExtractorUtil,
     private readonly emailClassifier: EmailClassificationService,
-    private readonly emailPipelineService: EmailPipelineService,
+    private readonly infraService: InfraService,
   ) {}
 
   /**
@@ -188,7 +184,7 @@ export class GmailWebhookService {
   private async triggerEmailPipeline(email: EmailEntity): Promise<void> {
     setImmediate(async () => {
       try {
-        await this.emailPipelineService.processEmail(email);
+        await this.infraService.processEmail(email);
       } catch (error) {
         console.error(`Pipeline failed for email ${email.id}:`, error);
       }

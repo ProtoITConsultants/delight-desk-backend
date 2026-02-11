@@ -232,12 +232,6 @@ Uses `classification.util.ts` to analyze email content:
 - **Retry Logic**: Check every 2 hours for up to 7 days if not delivered
 
 ### 6. AI Response Generation
-Uses `ai-response.util.ts` to create reply:
-- Personalized response based on order status and tracking info
-- Empathetic customer service tone
-- Includes tracking details and delivery expectations
-- **Temperature**: 0.7 (creative but consistent)
-- **Max tokens**: ~300
 
 ### 7. Human-in-the-Loop Approval
 - If moderation required for agent: Wait for approval signal
@@ -423,7 +417,6 @@ async function processEmailWorkflow(workflowInput: WorkFlowInput) {
 - `src/modules/email-pipeline/temporal/workflows/email.workflow.ts` - Main workflow
 - `src/modules/email-pipeline/temporal/workflows/wismo.workflow.ts` - WISMO handler
 - `src/modules/email-pipeline/utils/classification.util.ts` - OpenAI classification
-- `src/modules/email-pipeline/utils/ai-response.util.ts` - AI response generation
 - `src/modules/email-pipeline/temporal/activities/email.activities.ts` - Temporal activities
 
 ### Agent Configuration

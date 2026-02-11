@@ -244,15 +244,15 @@ export class GoogleOauthService {
       });
 
       // Notify user to reconnect
-      await this.notifyUserToReconnect(userId).catch((notifyError) => {
-        this.logger.error({
-          event: 'notification_failed',
-          userId,
-          operation: 'notifyUserToReconnect',
-          error: notifyError?.message || 'Unknown error',
-          timestamp: new Date().toISOString(),
-        });
-      });
+      // await this.notifyUserToReconnect(userId).catch((notifyError) => {
+      //   this.logger.error({
+      //     event: 'notification_failed',
+      //     userId,
+      //     operation: 'notifyUserToReconnect',
+      //     error: notifyError?.message || 'Unknown error',
+      //     timestamp: new Date().toISOString(),
+      //   });
+      // });
 
       throw new Error(
         'Google account needs re-authentication. Please reconnect your Gmail account.',

@@ -21,7 +21,7 @@ import {
 } from '@nestjs/common';
 import { EmailEntity } from '../../database/schema';
 import { OpenAIService } from '../openai/openai.service';
-import { OrderDetails, OrderExtractionResult } from '../email-pipeline/types';
+import { OrderDetails, OrderExtractionResult } from '../temporal/types';
 import { AftershipService } from '../aftership/aftership.service';
 
 @Injectable()

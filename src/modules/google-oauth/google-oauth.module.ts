@@ -4,8 +4,7 @@ import { GoogleStrategy } from './google.strategy';
 import { GoogleOauthService } from './google-oauth.service';
 import { GoogleOauthController } from './google-oauth.controller';
 import { GoogleOauthRepository } from '../../database/repos/google-oauth.repository';
-import { EmailPipelineModule } from '../email-pipeline/email-pipeline.module';
-import { InfraModule } from '../email-pipeline/temporal/infra.module';
+import { InfraModule } from '../temporal/infra.module';
 import { SendgridModule } from '../sendgrid/sendgrid.module';
 import { RepositoriesModule } from '../../database/repositories.module';
 import { TokenHealthService } from './token-health.service';
@@ -26,7 +25,7 @@ import { GmailMessageBuilder } from './utils/gmail-message.builder';
     InfraModule,
     SendgridModule,
     RepositoriesModule,
-    forwardRef(() => EmailPipelineModule),
+    forwardRef(() => InfraModule),
   ],
   controllers: [GoogleOauthController],
   providers: [

@@ -1,0 +1,93 @@
+import { EmailEntity } from 'src/database/schema';
+import { BadRequestException, ConflictException, Injectable } from '@nestjs/common';
+import { ClassificationUtil } from './utils/classification.util';
+import { TemporalService } from 'nestjs-temporal-core';
+import { WorkFlowInput, WorkflowState } from './types';
+import { ConfigService } from '@nestjs/config';
+import { WorkflowNotFoundError } from '@temporalio/common';
+import { AgentsService } from '../agents/agents.service';
+import { EmailThreadsRepository } from '../../database/repos/email-threads.repository';
+import { AgentType } from '../../common/agent-types';
+import { threadMessage } from './workflows/email.workflow';
+import { humanResponseSignal, stateQuery } from './workflows/agents/wismo';
+
+@Injectable()
+export class InfraService {
+  constructor(
+    private readonly agentsService: AgentsService,
+    private readonly configService: ConfigService,
+    private readonly temporalService: TemporalService,
+    private readonly emailThreadsRepo: EmailThreadsRepository,
+    private readonly classificationService: ClassificationUtil,
+  ) {}
+
+  async processEmail(email: EmailEntity) {
+    const workflowId = `workflow-thread-${email.threadId}`;
+    const classification = await this.classificationService.classify(email);
+
+    const { isEnabled } = await this.agentsService.getAgentSettings(
+      classification.category as AgentType,
+      email,
+    );
+
+    if (!isEnabled) {
+      console.log('Agent Not Enabled.');
+      return;
+    }
+
+    const workflowInput: WorkFlowInput = { email, classification };
+    const thread = await this.emailThreadsRepo.findById(email.threadId);
+
+    if (!thread.workflowId) {
+      // Get workflow configuration from ConfigService
+      const workflowConfig = {
+        useRefactoredWismo:
+          this.configService.get<string>('USE_REFACTORED_WISMO_WORKFLOW') === 'true',
+      };
+
+      await this.temporalService.startWorkflow(
+        'processEmailWorkflow',
+        [workflowInput, workflowConfig],
+        {
+          workflowId: workflowId,
+          taskQueue: this.configService.get('TEMPORAL_TASK_QUEUE'),
+        },
+      );
+
+      await this.emailThreadsRepo.updateById(thread.id, { workflowId });
+    }
+
+    if (thread.workflowId) {
+      try {
+        const handle: any = await this.temporalService.getWorkflowHandle(thread.workflowId);
+        await handle.signal(threadMessage, workflowInput);
+      } catch (error) {
+        if (error instanceof WorkflowNotFoundError) {
+          throw new ConflictException(error.message);
+        }
+        throw new BadRequestException(error.message);
+      }
+    }
+  }
+
+  async getWorkflowState(workflowId: string): Promise<WorkflowState> {
+    const handle: any = await this.temporalService.getWorkflowHandle(workflowId);
+    return await handle.query(stateQuery);
+  }
+
+  async sendApprovalSignalToWorkflow(
+    workflowId: string,
+    humanResponse: any,
+    approvalItemId?: string,
+  ) {
+    try {
+      const handle: any = await this.temporalService.getWorkflowHandle(workflowId);
+      // Pass both the human response and the approval item ID
+      // This allows the workflow to route the response to the correct action
+      await handle.signal(humanResponseSignal, humanResponse, approvalItemId);
+    } catch (error) {
+      console.error('Failed to send signal to workflow:', error);
+      throw new Error('Failed to send approval signal to workflow');
+    }
+  }
+}

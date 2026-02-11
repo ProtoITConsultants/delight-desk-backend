@@ -22,7 +22,7 @@ import {
   UpdateHtmlSignatureDto,
   UpdateStructuredSignatureDto,
 } from './ai-assistant.dto';
-import { extractEmail } from '../email-pipeline/temporal/workflows/wismo.workflow';
+import { extractEmail } from '../temporal/workflows/agents/wismo';
 import { EmailThreadsRepository } from '../../database/repos/email-threads.repository';
 import { OpenAIService } from '../openai/openai.service';
 
@@ -305,7 +305,7 @@ export class AiAssistantService {
       await this.googleOauthService.replyToGmailThread(
         userId,
         // @ts-ignore
-        extractEmail(escalation.email.fromEmail),
+        'developer@delightdesk.io' || extractEmail(escalation.email.fromEmail),
         // @ts-ignore
         `Re: ${escalation.email.subject}`,
         finalMessage,
@@ -316,7 +316,7 @@ export class AiAssistantService {
       await this.googleOauthService.sendStandaloneEmail(
         userId,
         // @ts-ignore
-        extractEmail(escalation.email.fromEmail),
+        'developer@delightdesk.io' || extractEmail(escalation.email.fromEmail),
         // @ts-ignore
         `Re: ${escalation.email.subject}`,
         finalMessage,

@@ -12,15 +12,15 @@ import {
   GetApprovalQueueDto,
   RejectItemDto,
 } from './approval-queue.dto';
-import { HumanDecision } from '../email-pipeline/types';
-import { EmailPipelineService } from '../email-pipeline/email-pipeline.service';
+import { HumanDecision } from '../temporal/types';
+import { InfraService } from '../temporal/infra.service';
 
 @Injectable()
 export class ApprovalQueueService {
   constructor(
     private readonly approvalQueueRepository: ApprovalQueueRepository,
     private readonly approvalQueueActionsRepository: ApprovalQueueActionsRepository,
-    private readonly emailPipelineService: EmailPipelineService,
+    private readonly infraService: InfraService,
   ) {}
 
   async getApprovalQueue(userId: string, dto: GetApprovalQueueDto): Promise<any> {
@@ -197,7 +197,7 @@ export class ApprovalQueueService {
 
     // Send signal to Temporal workflow to continue execution
     // Pass the action ID so the workflow can route the response to the correct action
-    await this.emailPipelineService.sendApprovalSignalToWorkflow(
+    await this.infraService.sendApprovalSignalToWorkflow(
       workflow.workflowId,
       {
         decision: HumanDecision.APPROVE,
@@ -241,7 +241,7 @@ export class ApprovalQueueService {
 
     // Send signal to Temporal workflow
     // Pass the action ID so the workflow can route the response to the correct action
-    await this.emailPipelineService.sendApprovalSignalToWorkflow(
+    await this.infraService.sendApprovalSignalToWorkflow(
       workflow.workflowId,
       {
         decision: HumanDecision.REJECT,
@@ -296,7 +296,7 @@ export class ApprovalQueueService {
 
     // Send signal to Temporal workflow with edited response
     // Pass the action ID so the workflow can route the response to the correct action
-    await this.emailPipelineService.sendApprovalSignalToWorkflow(
+    await this.infraService.sendApprovalSignalToWorkflow(
       workflow.workflowId,
       {
         decision: HumanDecision.MODIFY_AND_APPROVE,

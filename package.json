@@ -6,8 +6,8 @@
   "private": true,
   "license": "UNLICENSED",
   "scripts": {
-    "start:dev": "nest start --watch",
-    "start:debug": "nest start --debug --watch",
+    "start:dev": "nest start --builder swc --watch",
+    "start:debug": "nest start --builder swc --debug --watch",
     "build": "nest build",
     "format:check": "prettier --check .",
     "format": "prettier --write .",

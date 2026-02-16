@@ -49,6 +49,8 @@ export interface WorkflowState {
   aftershipTracking?: Tracking;
   trackingRetryCount?: number;
   lastTrackingTag?: string;
+  cancellationRequestId?: string;
+  customerReply?: string;
   escalation?: EscalationContext;
   humanResponse?: HumanResponse;
   approvalQueueId?: string;
@@ -67,10 +69,16 @@ export interface OrderExtractionResult {
 export interface OrderDetails {
   orderId: string;
   status: string;
+  id?: string | number;
+  number?: string | number;
   trackingNumber?: string;
   trackingProvider?: string;
   customerInfo: any;
   items: any[];
+  billing?: any;
+  total?: string;
+  date_created?: string | Date;
+  date_created_gmt?: string | Date;
 }
 
 export interface ClassificationResult {

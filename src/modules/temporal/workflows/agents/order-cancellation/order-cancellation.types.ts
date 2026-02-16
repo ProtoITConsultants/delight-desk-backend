@@ -1,4 +1,4 @@
-import { WorkflowState, EscalationDetails } from '../../../types';
+import { EscalationDetails, WorkflowState } from '../../../types';
 import { FulfillmentMethod } from './order-cancellation.constants';
 
 /**
@@ -24,7 +24,7 @@ export interface PreparationResult extends OrderCancellationPhaseResult {
  * Actions: Extract order number, Request from customer if needed
  */
 export interface OrderDiscoveryResult extends OrderCancellationPhaseResult {
-  orderNumber: string;
+  orderNumber?: string;
   requiredCustomerInteraction: boolean;
   orderFoundInEmail: boolean;
 }
@@ -36,9 +36,10 @@ export interface OrderDiscoveryResult extends OrderCancellationPhaseResult {
 export interface OrderProcessingResult extends OrderCancellationPhaseResult {
   orderFetched: boolean;
   orderStatusValid: boolean;
-  passedDuplicateCheck: boolean;
-  passedRateLimitCheck: boolean;
-  cancellationRequestId?: string;
+  // TODO: Implement duplicates, rate limits check
+  // passedDuplicateCheck: boolean;
+  // passedRateLimitCheck: boolean;
+  // cancellationRequestId?: string;
 }
 
 /**

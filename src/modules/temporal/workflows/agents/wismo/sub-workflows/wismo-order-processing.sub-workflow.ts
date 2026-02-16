@@ -69,7 +69,7 @@ export async function handleWismoOrderProcessing(
         },
         async () => {
           const order = await getWooCommerceOrderById(
-            context.email.userId,
+            context.userId,
             context.state.orderNumber as string,
           );
           context.state.wooOrder = formatWooCommerceOrder(order);

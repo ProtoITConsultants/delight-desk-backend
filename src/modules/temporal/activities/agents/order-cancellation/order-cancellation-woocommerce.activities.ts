@@ -1,7 +1,9 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { Activity, ActivityMethod } from 'nestjs-temporal-core';
 import { ConfigService } from '@nestjs/config';
-import axios, { AxiosInstance } from 'axios';
+import axios from 'axios';
+
+type AxiosInstance = ReturnType<typeof axios.create>;
 
 /**
  * Order Cancellation WooCommerce Activities
@@ -59,7 +61,7 @@ export class OrderCancellationWooCommerceActivities {
       const client = this.getWooCommerceClient(userId);
 
       // Update order status to cancelled
-      const response = await client.put(`/orders/${orderNumber}`, {
+      const response = await client.put<any>(`/orders/${orderNumber}`, {
         status: 'cancelled',
       });
 
@@ -104,7 +106,7 @@ export class OrderCancellationWooCommerceActivities {
 
       // Get order details to determine refund amount if not provided
       if (!amount) {
-        const orderResponse = await client.get(`/orders/${orderNumber}`);
+        const orderResponse = await client.get<any>(`/orders/${orderNumber}`);
         amount = parseFloat(orderResponse.data.total);
       }
 
@@ -114,7 +116,7 @@ export class OrderCancellationWooCommerceActivities {
         reason: reason || 'Order cancelled by customer',
       };
 
-      const response = await client.post(`/orders/${orderNumber}/refunds`, refundData);
+      const response = await client.post<any>(`/orders/${orderNumber}/refunds`, refundData);
 
       this.logger.log(`WooCommerce refund processed for order: ${orderNumber}`, {
         refundId: response.data.id,
@@ -200,7 +202,7 @@ export class OrderCancellationWooCommerceActivities {
 
       const client = this.getWooCommerceClient(userId);
 
-      const response = await client.put(`/orders/${orderNumber}`, {
+      const response = await client.put<any>(`/orders/${orderNumber}`, {
         status,
       });
 

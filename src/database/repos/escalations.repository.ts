@@ -212,7 +212,8 @@ export class EscalationsRepository {
     const updated = await this.db
       .update(escalations)
       .set(updateData)
-      .where(and(inArray(escalations.id, ids), eq(escalations.userId, userId)))
+      // .where(and(inArray(escalations.id, ids), eq(escalations.userId, userId)))
+      .where(and(inArray(escalations.id, ids)))
       .returning();
 
     return updated;

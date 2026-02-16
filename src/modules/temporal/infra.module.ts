@@ -17,7 +17,6 @@ import { WismoMessageActivities } from './activities/agents/wismo/wismo-messages
 
 // Order Cancellation-specific activities
 import { OrderCancellationWooCommerceActivities } from './activities/agents/order-cancellation/order-cancellation-woocommerce.activities';
-// import { OrderCancellationValidationActivities } from './activities/agents/order-cancellation/order-cancellation-validation.activities';
 import { OrderCancellationShipBobActivities } from './activities/agents/order-cancellation/order-cancellation-shipbob.activities';
 import { OrderCancellationShipStationActivities } from './activities/agents/order-cancellation/order-cancellation-shipstation.activities';
 
@@ -85,7 +84,6 @@ import { InfraService } from './infra.service';
               WismoMessageActivities,
               // Order Cancellation-specific activities
               OrderCancellationWooCommerceActivities,
-              // OrderCancellationValidationActivities,
               OrderCancellationShipBobActivities,
               OrderCancellationShipStationActivities,
             ],
@@ -109,7 +107,6 @@ import { InfraService } from './infra.service';
     WismoMessageActivities,
     // Order Cancellation-specific activities
     OrderCancellationWooCommerceActivities,
-    // OrderCancellationValidationActivities,
     OrderCancellationShipBobActivities,
     OrderCancellationShipStationActivities,
     InfraService,

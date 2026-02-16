@@ -20,6 +20,31 @@ export enum WismoActionType {
 }
 
 /**
+ * Enum defining all possible action types in the Order Cancellation workflow
+ */
+export enum OrderCancellationActionType {
+  MARK_EMAIL_READ = 'oc_mark_email_read',
+  VERIFY_AI_CONFIDENCE = 'oc_verify_ai_confidence',
+  EXTRACT_ORDER_NUMBER = 'oc_extract_order_number',
+  REQUEST_ORDER_INFO = 'oc_request_order_info',
+  FETCH_ORDER_DETAILS = 'oc_fetch_order_details',
+  VALIDATE_ORDER_STATUS = 'oc_validate_order_status',
+  CHECK_DUPLICATE = 'oc_check_duplicate',
+  CHECK_RATE_LIMIT = 'oc_check_rate_limit',
+  RECORD_REQUEST = 'oc_record_request',
+  CHECK_TIME_ELIGIBILITY = 'oc_check_time_eligibility',
+  VALIDATE_CUSTOMER_EMAIL = 'oc_validate_customer_email',
+  SEND_ACKNOWLEDGEMENT = 'oc_send_acknowledgement',
+  PROCESS_CANCELLATION = 'oc_process_cancellation',
+  PROCESS_REFUND = 'oc_process_refund',
+  SEND_FINAL_NOTIFICATION = 'oc_send_final_notification',
+  CONTACT_WAREHOUSE = 'oc_contact_warehouse',
+  WAIT_FOR_WAREHOUSE_REPLY = 'oc_wait_for_warehouse_reply',
+}
+
+export type WorkflowActionType = WismoActionType | OrderCancellationActionType;
+
+/**
  * Action status enum for tracking approval queue items
  */
 export enum ActionStatus {
@@ -36,7 +61,7 @@ export enum ActionStatus {
  * Configuration for a workflow action
  */
 export interface ActionConfig {
-  type: WismoActionType;
+  type: WorkflowActionType;
   step: number | string; // Supports both integers (1, 2, 3) and sub-steps (3.1, 3.2)
   description: string;
   requiresUserData?: boolean; // For actions like "edit response"
@@ -122,7 +147,7 @@ export interface CreateApprovalQueueData {
  */
 export interface CreateActionData {
   approvalQueueId: string;
-  actionType: WismoActionType;
+  actionType: WorkflowActionType;
   actionStep: number | string; // Supports both integers (1, 2, 3) and sub-steps (3.1, 3.2)
   actionStatus: ActionStatus;
   description: string;
@@ -138,7 +163,7 @@ export interface CreateActionData {
  * This interface is kept for backward compatibility
  */
 export interface CreateApprovalItemData extends CreateApprovalQueueData {
-  actionType: WismoActionType;
+  actionType: WorkflowActionType;
   actionStep: number | string; // Supports both integers (1, 2, 3) and sub-steps (3.1, 3.2)
   actionStatus: ActionStatus;
   parentWorkflowId: string;

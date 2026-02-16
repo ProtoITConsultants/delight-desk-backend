@@ -142,32 +142,6 @@ ${voiceContext}
   ): Promise<string> {
     const voiceContext = this.messageFormattingHelper.buildVoiceAndSettingsContext(aiIdentity);
 
-    /*
-    const prompt = `
-      Generate a brief, friendly customer notification email for a shipping update.
-
-      Order Number: ${orderNumber}
-      Tracking Status: ${trackingStatus}
-      Tracking URL: ${trackingUrl}
-      Customer Name: ${customerName}
-      ${aiIdentity?.aiAgentName ? `AI Agent Name: ${aiIdentity.aiAgentName}` : ''}
-      ${aiIdentity?.aiAgentTitle ? `AI Agent Title: ${aiIdentity.aiAgentTitle}` : ''}
-
-      Write a concise, empathetic notification that:
-      1. Informs the customer about the shipping update
-      2. Explains what "${trackingStatus}" means in simple terms
-      3. Includes the tracking URL for them to check details
-      4. Keeps it under 150 tokens
-      5. Do not include a salutation (like "Hi" or "Hello") at the beginning
-      6. Do not include a signature or sign-off at the end
-      7. NEVER mention third-party tracking services like AfterShip, ShipStation, or similar services
-      8. Present the tracking information as if it comes directly from the carrier/courier
-${voiceContext}
-
-      Important: Focus on this specific status update. Keep it brief and actionable.
-    `;
-     */
-
     const prompt = `
       Generate an empathetic customer service response for this order status inquiry based on the available information.
 
@@ -187,7 +161,7 @@ ${voiceContext}
       7. Keep it under 300 tokens
       8. Do not include a salutation (like "Hi" or "Hello") at the beginning
       9. Do not include a signature or sign-off at the end
-
+  ${voiceContext}
       Important: Only include information that is actually available in the data provided above. Do not make up tracking numbers, delivery dates, or other details.
       `;
 

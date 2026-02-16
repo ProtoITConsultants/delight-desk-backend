@@ -67,7 +67,7 @@ export class ClassificationUtil {
                         
           7. **order_cancellation**
           - Intent: Customer wants to stop an order before it ships
-          - Context: Prevent shipment, cancel before processing          
+          - Context: Prevent shipment, cancel before processing and refund payment          
             
           8. **escalation**
               - Intent: Customer is frustrated, threatening, or has complex multi-issue problems

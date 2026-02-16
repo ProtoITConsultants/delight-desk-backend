@@ -103,10 +103,10 @@ export class WooCommerceService {
     const connection = await this.storeRepo.findByPlatform(userId, 'woocommerce');
 
     if (!connection) {
-      throw new BadRequestException('No WooCommerce OAuth connection found for this user');
+      throw new BadRequestException('No WooCommerce Auth connection found for this user');
     }
     await this.storeRepo.delete(connection.id, userId);
-    return { message: 'WooCommerce OAuth connection deleted successfully' };
+    return { message: 'WooCommerce Auth connection deleted successfully' };
   }
 
   async getWoocommerceTrackingPluginStatus(

@@ -4,7 +4,7 @@ import {
   ActionExecutionContext,
   EscalationError,
   EscalationType,
-  WismoActionType,
+  OrderCancellationActionType,
 } from '../../../../types';
 import { PreparationResult } from '../order-cancellation.types';
 import {
@@ -35,6 +35,11 @@ const { markEmailAsRead } = emailActivities;
 export async function handleOrderCancellationPreparation(
   context: ActionExecutionContext,
 ): Promise<PreparationResult> {
+  log.info('Starting Order Cancellation preparation phase', {
+    workflowId: context.workflowId,
+    emailId: context.email.id,
+  });
+
   let emailMarkedAsRead = false;
   let confidenceVerified = false;
 
@@ -43,9 +48,9 @@ export async function handleOrderCancellationPreparation(
     // ACTION 1: Mark Incoming Email As Read
     // ==========================================
 
-    await executeWorkflowAction(
+    const markReadResult = await executeWorkflowAction(
       {
-        type: WismoActionType.MARK_EMAIL_READ,
+        type: OrderCancellationActionType.MARK_EMAIL_READ,
         step: 1,
         description: 'Mark incoming email as read',
       },
@@ -53,10 +58,37 @@ export async function handleOrderCancellationPreparation(
       context,
     );
 
+    if (!markReadResult.success) {
+      if (markReadResult.escalation) {
+        context.state.status = 'escalated';
+        context.state.escalation = {
+          type: markReadResult.escalation.type,
+          reason: markReadResult.escalation.reason,
+          timestamp: new Date(),
+        };
+        return {
+          success: false,
+          state: context.state,
+          emailMarkedAsRead: false,
+          confidenceVerified: false,
+          escalation: markReadResult.escalation,
+        };
+      }
+      context.state.status = 'cancelled';
+      return {
+        success: false,
+        state: context.state,
+        emailMarkedAsRead: false,
+        confidenceVerified: false,
+      };
+    }
+
+    emailMarkedAsRead = true;
+
     // Action 2: Verify AI confidence
     const confidenceCheckResult = await executeWorkflowAction(
       {
-        type: WismoActionType.VERIFY_AI_CONFIDENCE,
+        type: OrderCancellationActionType.VERIFY_AI_CONFIDENCE,
         step: 2,
         description: `Verify AI classification confidence (${context.state.classification.confidence}%)`,
         metadata: {

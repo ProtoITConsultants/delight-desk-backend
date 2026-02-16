@@ -2,14 +2,14 @@ import { EmailEntity } from 'src/database/schema';
 import { BadRequestException, ConflictException, Injectable } from '@nestjs/common';
 import { ClassificationUtil } from './utils/classification.util';
 import { TemporalService } from 'nestjs-temporal-core';
-import { WorkFlowInput, WorkflowState } from './types';
+import { WorkFlowInput } from './types';
 import { ConfigService } from '@nestjs/config';
 import { WorkflowNotFoundError } from '@temporalio/common';
 import { AgentsService } from '../agents/agents.service';
 import { EmailThreadsRepository } from '../../database/repos/email-threads.repository';
 import { AgentType } from '../../common/agent-types';
 import { threadMessage } from './workflows/email.workflow';
-import { humanResponseSignal, stateQuery } from './workflows/agents/wismo';
+import { humanResponseSignal } from './workflows/agents/wismo';
 
 @Injectable()
 export class InfraService {
@@ -31,7 +31,7 @@ export class InfraService {
     );
 
     if (!isEnabled) {
-      console.log('Agent Not Enabled.');
+      console.log(`Agent: ${classification.category} is Not Enabled.`);
       return;
     }
 
@@ -39,20 +39,10 @@ export class InfraService {
     const thread = await this.emailThreadsRepo.findById(email.threadId);
 
     if (!thread.workflowId) {
-      // Get workflow configuration from ConfigService
-      const workflowConfig = {
-        useRefactoredWismo:
-          this.configService.get<string>('USE_REFACTORED_WISMO_WORKFLOW') === 'true',
-      };
-
-      await this.temporalService.startWorkflow(
-        'processEmailWorkflow',
-        [workflowInput, workflowConfig],
-        {
-          workflowId: workflowId,
-          taskQueue: this.configService.get('TEMPORAL_TASK_QUEUE'),
-        },
-      );
+      await this.temporalService.startWorkflow('processEmailWorkflow', [workflowInput], {
+        workflowId: workflowId,
+        taskQueue: this.configService.get('TEMPORAL_TASK_QUEUE'),
+      });
 
       await this.emailThreadsRepo.updateById(thread.id, { workflowId });
     }
@@ -68,11 +58,6 @@ export class InfraService {
         throw new BadRequestException(error.message);
       }
     }
-  }
-
-  async getWorkflowState(workflowId: string): Promise<WorkflowState> {
-    const handle: any = await this.temporalService.getWorkflowHandle(workflowId);
-    return await handle.query(stateQuery);
   }
 
   async sendApprovalSignalToWorkflow(

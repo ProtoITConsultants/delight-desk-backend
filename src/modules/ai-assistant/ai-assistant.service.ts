@@ -107,10 +107,6 @@ export class AiAssistantService {
       };
     }
 
-    if (existing.status !== 'pending') {
-      throw new BadRequestException(`Cannot transition from ${existing.status} to ${dto.status}`);
-    }
-
     const updateData: any = {
       status: dto.status,
       resolvedAt: new Date(),
@@ -300,27 +296,32 @@ export class AiAssistantService {
     );
 
     // Send the email using Google OAuth service
-    if (threadExists) {
-      // Thread exists in Gmail, reply to it
-      await this.googleOauthService.replyToGmailThread(
-        userId,
-        // @ts-ignore
-        'developer@delightdesk.io' || extractEmail(escalation.email.fromEmail),
-        // @ts-ignore
-        `Re: ${escalation.email.subject}`,
-        finalMessage,
-        emailThread.threadId,
-      );
-    } else {
-      // Thread was deleted from Gmail, send as standalone email
-      await this.googleOauthService.sendStandaloneEmail(
-        userId,
-        // @ts-ignore
-        'developer@delightdesk.io' || extractEmail(escalation.email.fromEmail),
-        // @ts-ignore
-        `Re: ${escalation.email.subject}`,
-        finalMessage,
-      );
+    try {
+      if (threadExists) {
+        // Thread exists in Gmail, reply to it
+
+        await this.googleOauthService.replyToGmailThread(
+          userId,
+          // @ts-ignore
+          'developer@delightdesk.io' || extractEmail(escalation.email.fromEmail),
+          // @ts-ignore
+          `Re: ${escalation.email.subject}`,
+          finalMessage,
+          emailThread.threadId,
+        );
+      } else {
+        // Thread was deleted from Gmail, send as standalone email
+        await this.googleOauthService.sendStandaloneEmail(
+          userId,
+          // @ts-ignore
+          'developer@delightdesk.io' || extractEmail(escalation.email.fromEmail),
+          // @ts-ignore
+          `Re: ${escalation.email.subject}`,
+          finalMessage,
+        );
+      }
+    } catch (e) {
+      throw new BadRequestException('Please reconnect your business email for this action.');
     }
 
     return {

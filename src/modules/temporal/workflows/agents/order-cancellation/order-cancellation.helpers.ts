@@ -1,15 +1,11 @@
+import { OrderStatusValidationResult, TimeEligibilityResult, WarehouseReplyResult, } from './order-cancellation.types';
 import {
-  TimeEligibilityResult,
-  OrderStatusValidationResult,
-  WarehouseReplyResult,
-} from './order-cancellation.types';
-import {
-  STANDARD_CANCELLATION_WINDOW_HOURS,
-  FRIDAY_CUTOFF_HOUR_UTC,
-  WEEKEND_EXTENSION_END_HOUR_UTC,
   CANCELLABLE_ORDER_STATUSES,
+  FRIDAY_CUTOFF_HOUR_UTC,
   NON_CANCELLABLE_ORDER_STATUSES,
+  STANDARD_CANCELLATION_WINDOW_HOURS,
   WAREHOUSE_KEYWORDS,
+  WEEKEND_EXTENSION_END_HOUR_UTC,
 } from './order-cancellation.constants';
 
 /**
@@ -24,7 +20,7 @@ export function checkTimeEligibility(orderCreatedAt: Date | string): TimeEligibi
   const now = new Date();
   const orderDate = new Date(orderCreatedAt);
   const timeDiff = now.getTime() - orderDate.getTime();
-  const hoursSinceOrder = timeDiff / (1000 * 60 * 60);
+  const hoursSinceOrder = Math.floor(timeDiff / (1000 * 60 * 60));
 
   // Standard 24-hour window
   if (hoursSinceOrder <= STANDARD_CANCELLATION_WINDOW_HOURS) {
@@ -77,7 +73,7 @@ export function checkTimeEligibility(orderCreatedAt: Date | string): TimeEligibi
 
   // "Proceed if uncertain" policy - still attempt cancellation
   return {
-    eligible: true,
+    eligible: false,
     reason: 'Outside standard window - proceeding per "proceed if uncertain" policy',
     orderCreatedAt: orderDate,
     currentTime: now,
@@ -188,9 +184,7 @@ export function parseWarehouseReply(emailBody: string): WarehouseReplyResult {
   const normalizedBody = emailBody.toLowerCase();
 
   // Check for "canceled" keywords
-  const canceled = WAREHOUSE_KEYWORDS.canceled.some((keyword) =>
-    normalizedBody.includes(keyword),
-  );
+  const canceled = WAREHOUSE_KEYWORDS.canceled.some((keyword) => normalizedBody.includes(keyword));
 
   // Check for "cannot cancel" keywords
   const cannotCancel = WAREHOUSE_KEYWORDS.cannotCancel.some((keyword) =>

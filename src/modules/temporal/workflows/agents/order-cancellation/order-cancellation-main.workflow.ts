@@ -1,14 +1,3 @@
-/**
- * Order Cancellation Agent Main Workflow
- *
- * Orchestrates the complete order cancellation flow through 5 phases:
- * 1. Preparation: Mark email as read, verify confidence
- * 2. Order Discovery: Extract order number, request from customer if needed
- * 3. Order Processing: Fetch order
- * 4. Eligibility Check: Time-based eligibility, email validation
- * 5. Fulfillment Processing: Process cancellation based on fulfillment method
- */
-
 import {
   defineQuery,
   defineSignal,
@@ -17,20 +6,28 @@ import {
   setHandler,
   workflowInfo,
 } from '@temporalio/workflow';
-import { ActionExecutionContext, WorkFlowInput, WorkflowState } from '../../../types';
+import {
+  ActionExecutionContext,
+  HumanResponse,
+  WorkFlowInput,
+  WorkflowState,
+} from '../../../types';
 import { handleOrderCancellationPreparation } from './sub-workflows/order-cancellation-preparation.sub-workflow';
 import { ACTIVITY_TIMEOUTS, RETRY_POLICIES } from './order-cancellation.constants';
 import type { AiIdentityActivities } from '../../../activities/shared/ai-identity.activities';
+import { handleOrderCancellationOrderDiscovery } from './sub-workflows/order-cancellation-order-discovery.sub-workflow';
+import { handleOrderCancellationOrderProcessing } from './sub-workflows/order-cancellation-order-processing.sub-workflow';
+import { handleOrderCancellationEligibility } from './sub-workflows/order-cancellation-eligibility.sub-workflow';
 
 // Proxy activities needed at main workflow level
 const aiIdentityActivities = proxyActivities<typeof AiIdentityActivities.prototype>({
-  startToCloseTimeout: ACTIVITY_TIMEOUTS.fetchOrder,
+  startToCloseTimeout: ACTIVITY_TIMEOUTS.aiIdentity,
   retry: RETRY_POLICIES.standard,
 });
 const { getUserAgentSettings } = aiIdentityActivities;
 
 // Define signals for human interaction
-export const humanResponseSignal = defineSignal<[string]>('humanResponse');
+export const humanResponseSignal = defineSignal<[HumanResponse, string?]>('humanResponse');
 export const stateQuery = defineQuery<WorkflowState>('state');
 
 export async function handleOrderCancellation(wfInput: WorkFlowInput): Promise<string> {
@@ -49,10 +46,24 @@ export async function handleOrderCancellation(wfInput: WorkFlowInput): Promise<s
   };
 
   // Set up signal and query handlers
-  let humanResponse: string | undefined;
+  let humanResponse: HumanResponse | null = null;
 
-  setHandler(humanResponseSignal, (response: string) => {
+  setHandler(humanResponseSignal, (response: HumanResponse, approvalItemId?: string) => {
     humanResponse = response;
+    state.humanResponse = response;
+    state.lastUpdated = new Date();
+
+    if (approvalItemId) {
+      if (!state.actionResponses) {
+        state.actionResponses = {};
+      }
+      state.actionResponses[approvalItemId] = response;
+
+      log.info('Action response stored in workflow state', {
+        approvalItemId,
+        decision: response.decision,
+      });
+    }
   });
 
   setHandler(stateQuery, () => state);
@@ -72,7 +83,7 @@ export async function handleOrderCancellation(wfInput: WorkFlowInput): Promise<s
     };
 
     log.info('Workflow context initialized', {
-      requiresModeration: context,
+      requiresModeration: context.requiresModeration,
     });
 
     // ===== PHASE 1: Preparation =====
@@ -86,11 +97,10 @@ export async function handleOrderCancellation(wfInput: WorkFlowInput): Promise<s
       if (preparationResult.escalation) {
         return `Escalated: ${preparationResult.escalation.reason}`;
       }
-      return 'Workflow cancelled during Order Discovery phase';
+      return 'Workflow cancelled during preparation phase';
     }
 
     // ===== PHASE 2: Order Discovery =====
-    /*
     const orderDiscoveryResult = await handleOrderCancellationOrderDiscovery(context);
 
     if (!orderDiscoveryResult.success) {
@@ -132,8 +142,11 @@ export async function handleOrderCancellation(wfInput: WorkFlowInput): Promise<s
       return 'Workflow cancelled during Eligibility phase';
     }
 
+    /*
     // ===== PHASE 5: Fulfillment Processing =====
-    const fulfillmentResult = await handleOrderCancellationFulfillment(context, agentSettings);
+    const fulfillmentResult = await handleOrderCancellationFulfillment(
+      context,
+    );
 
     if (!fulfillmentResult.success) {
       log.error('Fulfillment phase failed', {
@@ -145,7 +158,19 @@ export async function handleOrderCancellation(wfInput: WorkFlowInput): Promise<s
       }
       return 'Workflow cancelled during Fulfillment phase';
     }
-     */
+    if (state.approvalQueueId) {
+      const approvalQueueActivitiesForCompletion = proxyActivities<
+        typeof import('../../../activities/shared/approval-queue.activities').ApprovalQueueActivities.prototype
+      >({ startToCloseTimeout: '1 minute' });
+
+      await approvalQueueActivitiesForCompletion.updateApprovalQueueStatus(
+        state.approvalQueueId,
+        email.userId,
+        'completed',
+      );
+      log.info('Approval queue marked as completed');
+    }
+    */
 
     // ===== Workflow Complete =====
     state.status = 'completed';

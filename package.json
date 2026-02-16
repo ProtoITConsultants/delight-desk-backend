@@ -6,8 +6,8 @@
   "private": true,
   "license": "UNLICENSED",
   "scripts": {
-    "start:dev": "nest start --builder swc --watch",
-    "start:debug": "nest start --builder swc --debug --watch",
+    "start:dev": "nest start --watch",
+    "start:debug": "nest start --debug --watch",
     "build": "nest build",
     "format:check": "prettier --check .",
     "format": "prettier --write .",
@@ -15,7 +15,10 @@
     "db:migrate": "drizzle-kit migrate",
     "seed:billingPlans": "ts-node src/database/seeds/billing-plans.seed.ts",
     "seed:agents": "ts-node src/database/seeds/agents.seed.ts",
-    "test:pipeline": "ts-node -r tsconfig-paths/register tests/test-email-pipeline.ts"
+    "test:pipeline": "ts-node -r tsconfig-paths/register tests/test-email-pipeline.ts",
+    "migrate:export": "ts-node -r tsconfig-paths/register scripts/migrate-ai-assistant-data.ts export",
+    "migrate:import": "ts-node -r tsconfig-paths/register scripts/migrate-ai-assistant-data.ts import",
+    "migrate:list-prod-users": "ts-node -r tsconfig-paths/register scripts/migrate-ai-assistant-data.ts list-production-users"
   },
   "dependencies": {
     "@aftership/tracking-sdk": "^15.0.1",
@@ -39,6 +42,7 @@
     "bcrypt": "^6.0.0",
     "class-transformer": "^0.5.1",
     "class-validator": "^0.14.2",
+    "commander": "^12.1.0",
     "connect-pg-simple": "^10.0.0",
     "crypto": "^1.0.1",
     "dotenv": "^17.2.2",

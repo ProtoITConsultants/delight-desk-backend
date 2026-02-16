@@ -1,0 +1,164 @@
+{
+  "users": [
+    {
+      "id": "123e4567-e89b-12d3-a456-426614174000",
+      "email": "testuser@local.com",
+      "firstName": "Test",
+      "lastName": "User",
+      "company": "Test Company",
+      "role": "user",
+      "isActive": true,
+      "createdAt": "2024-01-01T00:00:00.000Z"
+    }
+  ],
+  "emailThreads": [
+    {
+      "id": "thread-uuid-1",
+      "threadId": "gmail-thread-id-123",
+      "userId": "123e4567-e89b-12d3-a456-426614174000",
+      "subject": "Where is my order?",
+      "workflowId": "workflow-123",
+      "createdAt": "2024-01-15T10:00:00.000Z"
+    }
+  ],
+  "emails": [
+    {
+      "id": "email-uuid-1",
+      "messageId": "gmail-msg-id-456",
+      "threadId": "thread-uuid-1",
+      "userId": "123e4567-e89b-12d3-a456-426614174000",
+      "fromEmail": "customer@example.com",
+      "toEmail": "support@yourstore.com",
+      "subject": "Where is my order?",
+      "body": "Hi, I ordered a product last week but haven't received any tracking information...",
+      "direction": "incoming",
+      "createdAt": "2024-01-15T10:00:00.000Z"
+    }
+  ],
+  "escalations": [
+    {
+      "id": "escalation-uuid-1",
+      "workflowId": "workflow-123",
+      "threadId": "thread-uuid-1",
+      "userId": "123e4567-e89b-12d3-a456-426614174000",
+      "status": "pending",
+      "reason": "Unable to find order in WooCommerce",
+      "email": {
+        "from": "customer@example.com",
+        "subject": "Where is my order?",
+        "body": "..."
+      },
+      "aiSuggestedResponse": "I apologize for the confusion...",
+      "aiSuggestedResponseConfidence": "medium",
+      "priority": "high",
+      "createdAt": "2024-01-15T10:05:00.000Z"
+    }
+  ],
+  "approvalQueue": [
+    {
+      "id": "approval-uuid-1",
+      "userId": "123e4567-e89b-12d3-a456-426614174000",
+      "emailId": "email-uuid-1",
+      "threadId": "thread-uuid-1",
+      "workflowId": "workflow-123",
+      "workflowRunId": "run-456",
+      "status": "pending",
+      "agentType": "wismo",
+      "customerEmail": "customer@example.com",
+      "customerName": "John Doe",
+      "emailSubject": "Where is my order?",
+      "emailBody": "Hi, I ordered a product...",
+      "category": "order_tracking",
+      "confidence": "high",
+      "priority": "medium",
+      "sentiment": "neutral",
+      "workflowMetadata": {
+        "orderId": "12345",
+        "orderNumber": "ORD-2024-001"
+      },
+      "plannedSteps": [
+        {
+          "step": "1",
+          "action": "Extract order number",
+          "status": "pending"
+        },
+        {
+          "step": "2",
+          "action": "Fetch tracking information",
+          "status": "pending"
+        }
+      ],
+      "escalationId": "escalation-uuid-1",
+      "createdAt": "2024-01-15T10:00:00.000Z"
+    }
+  ],
+  "approvalQueueActions": [
+    {
+      "id": "action-uuid-1",
+      "approvalQueueId": "approval-uuid-1",
+      "actionType": "EXTRACT_ORDER_NUMBER",
+      "actionStep": "1",
+      "actionStatus": "executed",
+      "description": "Extract order number from email",
+      "metadata": {
+        "orderNumber": "ORD-2024-001",
+        "confidence": 0.95
+      },
+      "autoApproved": false,
+      "executedAt": "2024-01-15T10:01:00.000Z",
+      "createdAt": "2024-01-15T10:00:00.000Z"
+    },
+    {
+      "id": "action-uuid-2",
+      "approvalQueueId": "approval-uuid-1",
+      "actionType": "FETCH_TRACKING_INFO",
+      "actionStep": "2",
+      "actionStatus": "failed",
+      "description": "Fetch tracking information from carrier",
+      "metadata": {
+        "trackingNumber": "1Z999AA10123456784"
+      },
+      "autoApproved": false,
+      "executionError": {
+        "message": "Tracking number not found",
+        "code": "TRACKING_NOT_FOUND"
+      },
+      "escalatedDuringExecution": true,
+      "escalationId": "escalation-uuid-1",
+      "createdAt": "2024-01-15T10:02:00.000Z"
+    }
+  ],
+  "approvalQueueActivityLog": [
+    {
+      "id": "log-uuid-1",
+      "approvalQueueId": "approval-uuid-1",
+      "userId": "123e4567-e89b-12d3-a456-426614174000",
+      "action": "created",
+      "description": "Workflow created by AI assistant",
+      "metadata": {
+        "agentType": "wismo",
+        "trigger": "incoming_email"
+      },
+      "createdAt": "2024-01-15T10:00:00.000Z"
+    },
+    {
+      "id": "log-uuid-2",
+      "approvalQueueId": "approval-uuid-1",
+      "userId": "123e4567-e89b-12d3-a456-426614174000",
+      "action": "escalated",
+      "description": "Workflow escalated due to tracking error",
+      "metadata": {
+        "reason": "Unable to fetch tracking information"
+      },
+      "createdAt": "2024-01-15T10:05:00.000Z"
+    }
+  ],
+  "userMapping": [
+    {
+      "localUserId": "123e4567-e89b-12d3-a456-426614174000",
+      "localUserEmail": "testuser@local.com",
+      "productionUserId": null,
+      "productionUserEmail": null
+    }
+  ]
+}

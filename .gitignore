@@ -19,6 +19,10 @@ lerna-debug.log*
 # Testing Files
 orders.json
 
+# Migration data files (contain sensitive data)
+migration-*.json
+**/migration-data*.json
+
 # OS
 .DS_Store
 

@@ -142,14 +142,12 @@ export class AiAssistantService {
       throw new ForbiddenException('You do not have permission to update some escalations');
     }
 
-    const canUpdate = ownedEscalations.filter((esc) => esc.status === 'pending');
     const alreadyUpdated = ownedEscalations.filter((esc) => esc.status === status);
 
     const updated = await this.escalationsRepository.bulkUpdateStatus(
-      canUpdate.map((e) => e.id),
+      ownedEscalations.map((e) => e.id),
       userId,
       status,
-      notes,
     );
 
     return {

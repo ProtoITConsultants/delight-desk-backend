@@ -199,21 +199,15 @@ export class EscalationsRepository {
     ids: string[],
     userId: string,
     status: 'pending' | 'progress' | 'resolved',
-    notes?: string | undefined,
   ) {
     const updateData: any = {
       status,
       resolvedAt: new Date(),
     };
-
-    // Note: notes parameter is kept for API compatibility but not stored
-    // as metadata field has been removed. Consider adding a dedicated notes field if needed.
-
     const updated = await this.db
       .update(escalations)
       .set(updateData)
-      // .where(and(inArray(escalations.id, ids), eq(escalations.userId, userId)))
-      .where(and(inArray(escalations.id, ids)))
+      .where(and(inArray(escalations.id, ids), eq(escalations.userId, userId)))
       .returning();
 
     return updated;

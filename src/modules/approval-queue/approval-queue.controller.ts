@@ -19,7 +19,12 @@ import {
   ApiTags,
 } from '@nestjs/swagger';
 import { ApprovalQueueService } from './approval-queue.service';
-import { EditAndApproveDto, GetApprovalQueueDto, RejectItemDto } from './approval-queue.dto';
+import {
+  CancelWorkflowDto,
+  EditAndApproveDto,
+  GetApprovalQueueDto,
+  RejectItemDto,
+} from './approval-queue.dto';
 import { SessionGuard } from '../../guards/session.guard';
 import { CurrentUserId } from '../../decorators/current-user.decorator';
 
@@ -39,14 +44,14 @@ export class ApprovalQueueController {
   @ApiQuery({
     name: 'status',
     required: false,
-    enum: ['pending', 'approved', 'rejected', 'edited', 'executed'],
+    enum: ['pending', 'in_progress', 'cancelled', 'escalated', 'completed'],
     description: 'Filter by status',
   })
   @ApiQuery({
-    name: 'agentType',
+    name: 'category',
     required: false,
     type: String,
-    description: 'Filter by agent type',
+    description: 'Filter by agent category',
   })
   @ApiQuery({
     name: 'priority',
@@ -100,6 +105,25 @@ export class ApprovalQueueController {
   @ApiResponse({ status: 500, description: 'Internal server error' })
   async getApprovalQueueById(@CurrentUserId() userId: string, @Param('id') id: string) {
     return this.approvalQueueService.getApprovalQueueById(userId, id);
+  }
+
+  @Post('cancel')
+  @ApiOperation({
+    summary: 'Cancel a workflow',
+    description:
+      'Cancel a running approval queue workflow by its Temporal workflow ID. Marks all pending actions as rejected and updates the workflow status to cancelled.',
+  })
+  @ApiBody({ type: CancelWorkflowDto })
+  @ApiResponse({ status: 200, description: 'Workflow cancelled successfully' })
+  @ApiResponse({
+    status: 400,
+    description: 'Bad request - Workflow already completed, escalated, or cancelled',
+  })
+  @ApiResponse({ status: 401, description: 'Unauthorized - User not authenticated' })
+  @ApiResponse({ status: 404, description: 'Workflow not found' })
+  @HttpCode(HttpStatus.OK)
+  async cancelWorkflow(@CurrentUserId() userId: string, @Body() dto: CancelWorkflowDto) {
+    return this.approvalQueueService.cancelWorkflow(userId, dto.workflowId);
   }
 
   @Post('actions/:id/approve')

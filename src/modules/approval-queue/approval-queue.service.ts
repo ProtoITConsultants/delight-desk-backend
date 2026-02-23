@@ -24,57 +24,36 @@ export class ApprovalQueueService {
   ) {}
 
   async getApprovalQueue(userId: string, dto: GetApprovalQueueDto): Promise<any> {
-    const { page = 1, limit = 20, status, agentType, priority } = dto;
+    const { page = 1, limit = 20, status, category, priority } = dto;
 
     const offset = (page - 1) * limit;
 
     const filters = {
       userId,
       status,
-      agentType,
+      category,
       priority,
       limit,
       offset,
     };
 
-    const items = await this.approvalQueueRepository.getApprovalQueueWithFilters(filters);
-    const totalItems = await this.approvalQueueRepository.countApprovalQueueWithFilters(filters);
+    const [items, totalItems] = await Promise.all([
+      this.approvalQueueRepository.getApprovalQueueWithFilters(filters),
+      this.approvalQueueRepository.countApprovalQueueWithFilters(filters),
+    ]);
 
     const totalPages = Math.ceil(totalItems / limit);
 
-    // For each workflow, get action counts
-    const itemsWithActions = await Promise.all(
-      items.map(async (item) => {
-        const stats = await this.approvalQueueActionsRepository.getActionStats(item.approval.id);
-
-        return {
-          id: item.approval.id,
-          userId: item.approval.userId,
-          emailId: item.approval.emailId,
-          threadId: item.approval.threadId,
-          workflowId: item.approval.workflowId,
-          workflowRunId: item.approval.workflowRunId,
-          status: item.approval.status,
-          agentType: item.approval.agentType,
-          customerEmail: item.approval.customerEmail,
-          customerName: item.approval.customerName,
-          emailSubject: item.approval.emailSubject,
-          category: item.approval.category,
-          confidence: item.approval.confidence,
-          priority: item.approval.priority,
-          sentiment: item.approval.sentiment,
-          workflowMetadata: item.approval.workflowMetadata,
-          plannedSteps: item.approval.plannedSteps,
-          escalationId: item.approval.escalationId,
-          escalatedAt: item.approval.escalatedAt,
-          completedAt: item.approval.completedAt,
-          createdAt: item.approval.createdAt,
-          updatedAt: item.approval.updatedAt,
-          actionCount: stats.total,
-          pendingActionCount: stats.pending,
-        };
-      }),
-    );
+    const itemsWithActions = items.map((item) => ({
+      id: item.approval.id,
+      workflowId: item.approval.workflowId,
+      status: item.approval.status,
+      category: item.approval.category,
+      customerEmail: item.approval.customerEmail,
+      customerName: item.approval.customerName,
+      emailSubject: item.approval.emailSubject,
+      createdAt: item.approval.createdAt,
+    }));
 
     return {
       data: itemsWithActions,
@@ -96,73 +75,25 @@ export class ApprovalQueueService {
       throw new NotFoundException('Approval queue workflow not found');
     }
 
-    const activityLog = await this.approvalQueueRepository.getActivityLog(id);
-
     return {
       id: item.approval.id,
-      userId: item.approval.userId,
-      emailId: item.approval.emailId,
-      threadId: item.approval.threadId,
       workflowId: item.approval.workflowId,
-      workflowRunId: item.approval.workflowRunId,
       status: item.approval.status,
-      agentType: item.approval.agentType,
+      category: item.approval.category,
       customerEmail: item.approval.customerEmail,
       customerName: item.approval.customerName,
       emailSubject: item.approval.emailSubject,
-      emailBody: item.approval.emailBody,
-      category: item.approval.category,
-      confidence: item.approval.confidence,
-      priority: item.approval.priority,
-      sentiment: item.approval.sentiment,
-      workflowMetadata: item.approval.workflowMetadata,
-      plannedSteps: item.approval.plannedSteps,
-      escalationId: item.approval.escalationId,
-      escalatedAt: item.approval.escalatedAt,
-      completedAt: item.approval.completedAt,
+      originalCustomerEmailBody: item.approval.emailBody,
       createdAt: item.approval.createdAt,
-      updatedAt: item.approval.updatedAt,
-      email: item.email
-        ? {
-            id: item.email.id,
-            subject: item.email.subject,
-            fromEmail: item.email.fromEmail,
-            snippet: item.email.snippet,
-          }
-        : undefined,
-      thread: item.thread
-        ? {
-            id: item.thread.id,
-            threadId: item.thread.threadId,
-          }
-        : undefined,
-      actions: item.actions.map((action) => ({
+      workflowActions: item.actions.map((action) => ({
         id: action.id,
-        actionType: action.actionType,
-        actionStep: action.actionStep,
-        actionStatus: action.actionStatus,
+        name: action.name,
         description: action.description,
-        metadata: action.metadata,
-        autoApproved: action.autoApproved,
-        reviewedBy: action.reviewedBy,
-        reviewedAt: action.reviewedAt,
-        reviewNotes: action.reviewNotes,
-        executedAt: action.executedAt,
-        executionResult: action.executionResult,
-        executionError: action.executionError,
-        escalatedDuringExecution: action.escalatedDuringExecution,
-        escalationId: action.escalationId,
+        actionDetails: action.actionDetails,
+        status: action.actionStatus,
+        step: action.actionStep,
         createdAt: action.createdAt,
-        updatedAt: action.updatedAt,
-      })),
-      activityLog: activityLog.map((log) => ({
-        id: log.id,
-        approvalQueueId: log.approvalQueueId,
-        userId: log.userId,
-        action: log.action,
-        description: log.description,
-        metadata: log.metadata,
-        createdAt: log.createdAt,
+        proposedEmailBody: action.proposedEmailBody,
       })),
     };
   }
@@ -311,6 +242,25 @@ export class ApprovalQueueService {
     );
 
     return updated;
+  }
+
+  async cancelWorkflow(userId: string, workflowId: string) {
+    const workflow = await this.approvalQueueRepository.findByWorkflowId(workflowId, userId);
+
+    if (!workflow) {
+      throw new NotFoundException('Workflow not found');
+    }
+
+    const nonCancellableStatuses = ['completed', 'escalated', 'cancelled'];
+    if (nonCancellableStatuses.includes(workflow.status)) {
+      throw new BadRequestException(`Cannot cancel a workflow with status: ${workflow.status}`);
+    }
+
+    await this.infraService.cancelWorkflow(workflowId);
+
+    await this.approvalQueueRepository.cancelWorkflowTransactionally(workflow.id, userId);
+
+    return { message: 'Workflow cancelled successfully' };
   }
 
   async getStats(userId: string): Promise<ApprovalQueueStatsResponse> {

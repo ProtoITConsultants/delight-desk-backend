@@ -5,17 +5,17 @@ import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 export class GetApprovalQueueDto {
   @ApiPropertyOptional({
     description: 'Filter by status',
-    enum: ['pending', 'approved', 'rejected', 'edited', 'executed'],
+    enum: ['pending', 'in_progress', 'cancelled', 'escalated', 'completed'],
     example: 'pending',
   })
   @IsOptional()
-  @IsEnum(['pending', 'approved', 'rejected', 'edited', 'executed'], { each: true })
+  @IsEnum(['pending', 'in_progress', 'cancelled', 'escalated', 'completed'], { each: true })
   status?: string;
 
   @ApiPropertyOptional({ description: 'Filter by agent type', example: 'wismo' })
   @IsOptional()
   @IsString()
-  agentType?: string;
+  category?: string;
 
   @ApiPropertyOptional({
     description: 'Filter by priority levels',
@@ -69,6 +69,16 @@ export class RejectItemDto {
   notes?: string;
 }
 
+export class CancelWorkflowDto {
+  @ApiProperty({
+    description: 'Temporal workflow ID to cancel',
+    example: 'workflow-thread-abc123',
+  })
+  @IsNotEmpty()
+  @IsString()
+  workflowId: string;
+}
+
 export class EditAndApproveDto {
   @ApiProperty({
     description: 'Edited version of the proposed response',
@@ -87,77 +97,11 @@ export class EditAndApproveDto {
   notes?: string;
 }
 
-export interface ApprovalQueueItemResponse {
-  id: string;
-  userId: string;
-  emailId: string;
-  threadId: string;
-  workflowId: string;
-  workflowRunId: string;
-  status: string;
-  agentType: string;
-  customerEmail: string;
-  customerName?: string;
-  emailSubject: string;
-  emailBody: string;
-  category: string;
-  confidence?: string;
-  priority: string;
-  sentiment?: string;
-  proposedResponse: string;
-  editedResponse?: string;
-  workflowMetadata?: any;
-  plannedSteps?: any;
-  reviewedBy?: string;
-  reviewedAt?: Date;
-  rejectionReason?: string;
-  reviewNotes?: string;
-  executedAt?: Date;
-  executionResult?: any;
-  createdAt: Date;
-  updatedAt: Date;
-}
-
-export interface ApprovalQueueListResponse {
-  data: ApprovalQueueItemResponse[];
-  pagination: {
-    currentPage: number;
-    totalPages: number;
-    totalItems: number;
-    itemsPerPage: number;
-    hasNextPage: boolean;
-    hasPreviousPage: boolean;
-  };
-}
-
-export interface ApprovalQueueDetailResponse extends ApprovalQueueItemResponse {
-  email?: {
-    id: string;
-    subject: string;
-    fromEmail: string;
-    snippet: string;
-  };
-  thread?: {
-    id: string;
-    threadId: string;
-  };
-  activityLog?: ActivityLogEntry[];
-}
-
-export interface ActivityLogEntry {
-  id: string;
-  approvalQueueId: string;
-  userId?: string;
-  action: string;
-  description: string;
-  metadata?: any;
-  createdAt: Date;
-}
-
 export interface ApprovalQueueStatsResponse {
   total: number;
   pending: number;
   inProgress: number;
-  completed: number;
   escalated: number;
+  cancelled: number;
+  completed: number;
 }

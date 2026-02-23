@@ -1,6 +1,7 @@
 import {
   defineQuery,
   defineSignal,
+  isCancellation,
   log,
   proxyActivities,
   setHandler,
@@ -18,6 +19,7 @@ import type { AiIdentityActivities } from '../../../activities/shared/ai-identit
 import { handleOrderCancellationOrderDiscovery } from './sub-workflows/order-cancellation-order-discovery.sub-workflow';
 import { handleOrderCancellationOrderProcessing } from './sub-workflows/order-cancellation-order-processing.sub-workflow';
 import { handleOrderCancellationEligibility } from './sub-workflows/order-cancellation-eligibility.sub-workflow';
+import { handleOrderCancellationFulfillment } from './sub-workflows/order-cancellation-fulfillment.sub-workflow';
 
 // Proxy activities needed at main workflow level
 const aiIdentityActivities = proxyActivities<typeof AiIdentityActivities.prototype>({
@@ -142,11 +144,8 @@ export async function handleOrderCancellation(wfInput: WorkFlowInput): Promise<s
       return 'Workflow cancelled during Eligibility phase';
     }
 
-    /*
     // ===== PHASE 5: Fulfillment Processing =====
-    const fulfillmentResult = await handleOrderCancellationFulfillment(
-      context,
-    );
+    const fulfillmentResult = await handleOrderCancellationFulfillment(context);
 
     if (!fulfillmentResult.success) {
       log.error('Fulfillment phase failed', {
@@ -170,12 +169,17 @@ export async function handleOrderCancellation(wfInput: WorkFlowInput): Promise<s
       );
       log.info('Approval queue marked as completed');
     }
-    */
 
     // ===== Workflow Complete =====
     state.status = 'completed';
     return `Order Cancellation workflow completed successfully for order [${state.orderNumber}]`;
   } catch (error) {
+    if (isCancellation(error)) {
+      state.status = 'cancelled';
+      log.info('Order Cancellation workflow cancelled');
+      throw error;
+    }
+
     state.status = 'failed';
     log.error('Order Cancellation workflow failed with error', {
       error,

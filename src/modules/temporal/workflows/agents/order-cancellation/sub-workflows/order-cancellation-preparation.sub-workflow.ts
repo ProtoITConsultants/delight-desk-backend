@@ -53,6 +53,7 @@ export async function handleOrderCancellationPreparation(
         type: OrderCancellationActionType.MARK_EMAIL_READ,
         step: 1,
         description: 'Mark incoming email as read',
+        actionDetails: `Marking the incoming cancellation request email from ${context.email.fromEmail} as read in Gmail to acknowledge receipt. Input: Email message ID. Output: Email marked as read.`,
       },
       () => markEmailAsRead(context.email.userId, context.email.messageId),
       context,
@@ -91,6 +92,7 @@ export async function handleOrderCancellationPreparation(
         type: OrderCancellationActionType.VERIFY_AI_CONFIDENCE,
         step: 2,
         description: `Verify AI classification confidence (${context.state.classification.confidence}%)`,
+        actionDetails: `Verifying AI classification confidence is sufficient to proceed with automatic cancellation. Input: Confidence score (${context.state.classification.confidence}%), category (${context.state.classification.category}), required threshold (${CLASSIFICATION_CONFIDENCE_THRESHOLD}%). Output: Pass (continue workflow) or fail (escalate to human).`,
         metadata: {
           confidence: context.state.classification.confidence,
           category: context.state.classification.category,

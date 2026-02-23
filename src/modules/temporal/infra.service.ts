@@ -60,6 +60,18 @@ export class InfraService {
     }
   }
 
+  async cancelWorkflow(workflowId: string) {
+    try {
+      const handle: any = await this.temporalService.getWorkflowHandle(workflowId);
+      await handle.cancel();
+    } catch (error) {
+      if (error instanceof WorkflowNotFoundError) {
+        throw new BadRequestException('Workflow not found or already completed');
+      }
+      throw new BadRequestException('Failed to cancel workflow');
+    }
+  }
+
   async sendApprovalSignalToWorkflow(
     workflowId: string,
     humanResponse: any,

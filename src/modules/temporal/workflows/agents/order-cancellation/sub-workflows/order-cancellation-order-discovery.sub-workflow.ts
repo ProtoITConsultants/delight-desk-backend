@@ -77,6 +77,7 @@ export async function handleOrderCancellationOrderDiscovery(
         type: OrderCancellationActionType.EXTRACT_ORDER_NUMBER,
         step: 3,
         description: 'Extract order number from email or find by customer email',
+        actionDetails: `Extracting the order number from the cancellation request email body using AI parsing, or looking up the customer's most recent order by their email address (${extractEmail(context.email.fromEmail) || context.email.fromEmail}). Input: Email body, customer email. Output: Order number or null (triggers follow-up request in step 3.1).`,
       },
       async () => {
         const extraction = await extractOrderNumberFromEmail(context.email);
@@ -149,23 +150,28 @@ export async function handleOrderCancellationOrderDiscovery(
 
     requiredCustomerInteraction = true;
 
+    // Pre-generate the follow-up message so it can be shown and optionally edited in the UI
+    const aiIdentity = await getAiIdentity(context.email.userId);
+    const customerName = extractEmail(context.email.fromEmail)?.split('@')[0] || '';
+    const followUpMessage = await generateOrderInfoRequestMessage(
+      customerName,
+      'order cancellation request',
+      aiIdentity,
+    );
+
     const requestOrderInfoResult = await executeWorkflowAction(
       {
         type: OrderCancellationActionType.REQUEST_ORDER_INFO,
         step: 3.1,
         description: 'Request order information from customer and wait for reply',
+        actionDetails: `Order number not found in the cancellation request. Sending a follow-up message to ${context.email.fromEmail} requesting their order number, then waiting up to ${MAX_CUSTOMER_REPLY_WAIT_DAYS} days for their reply. Input: Customer email. Output: Order number extracted from reply, or escalation if no response received.`,
+        proposedEmailBody: followUpMessage,
         metadata: {
           maxWaitDays: MAX_CUSTOMER_REPLY_WAIT_DAYS,
         },
       },
-      async () => {
-        const aiIdentity = await getAiIdentity(context.email.userId);
-        const customerName = extractEmail(context.email.fromEmail)?.split('@')[0] || '';
-        const followUpMessage = await generateOrderInfoRequestMessage(
-          customerName,
-          'order cancellation request',
-          aiIdentity,
-        );
+      async (humanResponse) => {
+        const messageToSend = humanResponse?.modifiedData?.message ?? followUpMessage;
 
         const customerEmail = extractEmail(context.email.fromEmail) || context.email.fromEmail;
 
@@ -173,7 +179,7 @@ export async function handleOrderCancellationOrderDiscovery(
           context.email.userId,
           customerEmail,
           `Re: ${context.email.subject || ''}`,
-          followUpMessage,
+          messageToSend,
           context.email.threadId,
         );
 

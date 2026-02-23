@@ -65,6 +65,7 @@ export async function handleWismoOrderDiscovery(
         type: WismoActionType.EXTRACT_ORDER_NUMBER,
         step: 3,
         description: 'Extract order number from email or find by customer email',
+        actionDetails: `Extracting the order number from the email body using AI parsing, or looking up the customer's most recent order by their email address. Input: Email body, customer email (${context.email.fromEmail}). Output: Order number or null (triggers follow-up request).`,
       },
       async () => {
         orderDetection = await extractOrderNumberFromEmail(context.email);
@@ -134,32 +135,35 @@ export async function handleWismoOrderDiscovery(
     if (!context.state.orderNumber) {
       requiredCustomerInteraction = true;
 
-      // Get AI identity for message personalization
+      // Get AI identity and pre-generate follow-up message so it can be shown in the UI
       const aiIdentity = await getAiIdentity(context.email.userId);
+      const customerName = extractEmail(context.email.fromEmail as string)?.split('@')[0] || '';
+      const followUpMessage = await generateOrderInfoRequestMessage(
+        customerName,
+        orderDetection?.customerQuery || 'order status inquiry',
+        aiIdentity,
+      );
 
       const requestOrderInfoResult = await executeWorkflowAction(
         {
           type: WismoActionType.REQUEST_ORDER_INFO,
           step: 3.1,
           description: 'Request order information from customer and wait for reply',
+          actionDetails: `Order number not found in the original email. Sending a follow-up message to ${context.email.fromEmail} requesting their order number, then waiting up to ${MAX_CUSTOMER_REPLY_WAIT_DAYS} days for their reply. Input: Customer email. Output: Order number extracted from reply, or escalation if no response.`,
+          proposedEmailBody: followUpMessage,
           metadata: {
             maxWaitDays: MAX_CUSTOMER_REPLY_WAIT_DAYS,
           },
         },
-        async () => {
-          const customerName = extractEmail(context.email.fromEmail as string)?.split('@')[0] || '';
-          const followUpMessage = await generateOrderInfoRequestMessage(
-            customerName,
-            orderDetection?.customerQuery || 'order status inquiry',
-            aiIdentity,
-          );
+        async (humanResponse) => {
+          const messageToSend = humanResponse?.modifiedData?.message ?? followUpMessage;
 
           // Send follow-up email
           await sendCustomerNotificationViaGmailThread(
             context.email.userId,
             extractEmail(context.email.fromEmail) as string,
             `Re: ${context.email.subject}`,
-            followUpMessage,
+            messageToSend,
             context.email.threadId,
           );
 

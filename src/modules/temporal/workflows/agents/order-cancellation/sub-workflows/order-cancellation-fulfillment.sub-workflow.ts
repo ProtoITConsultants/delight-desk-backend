@@ -103,9 +103,8 @@ function buildFailureResult(
  */
 export async function handleOrderCancellationFulfillment(
   context: ActionExecutionContext,
-  agentSettings: OrderCancellationSettings,
 ): Promise<FulfillmentProcessingResult> {
-  const fulfillmentMethod = agentSettings.fulfillmentMethod;
+  const fulfillmentMethod = {} as any;
   let cancellationProcessed = false;
   let refundProcessed = false;
   let warehouseNotified = false;
@@ -123,7 +122,7 @@ export async function handleOrderCancellationFulfillment(
       case FulfillmentMethod.WAREHOUSE_EMAIL:
         return await handleWarehouseEmailFlow(
           context,
-          agentSettings,
+          {} as any,
           orderNumber,
           cancellationRequestId,
         );
@@ -188,22 +187,28 @@ async function handleWarehouseEmailFlow(
   const fulfillmentMethod = FulfillmentMethod.WAREHOUSE_EMAIL;
 
   // Action 11: Send acknowledgement to customer
+  const warehouseAckBody = `Thank you for contacting us about cancelling order ${orderNumber}.
+
+We're on it — we're checking with our warehouse team to see if we can cancel this order before it ships.
+
+We'll get back to you as soon as possible.`;
+
   const ackResult = await executeWorkflowAction(
     {
       type: OrderCancellationActionType.SEND_ACKNOWLEDGEMENT,
       step: 11,
       description: 'Notify customer that cancellation is being processed',
+      actionDetails: `Sending an acknowledgement email to ${context.email.fromEmail} confirming that their cancellation request for order #${orderNumber} has been received and is being processed with the warehouse team. Input: Order number, customer email. Output: Acknowledgement email sent to customer.`,
+      proposedEmailBody: warehouseAckBody,
     },
-    async () => {
+    async (humanResponse) => {
+      const bodyToSend = humanResponse?.modifiedData?.message ?? warehouseAckBody;
+
       await sendCustomerNotificationViaGmailThread(
         context.userId,
         context.email.fromEmail,
         `Order ${orderNumber} Cancellation Request`,
-        `Thank you for contacting us about cancelling order ${orderNumber}.
-
-We're on it — we're checking with our warehouse team to see if we can cancel this order before it ships.
-
-We'll get back to you as soon as possible.`,
+        bodyToSend,
         context.email.threadId,
       );
 
@@ -221,29 +226,13 @@ We'll get back to you as soon as possible.`,
   if (ackFailure) return ackFailure;
 
   // Action 12: Send urgent email to warehouse
-  const warehouseResult = await executeWorkflowAction(
-    {
-      type: OrderCancellationActionType.CONTACT_WAREHOUSE,
-      step: 12,
-      description: 'Send cancellation request to warehouse',
-    },
-    async () => {
-      const warehouseEmail = agentSettings.testMode
-        ? agentSettings.testWarehouseEmail
-        : agentSettings.warehouseEmail;
+  const warehouseEmailAddress = agentSettings.testMode
+    ? agentSettings.testWarehouseEmail
+    : agentSettings.warehouseEmail;
+  const subjectPrefix = agentSettings.testMode ? MESSAGE_PREFIXES.testMode : '';
+  const urgentPrefix = MESSAGE_PREFIXES.urgentWarehouse;
 
-      if (!warehouseEmail) {
-        throw new Error('Warehouse email not configured');
-      }
-
-      const subjectPrefix = agentSettings.testMode ? MESSAGE_PREFIXES.testMode : '';
-      const urgentPrefix = MESSAGE_PREFIXES.urgentWarehouse;
-
-      await sendCustomerNotificationViaGmailThread(
-        context.userId,
-        warehouseEmail,
-        `${subjectPrefix} ${urgentPrefix} Cancel Order #${orderNumber}`,
-        `${urgentPrefix}
+  const warehouseContactBody = `${urgentPrefix}
 
 Please respond to this email immediately with one of the following:
 
@@ -259,14 +248,35 @@ Order Details:
 This requires immediate action. Please respond within 8 hours.
 
 Thank you,
-Automated Cancellation System`,
+Automated Cancellation System`;
+
+  const warehouseResult = await executeWorkflowAction(
+    {
+      type: OrderCancellationActionType.CONTACT_WAREHOUSE,
+      step: 12,
+      description: 'Send cancellation request to warehouse',
+      actionDetails: `Sending an urgent cancellation request to the warehouse team (${warehouseEmailAddress || 'not configured'}) for order #${orderNumber}. The system will then wait up to ${WAREHOUSE_REPLY_TIMEOUT_HOURS} hours for their response. Input: Order number, customer and order details. Output: Warehouse email sent, awaiting reply.`,
+      proposedEmailBody: warehouseContactBody,
+    },
+    async (humanResponse) => {
+      if (!warehouseEmailAddress) {
+        throw new Error('Warehouse email not configured');
+      }
+
+      const bodyToSend = humanResponse?.modifiedData?.message ?? warehouseContactBody;
+
+      await sendCustomerNotificationViaGmailThread(
+        context.userId,
+        warehouseEmailAddress,
+        `${subjectPrefix} ${urgentPrefix} Cancel Order #${orderNumber}`,
+        bodyToSend,
         context.email.threadId,
       );
 
       warehouseNotified = true;
 
       return {
-        warehouseEmail,
+        warehouseEmail: warehouseEmailAddress,
         sentAt: new Date().toISOString(),
       };
     },
@@ -323,6 +333,7 @@ Automated Cancellation System`,
             type: OrderCancellationActionType.PROCESS_CANCELLATION,
             step: 14,
             description: 'Cancel order and process refund in WooCommerce',
+            actionDetails: `Warehouse confirmed cancellation. Cancelling order #${orderNumber} in WooCommerce and initiating a full refund of $${context.state.wooOrder?.total}. Input: Order number, cancellation reason. Output: Order cancelled, refund initiated.`,
           },
           async () => {
             const result = await cancelAndRefundWooCommerceOrder(
@@ -347,24 +358,30 @@ Automated Cancellation System`,
         if (cancelFailure) return cancelFailure;
 
         // Action 15: Send success notification
-        const notifyResult = await executeWorkflowAction(
-          {
-            type: OrderCancellationActionType.SEND_FINAL_NOTIFICATION,
-            step: 15,
-            description: 'Notify customer of successful cancellation',
-          },
-          async () => {
-            await sendCustomerNotificationViaGmailThread(
-              context.userId,
-              context.email.fromEmail,
-              `Order ${orderNumber} Successfully Cancelled`,
-              `Good news! Your order ${orderNumber} has been successfully cancelled.
+        const warehouseSuccessBody = `Good news! Your order ${orderNumber} has been successfully cancelled.
 
 A refund of $${context.state.wooOrder?.total} will be processed to your original payment method within 5-7 business days.
 
 If you have any questions, please don't hesitate to reach out.
 
-Thank you for your business!`,
+Thank you for your business!`;
+
+        const notifyResult = await executeWorkflowAction(
+          {
+            type: OrderCancellationActionType.SEND_FINAL_NOTIFICATION,
+            step: 15,
+            description: 'Notify customer of successful cancellation',
+            actionDetails: `Sending a cancellation success notification to ${context.email.fromEmail} for order #${orderNumber}. Confirms the cancellation and refund timeline. Input: Order number, refund amount ($${context.state.wooOrder?.total}), customer email. Output: Success notification sent.`,
+            proposedEmailBody: warehouseSuccessBody,
+          },
+          async (humanResponse) => {
+            const bodyToSend = humanResponse?.modifiedData?.message ?? warehouseSuccessBody;
+
+            await sendCustomerNotificationViaGmailThread(
+              context.userId,
+              context.email.fromEmail,
+              `Order ${orderNumber} Successfully Cancelled`,
+              bodyToSend,
               context.email.threadId,
             );
 
@@ -382,18 +399,7 @@ Thank you for your business!`,
         if (notifyFailure) return notifyFailure;
       } else if (parsedReply.cannotCancel) {
         // Action 16: Send return instructions
-        const returnResult = await executeWorkflowAction(
-          {
-            type: OrderCancellationActionType.SEND_FINAL_NOTIFICATION,
-            step: 16,
-            description: 'Notify customer that order has shipped',
-          },
-          async () => {
-            await sendCustomerNotificationViaGmailThread(
-              context.userId,
-              context.email.fromEmail,
-              `Order ${orderNumber} - Return Instructions`,
-              `Thank you for contacting us about order ${orderNumber}.
+        const returnInstructionsBody = `Thank you for contacting us about order ${orderNumber}.
 
 Unfortunately, this order has already shipped and cannot be cancelled.
 
@@ -407,7 +413,24 @@ However, you can return the order once you receive it. Here's how:
 
 If you have any questions, please let us know.
 
-Thank you for your understanding!`,
+Thank you for your understanding!`;
+
+        const returnResult = await executeWorkflowAction(
+          {
+            type: OrderCancellationActionType.SEND_FINAL_NOTIFICATION,
+            step: 16,
+            description: 'Notify customer that order has shipped',
+            actionDetails: `Order #${orderNumber} has already shipped and cannot be cancelled. Sending return instructions to ${context.email.fromEmail} explaining how to initiate a return once the package arrives. Input: Order number, customer email. Output: Return instructions email sent.`,
+            proposedEmailBody: returnInstructionsBody,
+          },
+          async (humanResponse) => {
+            const bodyToSend = humanResponse?.modifiedData?.message ?? returnInstructionsBody;
+
+            await sendCustomerNotificationViaGmailThread(
+              context.userId,
+              context.email.fromEmail,
+              `Order ${orderNumber} - Return Instructions`,
+              bodyToSend,
               context.email.threadId,
             );
 
@@ -473,6 +496,7 @@ async function handleShipBobFlow(
       type: OrderCancellationActionType.FETCH_ORDER_DETAILS,
       step: 11,
       description: 'Fetch order from ShipBob',
+      actionDetails: `Fetching order #${orderNumber} from ShipBob fulfillment system to check its current fulfillment status and cancellation eligibility. Input: Order reference number. Output: ShipBob order ID and fulfillment status.`,
     },
     async () => {
       shipBobOrder = await getShipBobOrderByReference(orderNumber);
@@ -506,6 +530,7 @@ async function handleShipBobFlow(
       type: OrderCancellationActionType.CHECK_TIME_ELIGIBILITY,
       step: 12,
       description: 'Check ShipBob cancellation eligibility',
+      actionDetails: `Checking if order #${orderNumber} can still be cancelled in ShipBob based on its current fulfillment status. If already fulfilled/shipped, the customer will be notified with return instructions. Input: ShipBob order ID. Output: Eligible (continue) or not eligible (notify customer and escalate).`,
     },
     async () => {
       const eligibility = await checkShipBobCancellationEligibility(shipBobOrder.id);
@@ -560,22 +585,28 @@ Thank you for your understanding!`,
   if (eligibilityFailure) return eligibilityFailure;
 
   // Action 13: Send acknowledgement to customer
+  const shipBobAckBody = `Thank you for contacting us about cancelling order ${orderNumber}.
+
+We're processing your cancellation request now with our fulfillment center.
+
+You'll receive a confirmation shortly.`;
+
   const ackResult = await executeWorkflowAction(
     {
       type: OrderCancellationActionType.SEND_ACKNOWLEDGEMENT,
       step: 13,
       description: 'Notify customer that cancellation is being processed',
+      actionDetails: `Sending an acknowledgement email to ${context.email.fromEmail} confirming their cancellation request for order #${orderNumber} is being processed with the fulfillment center. Input: Order number, customer email. Output: Acknowledgement email sent.`,
+      proposedEmailBody: shipBobAckBody,
     },
-    async () => {
+    async (humanResponse) => {
+      const bodyToSend = humanResponse?.modifiedData?.message ?? shipBobAckBody;
+
       await sendCustomerNotificationViaGmailThread(
         context.userId,
         context.email.fromEmail,
         `Order ${orderNumber} Cancellation Request`,
-        `Thank you for contacting us about cancelling order ${orderNumber}.
-
-We're processing your cancellation request now with our fulfillment center.
-
-You'll receive a confirmation shortly.`,
+        bodyToSend,
         context.email.threadId,
       );
 
@@ -597,6 +628,7 @@ You'll receive a confirmation shortly.`,
       type: OrderCancellationActionType.PROCESS_CANCELLATION,
       step: 14,
       description: 'Cancel order in ShipBob',
+      actionDetails: `Sending a cancellation request to the ShipBob API for order #${orderNumber}. Input: ShipBob order ID. Output: Cancellation confirmation with cancelled/failed shipment details, or escalation on failure.`,
     },
     async () => {
       const cancelResponse = await cancelShipBobOrder(shipBobOrder.id);
@@ -639,6 +671,7 @@ You'll receive a confirmation shortly.`,
       type: OrderCancellationActionType.PROCESS_REFUND,
       step: 15,
       description: 'Process refund in WooCommerce',
+      actionDetails: `Processing a full refund for order #${orderNumber} in WooCommerce after successful ShipBob cancellation. Input: Order number, cancellation reason. Output: Refund initiated in WooCommerce.`,
     },
     async () => {
       const result = await cancelAndRefundWooCommerceOrder(
@@ -662,24 +695,30 @@ You'll receive a confirmation shortly.`,
   if (refundFailure) return refundFailure;
 
   // Action 16: Send success notification
-  const notifyResult = await executeWorkflowAction(
-    {
-      type: OrderCancellationActionType.SEND_FINAL_NOTIFICATION,
-      step: 16,
-      description: 'Notify customer of successful cancellation',
-    },
-    async () => {
-      await sendCustomerNotificationViaGmailThread(
-        context.userId,
-        context.email.fromEmail,
-        `Order ${orderNumber} Successfully Cancelled`,
-        `Good news! Your order ${orderNumber} has been successfully cancelled.
+  const shipBobSuccessBody = `Good news! Your order ${orderNumber} has been successfully cancelled.
 
 A refund of $${context.state.wooOrder?.total} will be processed to your original payment method within 5-7 business days.
 
 If you have any questions, please don't hesitate to reach out.
 
-Thank you for your business!`,
+Thank you for your business!`;
+
+  const notifyResult = await executeWorkflowAction(
+    {
+      type: OrderCancellationActionType.SEND_FINAL_NOTIFICATION,
+      step: 16,
+      description: 'Notify customer of successful cancellation',
+      actionDetails: `Sending a cancellation success notification to ${context.email.fromEmail} for order #${orderNumber}. Confirms the cancellation and refund timeline. Input: Order number, refund amount ($${context.state.wooOrder?.total}), customer email. Output: Success notification sent.`,
+      proposedEmailBody: shipBobSuccessBody,
+    },
+    async (humanResponse) => {
+      const bodyToSend = humanResponse?.modifiedData?.message ?? shipBobSuccessBody;
+
+      await sendCustomerNotificationViaGmailThread(
+        context.userId,
+        context.email.fromEmail,
+        `Order ${orderNumber} Successfully Cancelled`,
+        bodyToSend,
         context.email.threadId,
       );
 
@@ -726,6 +765,7 @@ async function handleShipStationFlow(
       type: OrderCancellationActionType.FETCH_ORDER_DETAILS,
       step: 11,
       description: 'Fetch order from ShipStation',
+      actionDetails: `Fetching order #${orderNumber} from ShipStation to check its current shipping status and cancellation eligibility. Input: Order number. Output: ShipStation order ID and order status.`,
     },
     async () => {
       shipStationOrder = await getShipStationOrderByNumber(orderNumber);
@@ -759,6 +799,7 @@ async function handleShipStationFlow(
       type: OrderCancellationActionType.CHECK_TIME_ELIGIBILITY,
       step: 12,
       description: 'Check ShipStation cancellation eligibility',
+      actionDetails: `Checking if order #${orderNumber} can still be cancelled in ShipStation based on its current shipping status. If already shipped, the customer will be notified with return instructions. Input: Order number. Output: Eligible (continue) or not eligible (notify customer and escalate).`,
     },
     async () => {
       const eligibility = await checkShipStationCancellationEligibility(orderNumber);
@@ -813,22 +854,28 @@ Thank you for your understanding!`,
   if (eligibilityFailure) return eligibilityFailure;
 
   // Action 13: Send acknowledgement to customer
+  const shipStationAckBody = `Thank you for contacting us about cancelling order ${orderNumber}.
+
+We're processing your cancellation request now with our shipping provider.
+
+You'll receive a confirmation shortly.`;
+
   const ackResult = await executeWorkflowAction(
     {
       type: OrderCancellationActionType.SEND_ACKNOWLEDGEMENT,
       step: 13,
       description: 'Notify customer that cancellation is being processed',
+      actionDetails: `Sending an acknowledgement email to ${context.email.fromEmail} confirming their cancellation request for order #${orderNumber} is being processed with the shipping provider. Input: Order number, customer email. Output: Acknowledgement email sent.`,
+      proposedEmailBody: shipStationAckBody,
     },
-    async () => {
+    async (humanResponse) => {
+      const bodyToSend = humanResponse?.modifiedData?.message ?? shipStationAckBody;
+
       await sendCustomerNotificationViaGmailThread(
         context.userId,
         context.email.fromEmail,
         `Order ${orderNumber} Cancellation Request`,
-        `Thank you for contacting us about cancelling order ${orderNumber}.
-
-We're processing your cancellation request now with our shipping provider.
-
-You'll receive a confirmation shortly.`,
+        bodyToSend,
         context.email.threadId,
       );
 
@@ -850,6 +897,7 @@ You'll receive a confirmation shortly.`,
       type: OrderCancellationActionType.PROCESS_CANCELLATION,
       step: 14,
       description: 'Cancel order in ShipStation',
+      actionDetails: `Sending a cancellation request to the ShipStation API for order #${orderNumber}. Input: Order number. Output: Cancellation confirmation with voided labels, or escalation on failure.`,
     },
     async () => {
       const cancelResponse = await cancelShipStationOrder(orderNumber);
@@ -891,6 +939,7 @@ You'll receive a confirmation shortly.`,
       type: OrderCancellationActionType.PROCESS_REFUND,
       step: 15,
       description: 'Process refund in WooCommerce',
+      actionDetails: `Processing a full refund for order #${orderNumber} in WooCommerce after successful ShipStation cancellation. Input: Order number, cancellation reason. Output: Refund initiated in WooCommerce.`,
     },
     async () => {
       const result = await cancelAndRefundWooCommerceOrder(
@@ -914,24 +963,30 @@ You'll receive a confirmation shortly.`,
   if (refundFailure) return refundFailure;
 
   // Action 16: Send success notification
-  const notifyResult = await executeWorkflowAction(
-    {
-      type: OrderCancellationActionType.SEND_FINAL_NOTIFICATION,
-      step: 16,
-      description: 'Notify customer of successful cancellation',
-    },
-    async () => {
-      await sendCustomerNotificationViaGmailThread(
-        context.userId,
-        context.email.fromEmail,
-        `Order ${orderNumber} Successfully Cancelled`,
-        `Good news! Your order ${orderNumber} has been successfully cancelled.
+  const shipStationSuccessBody = `Good news! Your order ${orderNumber} has been successfully cancelled.
 
 A refund of $${context.state.wooOrder?.total} will be processed to your original payment method within 5-7 business days.
 
 If you have any questions, please don't hesitate to reach out.
 
-Thank you for your business!`,
+Thank you for your business!`;
+
+  const notifyResult = await executeWorkflowAction(
+    {
+      type: OrderCancellationActionType.SEND_FINAL_NOTIFICATION,
+      step: 16,
+      description: 'Notify customer of successful cancellation',
+      actionDetails: `Sending a cancellation success notification to ${context.email.fromEmail} for order #${orderNumber}. Confirms the cancellation and refund timeline. Input: Order number, refund amount ($${context.state.wooOrder?.total}), customer email. Output: Success notification sent.`,
+      proposedEmailBody: shipStationSuccessBody,
+    },
+    async (humanResponse) => {
+      const bodyToSend = humanResponse?.modifiedData?.message ?? shipStationSuccessBody;
+
+      await sendCustomerNotificationViaGmailThread(
+        context.userId,
+        context.email.fromEmail,
+        `Order ${orderNumber} Successfully Cancelled`,
+        bodyToSend,
         context.email.threadId,
       );
 
@@ -970,22 +1025,28 @@ async function handleSelfFulfillmentFlow(
   const fulfillmentMethod = FulfillmentMethod.SELF_FULFILLMENT;
 
   // Action 11: Send acknowledgement
+  const selfAckBody = `Thank you for contacting us about cancelling order ${orderNumber}.
+
+We're processing your cancellation request now.
+
+You'll receive a confirmation shortly.`;
+
   const ackResult = await executeWorkflowAction(
     {
       type: OrderCancellationActionType.SEND_ACKNOWLEDGEMENT,
       step: 11,
       description: 'Notify customer that cancellation is being processed',
+      actionDetails: `Sending an acknowledgement email to ${context.email.fromEmail} confirming their cancellation request for order #${orderNumber} is being processed. Input: Order number, customer email. Output: Acknowledgement email sent.`,
+      proposedEmailBody: selfAckBody,
     },
-    async () => {
+    async (humanResponse) => {
+      const bodyToSend = humanResponse?.modifiedData?.message ?? selfAckBody;
+
       await sendCustomerNotificationViaGmailThread(
         context.userId,
         context.email.fromEmail,
         `Order ${orderNumber} Cancellation Request`,
-        `Thank you for contacting us about cancelling order ${orderNumber}.
-
-We're processing your cancellation request now.
-
-You'll receive a confirmation shortly.`,
+        bodyToSend,
         context.email.threadId,
       );
 
@@ -1006,6 +1067,7 @@ You'll receive a confirmation shortly.`,
       type: OrderCancellationActionType.PROCESS_CANCELLATION,
       step: 12,
       description: 'Cancel order and process refund',
+      actionDetails: `Cancelling order #${orderNumber} directly in WooCommerce and initiating a full refund of $${context.state.wooOrder?.total}. Input: Order number, cancellation reason. Output: Order cancelled and refund initiated.`,
     },
     async () => {
       const result = await cancelAndRefundWooCommerceOrder(
@@ -1029,24 +1091,30 @@ You'll receive a confirmation shortly.`,
   if (cancelFailure) return cancelFailure;
 
   // Action 13: Send success notification
-  const notifyResult = await executeWorkflowAction(
-    {
-      type: OrderCancellationActionType.SEND_FINAL_NOTIFICATION,
-      step: 13,
-      description: 'Notify customer of successful cancellation',
-    },
-    async () => {
-      await sendCustomerNotificationViaGmailThread(
-        context.userId,
-        context.email.fromEmail,
-        `Order ${orderNumber} Successfully Cancelled`,
-        `Good news! Your order ${orderNumber} has been successfully cancelled.
+  const selfSuccessBody = `Good news! Your order ${orderNumber} has been successfully cancelled.
 
 A refund of $${context.state.wooOrder?.total} will be processed to your original payment method within 5-7 business days.
 
 If you have any questions, please don't hesitate to reach out.
 
-Thank you for your business!`,
+Thank you for your business!`;
+
+  const notifyResult = await executeWorkflowAction(
+    {
+      type: OrderCancellationActionType.SEND_FINAL_NOTIFICATION,
+      step: 13,
+      description: 'Notify customer of successful cancellation',
+      actionDetails: `Sending a cancellation success notification to ${context.email.fromEmail} for order #${orderNumber}. Confirms the cancellation and refund timeline. Input: Order number, refund amount ($${context.state.wooOrder?.total}), customer email. Output: Success notification sent.`,
+      proposedEmailBody: selfSuccessBody,
+    },
+    async (humanResponse) => {
+      const bodyToSend = humanResponse?.modifiedData?.message ?? selfSuccessBody;
+
+      await sendCustomerNotificationViaGmailThread(
+        context.userId,
+        context.email.fromEmail,
+        `Order ${orderNumber} Successfully Cancelled`,
+        bodyToSend,
         context.email.threadId,
       );
 

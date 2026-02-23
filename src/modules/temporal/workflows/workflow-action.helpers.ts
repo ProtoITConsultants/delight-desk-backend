@@ -17,7 +17,55 @@ import {
   HumanDecision,
   HumanResponse,
   UpdateActionData,
+  WorkflowActionType,
 } from '../types';
+
+/**
+ * Maps action type values to human-readable display names.
+ * The oc_ prefix is stripped and snake_case is converted to Title Case as a fallback.
+ */
+const ACTION_NAME_MAP: Record<string, string> = {
+  mark_email_read: 'Mark Email as Read',
+  oc_mark_email_read: 'Mark Email as Read',
+  verify_ai_confidence: 'Verify AI Classification',
+  oc_verify_ai_confidence: 'Verify AI Classification',
+  extract_order_number: 'Extract Order Number',
+  oc_extract_order_number: 'Extract Order Number',
+  request_order_info: 'Request Order Information',
+  oc_request_order_info: 'Request Order Information',
+  fetch_order_details: 'Fetch Order Details',
+  oc_fetch_order_details: 'Fetch Order Details',
+  send_acknowledgement: 'Send Acknowledgement',
+  oc_send_acknowledgement: 'Send Acknowledgement',
+  wait_for_tracking: 'Wait for Tracking Number',
+  create_aftership_tracking: 'Create AfterShip Tracking',
+  monitor_tracking_status: 'Monitor Tracking Status',
+  send_tracking_update: 'Send Tracking Update',
+  send_final_notification: 'Send Final Notification',
+  oc_send_final_notification: 'Send Final Notification',
+  wait_for_customer_reply: 'Wait for Customer Reply',
+  oc_validate_order_status: 'Validate Order Status',
+  oc_check_duplicate: 'Check Duplicate Request',
+  oc_check_rate_limit: 'Check Rate Limit',
+  oc_record_request: 'Record Cancellation Request',
+  oc_check_time_eligibility: 'Check Cancellation Eligibility',
+  oc_validate_customer_email: 'Validate Customer Email',
+  oc_process_cancellation: 'Process Order Cancellation',
+  oc_process_refund: 'Process Refund',
+  oc_contact_warehouse: 'Contact Warehouse',
+  oc_wait_for_warehouse_reply: 'Wait for Warehouse Reply',
+};
+
+function getActionName(type: WorkflowActionType): string {
+  const mapped = ACTION_NAME_MAP[type as string];
+  if (mapped) return mapped;
+  // Fallback: strip oc_ prefix and convert snake_case to Title Case
+  return (type as string)
+    .replace(/^oc_/, '')
+    .split('_')
+    .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+    .join(' ');
+}
 
 // Proxy approval queue activities
 const approvalQueueActivities = proxyActivities<typeof ApprovalQueueActivities.prototype>({
@@ -70,7 +118,7 @@ const { createEscalation, generateEscalationResponse } = escalationActivities;
  */
 export async function executeWorkflowAction<T>(
   actionConfig: ActionConfig,
-  actionExecutor: () => Promise<T>,
+  actionExecutor: (humanResponse?: HumanResponse | null) => Promise<T>,
   context: ActionExecutionContext,
   humanResponseGetter?: () => HumanResponse | null,
 ): Promise<ActionExecutionResult<T>> {
@@ -132,6 +180,9 @@ export async function executeWorkflowAction<T>(
       ? ActionStatus.PENDING_APPROVAL
       : ActionStatus.APPROVED,
     description: actionConfig.description,
+    name: actionConfig.name ?? getActionName(actionConfig.type),
+    actionDetails: actionConfig.actionDetails,
+    proposedEmailBody: actionConfig.proposedEmailBody,
     metadata: {
       ...actionConfig.metadata,
       orderNumber: context.state.orderNumber,
@@ -257,8 +308,10 @@ export async function executeWorkflowAction<T>(
   });
 
   // 6. Execute the actual action
+  // Pass the action's human response so email executors can use modifiedData.message
+  const humanActionResponse = context.state.actionResponses?.[action.id];
   try {
-    const result = await actionExecutor();
+    const result = await actionExecutor(humanActionResponse);
 
     // 7. Mark action as successfully executed
     await markActionAsExecuted(action.id, {

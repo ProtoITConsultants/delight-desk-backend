@@ -13,7 +13,6 @@ import {
   ActionExecutionContext,
   EscalationError,
   EscalationType,
-  HumanResponse,
   WismoActionType,
 } from '../../../../types';
 import { executeWorkflowAction } from '../../../workflow-action.helpers';
@@ -53,7 +52,6 @@ const { getAiIdentity } = aiIdentityActivities;
  */
 export async function handleWismoTracking(
   context: ActionExecutionContext,
-  humanResponse: HumanResponse | null,
 ): Promise<TrackingResult> {
   log.info('Starting WISMO tracking phase', {
     workflowId: context.workflowId,
@@ -76,6 +74,7 @@ export async function handleWismoTracking(
         type: WismoActionType.WAIT_FOR_TRACKING,
         step: 6,
         description: `Wait for tracking number to become available (up to ${MAX_TRACKING_RETRIES_IN_DAYS} days)`,
+        actionDetails: `Polling WooCommerce for a tracking number on order #${context.state.orderNumber}. Checks every ${TRACKING_RETRY_INTERVAL} for up to ${MAX_TRACKING_RETRIES_IN_DAYS} days. Input: Order number. Output: Tracking number and carrier, or escalation if unavailable after max retries.`,
         metadata: {
           orderNumber: context.state.orderNumber,
           maxRetries: MAX_TRACKING_RETRIES_IN_DAYS,
@@ -168,6 +167,7 @@ export async function handleWismoTracking(
         type: WismoActionType.CREATE_AFTERSHIP_TRACKING,
         step: 7,
         description: `Create AfterShip tracking for ${context.state.wooOrder?.trackingNumber}`,
+        actionDetails: `Creating an AfterShip tracking entry to enable real-time shipment monitoring. Input: Tracking number (${context.state.wooOrder?.trackingNumber}), carrier (${context.state.wooOrder?.trackingProvider || 'auto-detect'}), order ID. Output: AfterShip tracking ID used for status polling.`,
         metadata: {
           trackingNumber: context.state.wooOrder?.trackingNumber,
           trackingProvider: context.state.wooOrder?.trackingProvider,
@@ -229,6 +229,7 @@ export async function handleWismoTracking(
         type: WismoActionType.MONITOR_TRACKING_STATUS,
         step: 8,
         description: 'Monitor tracking status and send updates until delivered',
+        actionDetails: `Monitoring shipment status for order #${context.state.orderNumber} (tracking: ${context.state.aftershipTracking?.tracking_number}) until delivery. Checks status every ${STATUS_CHECK_INTERVAL} and automatically sends customer email notifications on each status change. Escalates on shipping exceptions (failed delivery, expired). Input: AfterShip tracking ID. Output: Delivery confirmed or escalation.`,
         metadata: {
           trackingNumber: context.state.aftershipTracking?.tracking_number,
           orderNumber: context.state.orderNumber,
@@ -350,11 +351,29 @@ export async function handleWismoTracking(
     // ACTION 9: Send Final Delivery Notification
     // ==========================================
 
+    // Pre-generate the final notification so it can be shown and optionally edited in the UI
+    const trackingLink =
+      context.state.aftershipTracking?.courier_tracking_link ||
+      context.state.aftershipTracking?.tracking_number ||
+      'Not available';
+
+    const finalNotification = await generateTrackingUpdateNotification(
+      context.state.orderNumber as string,
+      'Delivered',
+      trackingLink,
+      context.state.wooOrder?.customerInfo?.name || 'Customer',
+      aiIdentity,
+      context.state.wooOrder,
+      context.state.aftershipTracking,
+    );
+
     const sendFinalNotificationResult = await executeWorkflowAction(
       {
         type: WismoActionType.SEND_FINAL_NOTIFICATION,
         step: 9,
         description: 'Send final delivery confirmation to customer',
+        actionDetails: `Sending a delivery confirmation email to ${extractEmail(context.email.fromEmail) || context.email.fromEmail} for order #${context.state.orderNumber}. The AI-generated message below can be reviewed and edited before sending. Input: Order number, tracking status, customer name. Output: Delivery confirmation email sent.`,
+        proposedEmailBody: finalNotification,
         metadata: {
           orderNumber: context.state.orderNumber,
           trackingStatus: 'Delivered',
@@ -362,30 +381,9 @@ export async function handleWismoTracking(
         },
         requiresUserData: true, // May need edited message from user
       },
-      async () => {
-        // Use courier-specific tracking link for final notification
-        const trackingLink =
-          context.state.aftershipTracking?.courier_tracking_link ||
-          context.state.aftershipTracking?.tracking_number ||
-          'Not available';
-
-        // Generate the final notification message
-        const finalNotification = await generateTrackingUpdateNotification(
-          context.state.orderNumber as string,
-          'Delivered',
-          trackingLink,
-          context.state.wooOrder?.customerInfo?.name || 'Customer',
-          aiIdentity,
-          context.state.wooOrder,
-          context.state.aftershipTracking,
-        );
-
-        // If moderation is enabled and user provided modified message, use it
-        // Otherwise use the generated message
-        const messageToSend =
-          context.requiresModeration && humanResponse?.modifiedData?.message
-            ? humanResponse.modifiedData.message
-            : finalNotification;
+      async (humanResponse) => {
+        // Use human-provided modified message if available, otherwise use generated message
+        const messageToSend = humanResponse?.modifiedData?.message ?? finalNotification;
 
         // Send the notification
         await sendCustomerNotificationViaGmailThread(

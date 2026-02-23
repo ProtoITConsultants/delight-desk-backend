@@ -1,8 +1,12 @@
-import { ActionExecutionContext, OrderCancellationActionType } from '../../../../types';
+import {
+  ActionExecutionContext,
+  EscalationError,
+  EscalationType,
+  OrderCancellationActionType,
+} from '../../../../types';
 import { EligibilityCheckResult } from '../order-cancellation.types';
 import { executeWorkflowAction } from '../../../workflow-action.helpers';
 import { calculateHoursUntilDeadline, checkTimeEligibility } from '../order-cancellation.helpers';
-import { log } from '@temporalio/workflow';
 
 export async function handleOrderCancellationEligibility(
   context: ActionExecutionContext,
@@ -28,6 +32,7 @@ export async function handleOrderCancellationEligibility(
         type: OrderCancellationActionType.CHECK_TIME_ELIGIBILITY,
         step: 9,
         description: 'Check if order is within cancellation window',
+        actionDetails: `Checking if order #${context.state.orderNumber} was placed within the cancellation eligibility window. Standard window: 24 hours from order creation. Extended window: Friday orders after 12 PM UTC get until Monday 12 PM UTC. Weekend orders get until Monday 12 PM UTC. Input: Order creation date (${wooOrder.date_created || wooOrder.date_created_gmt}), current time. Output: Eligible (continue to fulfillment) or not eligible (escalate).`,
       },
       async () => {
         const orderCreatedAt = wooOrder.date_created || wooOrder.date_created_gmt;
@@ -38,14 +43,12 @@ export async function handleOrderCancellationEligibility(
 
         const eligibility = checkTimeEligibility(orderCreatedAt);
 
-        log.info('Eligibility: ', eligibility as any);
-
         timeEligible = eligibility.eligible;
         eligibilityReason = eligibility.reason;
 
         const hoursRemaining = calculateHoursUntilDeadline(orderCreatedAt);
 
-        return {
+        const result = {
           eligible: eligibility.eligible,
           reason: eligibility.reason,
           orderCreatedAt: eligibility.orderCreatedAt.toISOString(),
@@ -54,6 +57,12 @@ export async function handleOrderCancellationEligibility(
           hoursRemaining,
           extendedWindow: eligibility.extendedWindow,
         };
+
+        if (!eligibility.eligible) {
+          throw new EscalationError(EscalationType.ORDER_NOT_ELIGIBLE, eligibility.reason, result);
+        }
+
+        return result;
       },
       context,
     );
@@ -76,7 +85,9 @@ export async function handleOrderCancellationEligibility(
           escalation: timeEligibilityResult.escalation,
         };
       }
+
       context.state.status = 'cancelled';
+
       return {
         success: false,
         state: context.state,

@@ -59,6 +59,7 @@ export async function handleOrderCancellationOrderProcessing(
         type: OrderCancellationActionType.FETCH_ORDER_DETAILS,
         step: 4,
         description: `Fetch order ${orderNumber} from WooCommerce`,
+        actionDetails: `Fetching order #${orderNumber} from WooCommerce to verify its current status and details before processing the cancellation request. Input: Order number. Output: Order status, items, billing info, and fulfillment details.`,
       },
       async () => {
         const order = await getWooCommerceOrderById(context.userId, orderNumber as any);
@@ -122,6 +123,7 @@ export async function handleOrderCancellationOrderProcessing(
         type: OrderCancellationActionType.VALIDATE_ORDER_STATUS,
         step: 5,
         description: 'Validate order status for cancellation',
+        actionDetails: `Checking if order #${orderNumber} (current status: ${context.state.wooOrder?.status}) is eligible for cancellation. Cancellable statuses: processing, pending, on-hold. Non-cancellable statuses: completed, shipped, delivered, cancelled, refunded. If not eligible, the customer will be notified and the workflow escalated. Input: Order status. Output: Eligible (continue) or not eligible (notify customer and escalate).`,
       },
       async () => {
         const order = context.state.wooOrder;

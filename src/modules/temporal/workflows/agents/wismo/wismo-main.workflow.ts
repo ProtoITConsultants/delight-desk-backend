@@ -190,7 +190,7 @@ export async function handleWismo(wfInput: WorkFlowInput): Promise<string> {
 
     log.info('Executing Phase 4: Tracking (long-running)');
 
-    const trackingResult = await handleWismoTracking(context, humanResponse);
+    const trackingResult = await handleWismoTracking(context);
 
     if (!trackingResult.success) {
       log.error('Tracking phase failed', {

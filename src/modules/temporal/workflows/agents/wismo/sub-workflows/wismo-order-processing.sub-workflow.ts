@@ -63,6 +63,7 @@ export async function handleWismoOrderProcessing(
           type: WismoActionType.FETCH_ORDER_DETAILS,
           step: 4,
           description: `Fetch order #${context.state.orderNumber} details from WooCommerce`,
+          actionDetails: `Fetching full order details from WooCommerce for order #${context.state.orderNumber}. Input: Order number. Output: Order status, items, shipping info, and tracking number (if available).`,
           metadata: {
             orderNumber: context.state.orderNumber,
           },
@@ -133,31 +134,35 @@ export async function handleWismoOrderProcessing(
       // Get AI identity for message personalization
       const aiIdentity = await getAiIdentity(context.email.userId);
 
+      // Pre-generate the status notification message so it can be shown in the UI
+      const statusMessage = `Thank you for contacting us regarding order #${context.state.orderNumber}.
+
+We've checked your order and found that it is currently marked as "${orderStatus}". Due to this status, we cannot provide tracking information at this time.
+
+${aiIdentity?.signature || 'Best regards,\nCustomer Support Team'}`;
+
       const statusValidationResult = await executeWorkflowAction(
         {
           type: WismoActionType.SEND_ACKNOWLEDGEMENT, // Reusing existing type
           step: 4.1,
           description: `Order status is ${orderStatus} - notifying customer and escalating`,
+          actionDetails: `Order #${context.state.orderNumber} has a problematic status (${orderStatus}) that prevents tracking. Sending a notification email to the customer explaining the situation, then escalating for manual review. Input: Order number, order status. Output: Customer notified, workflow escalated.`,
+          proposedEmailBody: statusMessage,
           metadata: {
             orderNumber: context.state.orderNumber,
             orderStatus: orderStatus,
             reason: 'Order cannot be processed due to status',
           },
         },
-        async () => {
-          // Generate message informing customer about order status
-          const statusMessage = `Thank you for contacting us regarding order #${context.state.orderNumber}.
-
-We've checked your order and found that it is currently marked as "${orderStatus}". Due to this status, we cannot provide tracking information at this time.
-
-${aiIdentity?.signature || 'Best regards,\nCustomer Support Team'}`;
+        async (humanResponse) => {
+          const messageToSend = humanResponse?.modifiedData?.message ?? statusMessage;
 
           // Send email to customer
           await sendCustomerNotificationViaGmailThread(
             context.email.userId,
             extractEmail(context.email.fromEmail) as string,
             `Re: ${context.email.subject}`,
-            statusMessage,
+            messageToSend,
             context.email.threadId,
           );
 
@@ -210,29 +215,34 @@ ${aiIdentity?.signature || 'Best regards,\nCustomer Support Team'}`;
       // Get AI identity for message personalization
       const aiIdentity = await getAiIdentity(context.email.userId);
 
+      // Pre-generate the acknowledgement message so it can be shown in the UI before approval
+      const acknowledgementMessage = await generateAcknowledgementMessage(
+        context.state.orderNumber as string,
+        context.state.wooOrder?.customerInfo?.name || 'Customer',
+        orderDetection?.customerQuery || 'order status inquiry',
+        aiIdentity,
+      );
+
       const sendAckResult = await executeWorkflowAction(
         {
           type: WismoActionType.SEND_ACKNOWLEDGEMENT,
           step: 5,
           description: 'Send acknowledgement email to customer',
+          actionDetails: `Sending an AI-generated acknowledgement email to ${extractEmail(context.email.fromEmail) || context.email.fromEmail} confirming receipt of their order status inquiry for order #${context.state.orderNumber}. The proposed message can be reviewed and edited before sending. Input: Order number, customer name. Output: Acknowledgement email sent.`,
+          proposedEmailBody: acknowledgementMessage,
           metadata: {
             orderNumber: context.state.orderNumber,
             customerName: context.state.wooOrder?.customerInfo?.name,
           },
         },
-        async () => {
-          const acknowledgementMessage = await generateAcknowledgementMessage(
-            context.state.orderNumber as string,
-            context.state.wooOrder?.customerInfo?.name || 'Customer',
-            orderDetection?.customerQuery || 'order status inquiry',
-            aiIdentity,
-          );
+        async (humanResponse) => {
+          const messageToSend = humanResponse?.modifiedData?.message ?? acknowledgementMessage;
 
           await sendCustomerNotificationViaGmailThread(
             context.email.userId,
             extractEmail(context.email.fromEmail) as string,
             `Re: ${context.email.subject}`,
-            acknowledgementMessage,
+            messageToSend,
             context.email.threadId,
           );
 

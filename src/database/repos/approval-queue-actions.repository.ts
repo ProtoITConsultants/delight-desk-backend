@@ -226,6 +226,21 @@ export class ApprovalQueueActionsRepository {
   }
 
   /**
+   * Cancel all pending_approval actions for a workflow (bulk update to rejected)
+   */
+  async cancelPendingActions(approvalQueueId: string) {
+    await this.db
+      .update(approvalQueueActions)
+      .set({ actionStatus: 'rejected', updatedAt: new Date() })
+      .where(
+        and(
+          eq(approvalQueueActions.approvalQueueId, approvalQueueId),
+          eq(approvalQueueActions.actionStatus, 'pending_approval'),
+        ),
+      );
+  }
+
+  /**
    * Check if any action is escalated
    */
   async hasEscalatedAction(approvalQueueId: string): Promise<boolean> {

@@ -1,0 +1,1 @@
+ALTER TABLE "system_settings" RENAME COLUMN "shipbob_api_key" TO "shipbob_personal_access_token";

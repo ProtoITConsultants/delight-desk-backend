@@ -1,0 +1,1 @@
+-- no-op: columns added in 0042_chemical_jazinda

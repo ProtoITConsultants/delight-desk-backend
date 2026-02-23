@@ -25,8 +25,17 @@ export const approvalQueueActions = pgTable('approval_queue_actions', {
   actionStep: varchar('action_step', { length: 10 }).notNull(), // Sequential step number (1, 2, 3, 3.1, 3.2...)
   actionStatus: varchar('action_status', { length: 50 }).notNull(), // pending_approval, approved, executing, executed, failed, escalated, rejected
 
+  // Human-readable action name (e.g., "Mark Email as Read")
+  name: varchar('name', { length: 255 }),
+
   // Action description/details
   description: text('description').notNull(),
+
+  // Comprehensive details about the action for UI display (input/output summary)
+  actionDetails: text('action_details'),
+
+  // Proposed email body for actions that send AI-generated emails
+  proposedEmailBody: text('proposed_email_body'),
 
   // Action metadata (order details, tracking info, etc.)
   metadata: jsonb('metadata'),

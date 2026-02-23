@@ -1,8 +1,8 @@
-import { eq } from 'drizzle-orm';
+import { eq, sql } from 'drizzle-orm';
 import { systemSettings } from '../schema';
 import { Inject, Injectable } from '@nestjs/common';
 import { NodePgDatabase } from 'drizzle-orm/node-postgres';
-import { DATABASE_CONNECTION } from '../../database/database.module';
+import { DATABASE_CONNECTION } from '../database.module';
 
 @Injectable()
 export class SystemSettingsRepository {
@@ -18,5 +18,15 @@ export class SystemSettingsRepository {
 
   async update(userId: string, dto: any) {
     await this.db.update(systemSettings).set(dto).where(eq(systemSettings.userId, userId));
+  }
+
+  async upsert(userId: string, dto: any) {
+    await this.db
+      .insert(systemSettings)
+      .values({ userId, ...dto })
+      .onConflictDoUpdate({
+        target: systemSettings.userId,
+        set: { ...dto, updatedAt: sql`now()` },
+      });
   }
 }

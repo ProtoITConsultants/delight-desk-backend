@@ -1,0 +1,1 @@
+ALTER TABLE "approval_queue" RENAME COLUMN "agent_type" TO "agent_name";

@@ -1,6 +1,5 @@
 import { InferSelectModel } from 'drizzle-orm';
-import { boolean, integer, jsonb, pgTable, text, timestamp, uuid, varchar } from 'drizzle-orm/pg-core';
-import { users } from './user.schema';
+import { jsonb, pgTable, text, timestamp, uuid, varchar } from 'drizzle-orm/pg-core';
 import { escalations } from './escalation.schema';
 
 export const approvalQueue = pgTable('approval_queue', {
@@ -19,7 +18,7 @@ export const approvalQueue = pgTable('approval_queue', {
   status: varchar('status', { length: 50 }).default('pending').notNull(),
 
   // wismo, refund, subscription, etc.
-  agentType: varchar('agent_type', { length: 50 }).notNull(),
+  agentName: varchar('agent_name', { length: 50 }).notNull(),
 
   // Email context
   customerEmail: text('customer_email').notNull(),

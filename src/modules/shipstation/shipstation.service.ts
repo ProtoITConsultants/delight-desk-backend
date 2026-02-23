@@ -1,7 +1,6 @@
 import { BadRequestException, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-// @ts-ignore
-import axios, { AxiosInstance } from 'axios';
+import axios from 'axios';
 
 /**
  * ShipStation Order Status enum
@@ -27,14 +26,12 @@ export enum ShipStationOrderStatus {
 export class ShipStationService {
   private readonly logger = new Logger(ShipStationService.name);
   private readonly apiKey: string;
-  private readonly apiSecret: string;
   private readonly baseUrl: string;
-  private readonly axiosInstance: AxiosInstance;
+  private readonly axiosInstance: any;
   private readonly isTestMode: boolean;
 
   constructor(private readonly configService: ConfigService) {
     this.apiKey = this.configService.get<string>('SHIPSTATION_API_KEY') || '';
-    this.apiSecret = this.configService.get<string>('SHIPSTATION_API_SECRET') || '';
     this.baseUrl =
       this.configService.get<string>('SHIPSTATION_BASE_URL') || 'https://ssapi.shipstation.com';
     this.isTestMode = this.configService.get<string>('SHIPSTATION_TEST_MODE') === 'true';
@@ -43,19 +40,10 @@ export class ShipStationService {
       throw new Error('SHIPSTATION_API_KEY is not configured');
     }
 
-    if (!this.apiSecret) {
-      throw new Error('SHIPSTATION_API_SECRET is not configured');
-    }
-
-    // Create Basic Auth token
-    const authToken = Buffer.from(`${this.apiKey}:${this.apiSecret}`).toString('base64');
-
-    // Create axios instance with base configuration
     this.axiosInstance = axios.create({
       baseURL: this.baseUrl,
       headers: {
-        Authorization: `Basic ${authToken}`,
-        'Content-Type': 'application/json',
+        'api-key': this.apiKey,
       },
     });
 

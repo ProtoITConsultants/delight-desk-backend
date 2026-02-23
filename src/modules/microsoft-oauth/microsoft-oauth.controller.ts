@@ -12,6 +12,7 @@ import {
   HttpStatus,
   Post,
   Query,
+  Redirect,
   Req,
   Res,
   UseGuards,
@@ -33,6 +34,8 @@ export class MicrosoftOauthController {
   ) {}
 
   @Get('login')
+  @Redirect()
+  // @UseGuards(SessionGuard)
   @ApiOperation({
     summary: 'Initiate Microsoft OAuth login',
     description: 'Start the Microsoft OAuth flow to connect a Microsoft account',
@@ -42,16 +45,16 @@ export class MicrosoftOauthController {
   @ApiResponse({ status: 400, description: 'Bad request - Account already connected' })
   @ApiResponse({ status: 401, description: 'Unauthorized - User not authenticated' })
   @ApiResponse({ status: 500, description: 'Internal server error' })
-  @UseGuards(SessionGuard)
   async microsoftLogin(@Req() req: any) {
-    const userId = req.session.userId;
+    // const userId = req.session.userId;
+    const userId = '9d1ec857-9115-427b-95ed-e84afe4b3577';
     const existingAccount = await this.microsoftService.accountExists(userId);
     if (existingAccount) {
       throw new BadRequestException('An account already connected');
     }
 
     return {
-      url: '/google-oauth/redirect',
+      url: '/microsoft-oauth/redirect',
       statusCode: HttpStatus.FOUND,
     };
   }
@@ -65,7 +68,8 @@ export class MicrosoftOauthController {
   @ApiExcludeEndpoint()
   @UseGuards(AuthGuard('microsoft'))
   async microsoftCallback(@Req() req: any, @Res() res: any) {
-    const userId = req.session?.userId;
+    // const userId = req.session?.userId;
+    const userId = '9d1ec857-9115-427b-95ed-e84afe4b3577';
     const msAccount = req.user;
     const scopes = req.query.scope?.toString().split(' ') || [];
 

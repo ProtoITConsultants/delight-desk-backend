@@ -13,6 +13,7 @@ import { AiAssistantModule } from './modules/ai-assistant/ai-assistant.module';
 import { ApprovalQueueModule } from './modules/approval-queue/approval-queue.module';
 import { MicrosoftOauthModule } from './modules/microsoft-oauth/microsoft-oauth.module';
 import { AiTeamCenterModule } from './modules/ai-team-center/ai-team-center.module';
+import { SystemSettingsModule } from './modules/system-settings/system-settings.module';
 
 @Module({
   imports: [
@@ -32,6 +33,7 @@ import { AiTeamCenterModule } from './modules/ai-team-center/ai-team-center.modu
     ApprovalQueueModule,
     AiAssistantModule,
     AiTeamCenterModule,
+    SystemSettingsModule,
   ],
   controllers: [],
   providers: [],

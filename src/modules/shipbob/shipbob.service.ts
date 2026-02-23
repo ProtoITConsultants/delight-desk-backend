@@ -1,7 +1,6 @@
 import { BadRequestException, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-// @ts-ignore
-import axios, { AxiosInstance } from 'axios';
+import axios from 'axios';
 
 /**
  * ShipBob Order Status enum
@@ -34,19 +33,17 @@ export enum ShipBobCancellationStatus {
 @Injectable()
 export class ShipBobService {
   private readonly logger = new Logger(ShipBobService.name);
-  private readonly apiKey: string;
+  private readonly pat: string;
   private readonly baseUrl: string;
-  private readonly channelId: string;
-  private readonly axiosInstance: AxiosInstance;
+  private readonly axiosInstance: any;
   private readonly isTestMode: boolean;
 
   constructor(private readonly configService: ConfigService) {
-    this.apiKey = this.configService.get<string>('SHIPBOB_API_KEY') || '';
+    this.pat = this.configService.get<string>('SHIPBOB_PAT') || '';
     this.baseUrl = this.configService.get<string>('SHIPBOB_BASE_URL') || 'https://api.shipbob.com';
-    this.channelId = this.configService.get<string>('SHIPBOB_CHANNEL_ID') || '';
     this.isTestMode = this.configService.get<string>('SHIPBOB_TEST_MODE') === 'true';
 
-    if (!this.apiKey) {
+    if (!this.pat) {
       throw new Error('SHIPBOB_API_KEY is not configured');
     }
 
@@ -54,17 +51,11 @@ export class ShipBobService {
       throw new Error('SHIPBOB_BASE_URL is not configured');
     }
 
-    if (!this.channelId) {
-      throw new Error('SHIPBOB_CHANNEL_ID is not configured');
-    }
-
-    // Create axios instance with base configuration
     this.axiosInstance = axios.create({
       baseURL: this.baseUrl,
       headers: {
-        Authorization: `Bearer ${this.apiKey}`,
-        'Content-Type': 'application/json',
-        shipbob_channel_id: this.channelId,
+        Authorization: `Bearer ${this.pat}`,
+        //   TODO: Channel id must be passed in each api request headers explicitly
       },
     });
 

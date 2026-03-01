@@ -4,6 +4,7 @@
 /build
 
 .claude/
+.cursor/
 claude.md
 /docs
 

@@ -52,6 +52,13 @@ export class MicrosoftOauthRepository {
     return account;
   }
 
+  async getAllMicrosoftAccounts() {
+    return this.db
+      .select()
+      .from(userOAuthAccounts)
+      .where(eq(userOAuthAccounts.provider, 'microsoft'));
+  }
+
   async updateMicrosoftAccount(userId: string, updates: any) {
     return this.db
       .update(userOAuthAccounts)

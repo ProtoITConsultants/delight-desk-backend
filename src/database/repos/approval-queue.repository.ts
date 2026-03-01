@@ -92,7 +92,10 @@ export class ApprovalQueueRepository {
     }
 
     const items = await this.db
-      .select({ approval: approvalQueue })
+      .select({
+        approval: approvalQueue,
+        totalItems: sql<number>`count(*) over()::int`,
+      })
       .from(approvalQueue)
       .where(and(...conditions))
       .orderBy(desc(approvalQueue.createdAt))

@@ -39,7 +39,7 @@ export class ApprovalQueueController {
   @ApiOperation({
     summary: 'Get approval queue items',
     description:
-      'Retrieve paginated list of items in the approval queue with filtering options by status, agent type, and priority',
+      'Retrieve paginated list of items in the approval queue with filtering options by status, agent type, and priority. Each item includes originalCustomerEmailBody and workflowActions.',
   })
   @ApiQuery({
     name: 'status',
@@ -75,8 +75,8 @@ export class ApprovalQueueController {
   @ApiResponse({ status: 400, description: 'Bad request - Invalid query parameters' })
   @ApiResponse({ status: 401, description: 'Unauthorized - User not authenticated' })
   @ApiResponse({ status: 500, description: 'Internal server error' })
-  async getApprovalQueue(@CurrentUserId() userId: string, @Query() dto: GetApprovalQueueDto) {
-    return this.approvalQueueService.getApprovalQueue(userId, dto);
+  async getApprovalQueueItems(@CurrentUserId() userId: string, @Query() dto: GetApprovalQueueDto) {
+    return this.approvalQueueService.getApprovalQueueItems(userId, dto);
   }
 
   @Get('stats')
@@ -90,21 +90,6 @@ export class ApprovalQueueController {
   @ApiResponse({ status: 500, description: 'Internal server error' })
   async getStats(@CurrentUserId() userId: string) {
     return this.approvalQueueService.getStats(userId);
-  }
-
-  @Get(':id')
-  @ApiOperation({
-    summary: 'Get approval queue item by ID',
-    description:
-      'Retrieve detailed information about a specific approval queue item including email thread and activity log',
-  })
-  @ApiParam({ name: 'id', type: String, description: 'Approval queue item ID' })
-  @ApiResponse({ status: 200, description: 'Approval queue item retrieved successfully' })
-  @ApiResponse({ status: 401, description: 'Unauthorized - User not authenticated' })
-  @ApiResponse({ status: 404, description: 'Item not found' })
-  @ApiResponse({ status: 500, description: 'Internal server error' })
-  async getApprovalQueueById(@CurrentUserId() userId: string, @Param('id') id: string) {
-    return this.approvalQueueService.getApprovalQueueById(userId, id);
   }
 
   @Post('cancel')

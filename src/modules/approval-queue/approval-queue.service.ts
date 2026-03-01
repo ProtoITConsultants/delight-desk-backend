@@ -23,7 +23,7 @@ export class ApprovalQueueService {
     private readonly infraService: InfraService,
   ) {}
 
-  async getApprovalQueue(userId: string, dto: GetApprovalQueueDto): Promise<any> {
+  async getApprovalQueueItems(userId: string, dto: GetApprovalQueueDto): Promise<any> {
     const { page = 1, limit = 20, status, category, priority } = dto;
 
     const offset = (page - 1) * limit;
@@ -33,30 +33,67 @@ export class ApprovalQueueService {
       status,
       category,
       priority,
-      limit,
+      limit: limit,
       offset,
     };
 
-    const [items, totalItems] = await Promise.all([
-      this.approvalQueueRepository.getApprovalQueueWithFilters(filters),
-      this.approvalQueueRepository.countApprovalQueueWithFilters(filters),
-    ]);
+    const items = await this.approvalQueueRepository.getApprovalQueueWithFilters(filters);
+    const totalItems = items.length > 0 ? items[0].totalItems : 0;
+    const totalPages = totalItems > 0 ? Math.ceil(totalItems / limit) : 0;
 
-    const totalPages = Math.ceil(totalItems / limit);
+    if (items.length === 0) {
+      return {
+        data: [],
+        pagination: {
+          currentPage: page,
+          totalPages,
+          totalItems,
+          itemsPerPage: limit,
+          hasNextPage: false,
+          hasPreviousPage: page > 1,
+        },
+      };
+    }
 
-    const itemsWithActions = items.map((item) => ({
-      id: item.approval.id,
-      workflowId: item.approval.workflowId,
-      status: item.approval.status,
-      category: item.approval.category,
-      customerEmail: item.approval.customerEmail,
-      customerName: item.approval.customerName,
-      emailSubject: item.approval.emailSubject,
-      createdAt: item.approval.createdAt,
-    }));
+    const ids = items.map((item) => item.approval.id);
+    const allActions = await this.approvalQueueActionsRepository.getActionsForApprovalQueueIds(ids);
+    const actionsByApprovalId = allActions.reduce<Record<string, typeof allActions>>(
+      (acc, action) => {
+        const key = action.approvalQueueId;
+        if (!acc[key]) acc[key] = [];
+        acc[key].push(action);
+        return acc;
+      },
+      {},
+    );
+
+    const data = items.map((item) => {
+      const actions = actionsByApprovalId[item.approval.id] ?? [];
+      return {
+        id: item.approval.id,
+        workflowId: item.approval.workflowId,
+        status: item.approval.status,
+        category: item.approval.category,
+        customerEmail: item.approval.customerEmail,
+        customerName: item.approval.customerName,
+        emailSubject: item.approval.emailSubject,
+        originalCustomerEmailBody: item.approval.emailBody,
+        createdAt: item.approval.createdAt,
+        workflowActions: actions.map((action) => ({
+          id: action.id,
+          name: action.name,
+          description: action.description,
+          actionDetails: action.actionDetails,
+          status: action.actionStatus,
+          step: action.actionStep,
+          createdAt: action.createdAt,
+          proposedEmailBody: action.proposedEmailBody,
+        })),
+      };
+    });
 
     return {
-      data: itemsWithActions,
+      data,
       pagination: {
         currentPage: page,
         totalPages,
@@ -65,36 +102,6 @@ export class ApprovalQueueService {
         hasNextPage: page < totalPages,
         hasPreviousPage: page > 1,
       },
-    };
-  }
-
-  async getApprovalQueueById(userId: string, id: string): Promise<any> {
-    const item = await this.approvalQueueRepository.findByIdWithActions(id, userId);
-
-    if (!item) {
-      throw new NotFoundException('Approval queue workflow not found');
-    }
-
-    return {
-      id: item.approval.id,
-      workflowId: item.approval.workflowId,
-      status: item.approval.status,
-      category: item.approval.category,
-      customerEmail: item.approval.customerEmail,
-      customerName: item.approval.customerName,
-      emailSubject: item.approval.emailSubject,
-      originalCustomerEmailBody: item.approval.emailBody,
-      createdAt: item.approval.createdAt,
-      workflowActions: item.actions.map((action) => ({
-        id: action.id,
-        name: action.name,
-        description: action.description,
-        actionDetails: action.actionDetails,
-        status: action.actionStatus,
-        step: action.actionStep,
-        createdAt: action.createdAt,
-        proposedEmailBody: action.proposedEmailBody,
-      })),
     };
   }
 

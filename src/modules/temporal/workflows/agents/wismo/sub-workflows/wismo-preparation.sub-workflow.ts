@@ -44,7 +44,7 @@ export async function handleWismoPreparation(
         type: WismoActionType.MARK_EMAIL_READ,
         step: 1,
         description: 'Mark incoming email as read',
-        actionDetails: `Marking the incoming email from ${context.email.fromEmail} as read in Gmail to acknowledge receipt and prevent duplicate processing. Input: Email message ID. Output: Email marked as read.`,
+        actionDetails: `Marking the incoming email from ${context.email.fromEmail} as read to acknowledge receipt and prevent duplicate processing.`,
       },
       () => markEmailAsRead(context.email.userId, context.email.messageId),
       context,

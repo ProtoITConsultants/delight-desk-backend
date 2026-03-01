@@ -1,5 +1,5 @@
 import { Inject, Injectable } from '@nestjs/common';
-import { and, desc, eq, sql } from 'drizzle-orm';
+import { and, asc, desc, eq, inArray, sql } from 'drizzle-orm';
 import { NodePgDatabase } from 'drizzle-orm/node-postgres';
 import { DATABASE_CONNECTION } from '../database.module';
 import { approvalQueueActions } from '../schema';
@@ -39,6 +39,24 @@ export class ApprovalQueueActionsRepository {
       .orderBy(approvalQueueActions.actionStep);
 
     return actions;
+  }
+
+  /**
+   * Get all actions for multiple approval queue IDs in one query (for list enrichment).
+   * Returns actions ordered by approvalQueueId and actionStep.
+   */
+  async getActionsForApprovalQueueIds(approvalQueueIds: string[]) {
+    if (approvalQueueIds.length === 0) {
+      return [];
+    }
+    return this.db
+      .select()
+      .from(approvalQueueActions)
+      .where(inArray(approvalQueueActions.approvalQueueId, approvalQueueIds))
+      .orderBy(
+        asc(approvalQueueActions.approvalQueueId),
+        asc(approvalQueueActions.actionStep),
+      );
   }
 
   /**

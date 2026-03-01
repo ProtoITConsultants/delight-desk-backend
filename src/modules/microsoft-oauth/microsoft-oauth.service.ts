@@ -1,11 +1,16 @@
 import axios from 'axios';
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { Client } from '@microsoft/microsoft-graph-client';
 import { MicrosoftOauthRepository } from 'src/database/repos/microsoft-oauth.repository';
 
+/** Buffer before expiry (ms) to consider token "expiring soon" for auto-refresh. 24 hours. */
+const TOKEN_EXPIRY_BUFFER_MS = 24 * 60 * 60 * 1000;
+
 @Injectable()
 export class MicrosoftOauthService {
+  private readonly logger = new Logger(MicrosoftOauthService.name);
+
   constructor(
     private readonly configService: ConfigService,
     private readonly repo: MicrosoftOauthRepository,
@@ -92,6 +97,78 @@ export class MicrosoftOauthService {
       isExpired,
       canRefresh: !!account.refreshToken,
     };
+  }
+
+  /**
+   * Auto-refresh tokens for all users with a connected Microsoft account whose
+   * access token is expired or will expire within the configured buffer (default 24h).
+   * Can be called periodically (e.g. from a cron job) to keep tokens valid.
+   */
+  async autoRefreshTokensForAllUsers(): Promise<{
+    total: number;
+    refreshed: number;
+    failed: number;
+    skipped: number;
+  }> {
+    const accounts = await this.repo.getAllMicrosoftAccounts();
+
+    this.logger.log({
+      event: 'microsoft_token_auto_refresh_started',
+      count: accounts.length,
+      timestamp: new Date().toISOString(),
+    });
+
+    let refreshed = 0;
+    let failed = 0;
+    let skipped = 0;
+
+    for (const account of accounts) {
+      try {
+        if (account.status === 'disconnected') {
+          skipped++;
+          continue;
+        }
+
+        const expiresAtMs = new Date(account.expiresAt).getTime();
+        const willExpireSoon = expiresAtMs - TOKEN_EXPIRY_BUFFER_MS <= Date.now();
+
+        if (!willExpireSoon) {
+          skipped++;
+          continue;
+        }
+
+        this.logger.log({
+          event: 'microsoft_token_expiring_soon',
+          userId: account.userId,
+          email: account.email,
+          expiresAt: account.expiresAt,
+          timestamp: new Date().toISOString(),
+        });
+
+        await this.refreshAccessToken(account.userId, account);
+        refreshed++;
+      } catch (error: any) {
+        this.logger.error({
+          event: 'microsoft_token_auto_refresh_error',
+          userId: account.userId,
+          email: account.email,
+          error: error?.message || 'Unknown error',
+          timestamp: new Date().toISOString(),
+        });
+        failed++;
+      }
+    }
+
+    this.logger.log({
+      event: 'microsoft_token_auto_refresh_completed',
+      total: accounts.length,
+      refreshed,
+      failed,
+      skipped,
+      timestamp: new Date().toISOString(),
+    });
+
+    return { total: accounts.length, refreshed, failed, skipped };
   }
 
   async createMailSubscription(userId: string) {

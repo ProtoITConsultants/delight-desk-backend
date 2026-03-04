@@ -1,0 +1,1 @@
+ALTER TABLE "email_threads" ADD COLUMN "initiated_by" text DEFAULT 'customer';

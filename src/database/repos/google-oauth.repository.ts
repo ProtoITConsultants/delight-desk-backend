@@ -51,10 +51,17 @@ export class GoogleOauthRepository {
   }
 
   async getAllGoogleAccounts() {
-    return this.db
-      .select()
+    return this.db.select().from(userOAuthAccounts).where(eq(userOAuthAccounts.provider, 'google'));
+  }
+
+  async getConnectedAccountForUser(userId: string) {
+    const [account] = await this.db
+      .select({ provider: userOAuthAccounts.provider })
       .from(userOAuthAccounts)
-      .where(eq(userOAuthAccounts.provider, 'google'));
+      .where(and(eq(userOAuthAccounts.userId, userId), eq(userOAuthAccounts.status, 'connected')))
+      .limit(1);
+
+    return account;
   }
 
   async getGoogleAccountByEmail(email: string) {
@@ -88,23 +95,59 @@ export class GoogleOauthRepository {
     return thread;
   }
 
-  async createThread(userId: string, threadId: string, subject?: string) {
+  async createThread(
+    userId: string,
+    threadId: string,
+    subject?: string,
+    provider: 'google' | 'microsoft' = 'google',
+    initiatedBy: 'customer' | 'owner' = 'customer',
+  ) {
     const [thread] = await this.db
       .insert(emailThreads)
       .values({
-        threadId: threadId,
-        userId: userId,
+        threadId,
+        userId,
         subject: subject || null,
+        provider,
+        initiatedBy,
       })
-      .returning({ id: emailThreads.id, threadId: emailThreads.threadId });
+      .returning({
+        id: emailThreads.id,
+        threadId: emailThreads.threadId,
+        initiatedBy: emailThreads.initiatedBy,
+      });
 
     return thread;
   }
 
   async upsertThread(userId: string, threadId: string, subject?: string) {
     const existing = await this.findThreadByThreadId(threadId);
-    if (existing) return existing;
-    return this.createThread(userId, threadId, subject);
+    if (existing) return { thread: existing, isNew: false as const };
+    const thread = await this.createThread(userId, threadId, subject);
+    return { thread, isNew: true as const };
+  }
+
+  async upsertThreadWithProvider(
+    userId: string,
+    threadId: string,
+    subject: string | null | undefined,
+    provider: 'google' | 'microsoft',
+    initiatedBy: 'customer' | 'owner' = 'customer',
+  ) {
+    const existing = await this.findThreadByThreadId(threadId);
+    if (existing) return { thread: existing, isNew: false as const };
+    const thread = await this.createThread(
+      userId,
+      threadId,
+      subject ?? undefined,
+      provider,
+      initiatedBy,
+    );
+    return { thread, isNew: true as const };
+  }
+
+  async updateThreadById(id: string, data: { initiatedBy?: string; workflowId?: string }) {
+    await this.db.update(emailThreads).set(data).where(eq(emailThreads.id, id));
   }
 
   async insertEmailIfNotExists(payload: any) {

@@ -302,6 +302,20 @@
       "when": 1771866743865,
       "tag": "0042_chemical_jazinda",
       "breakpoints": true
+    },
+    {
+      "idx": 43,
+      "version": "7",
+      "when": 1772541030406,
+      "tag": "0043_futuristic_roulette",
+      "breakpoints": true
+    },
+    {
+      "idx": 44,
+      "version": "7",
+      "when": 1772644101896,
+      "tag": "0044_unknown_proemial_gods",
+      "breakpoints": true
     }
   ]
 }

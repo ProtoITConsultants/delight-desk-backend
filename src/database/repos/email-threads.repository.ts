@@ -1,5 +1,5 @@
-import { eq } from 'drizzle-orm';
-import { emailThreads } from '../schema';
+import { desc, eq } from 'drizzle-orm';
+import { emailThreads, emails } from '../schema';
 import { Inject, Injectable, NotFoundException } from '@nestjs/common';
 import { DATABASE_CONNECTION } from '../database.module';
 import { NodePgDatabase } from 'drizzle-orm/node-postgres';
@@ -12,6 +12,37 @@ export class EmailThreadsRepository {
     const [thread] = await this.db.select().from(emailThreads).where(eq(emailThreads.id, id));
 
     return thread;
+  }
+
+  /**
+   * Resolve the email provider ('google' | 'microsoft') for a given provider-native
+   * message ID by joining the emails and email_threads tables.
+   * Returns 'google' as a safe default when no match is found.
+   */
+  async getProviderByMessageId(messageId: string): Promise<string> {
+    const [row] = await this.db
+      .select({ provider: emailThreads.provider })
+      .from(emails)
+      .innerJoin(emailThreads, eq(emails.threadId, emailThreads.id))
+      .where(eq(emails.messageId, messageId))
+      .limit(1);
+
+    return row?.provider ?? 'google';
+  }
+
+  /**
+   * Return the provider-native message ID of the most-recently received email in a thread.
+   * Used by the Outlook reply path to avoid an unreliable Graph API $filter query.
+   */
+  async findLatestMessageIdByInternalThreadId(internalThreadId: string): Promise<string | null> {
+    const [row] = await this.db
+      .select({ messageId: emails.messageId })
+      .from(emails)
+      .where(eq(emails.threadId, internalThreadId))
+      .orderBy(desc(emails.internalDate))
+      .limit(1);
+
+    return row?.messageId ?? null;
   }
 
   async updateById(id: string, data: Partial<typeof emailThreads.$inferInsert>) {

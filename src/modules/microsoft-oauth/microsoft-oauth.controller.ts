@@ -2,6 +2,7 @@ import { AuthGuard } from '@nestjs/passport';
 import { ConfigService } from '@nestjs/config';
 import { SessionGuard } from 'src/guards/session.guard';
 import { MicrosoftOauthService } from './microsoft-oauth.service';
+import { OutlookWebhookService } from './services/outlook-webhook.service';
 import { CurrentUserId } from 'src/decorators/current-user.decorator';
 import {
   BadRequestException,
@@ -31,11 +32,12 @@ export class MicrosoftOauthController {
   constructor(
     private readonly configService: ConfigService,
     private readonly microsoftService: MicrosoftOauthService,
+    private readonly outlookWebhookService: OutlookWebhookService,
   ) {}
 
   @Get('login')
   @Redirect()
-  // @UseGuards(SessionGuard)
+  @UseGuards(SessionGuard)
   @ApiOperation({
     summary: 'Initiate Microsoft OAuth login',
     description: 'Start the Microsoft OAuth flow to connect a Microsoft account',
@@ -45,9 +47,7 @@ export class MicrosoftOauthController {
   @ApiResponse({ status: 400, description: 'Bad request - Account already connected' })
   @ApiResponse({ status: 401, description: 'Unauthorized - User not authenticated' })
   @ApiResponse({ status: 500, description: 'Internal server error' })
-  async microsoftLogin(@Req() req: any) {
-    // const userId = req.session.userId;
-    const userId = '9d1ec857-9115-427b-95ed-e84afe4b3577';
+  async microsoftLogin(@CurrentUserId() userId: string) {
     const existingAccount = await this.microsoftService.accountExists(userId);
     if (existingAccount) {
       throw new BadRequestException('An account already connected');
@@ -67,11 +67,8 @@ export class MicrosoftOauthController {
   @Get('callback')
   @ApiExcludeEndpoint()
   @UseGuards(AuthGuard('microsoft'))
-  async microsoftCallback(@Req() req: any, @Res() res: any) {
-    // const userId = req.session?.userId;
-    const userId = '9d1ec857-9115-427b-95ed-e84afe4b3577';
+  async microsoftCallback(@CurrentUserId() userId: string, @Req() req: any, @Res() res: any) {
     const msAccount = req.user;
-    const scopes = req.query.scope?.toString().split(' ') || [];
 
     if (!userId) {
       return res
@@ -83,8 +80,7 @@ export class MicrosoftOauthController {
     const MICROSOFT_FAILURE_REDIRECT = this.configService.get('MICROSOFT_FAILURE_REDIRECT');
 
     try {
-      await this.microsoftService.connectMicrosoftAccount(userId, msAccount, scopes);
-      // await this.microsoftService.createMailSubscription(userId);
+      await this.microsoftService.connectMicrosoftAccount(userId, msAccount);
       return res.redirect(MICROSOFT_SUCCESS_REDIRECT);
     } catch (err) {
       return res.redirect(MICROSOFT_FAILURE_REDIRECT);
@@ -119,8 +115,29 @@ export class MicrosoftOauthController {
 
   @Post('outlook/webhook')
   @ApiExcludeEndpoint()
-  async receiveNotifications(@Body() body: any) {
-    // await this.microsoftService.processNotifications(body);
-    return { received: true };
+  async receiveNotifications(
+    @Query('validationToken') validationToken: string,
+    @Body() body: any,
+    @Res() res,
+  ) {
+    // Microsoft sends a POST with ?validationToken= when creating/renewing a subscription.
+    // Must echo it back as plain text with status 200 for the subscription to be accepted.
+    if (validationToken) {
+      return res.setHeader('Content-Type', 'text/plain').status(200).send(validationToken);
+    }
+
+    const notifications: any[] = body?.value || [];
+
+    for (const notification of notifications) {
+      const subscriptionId: string | undefined = notification.subscriptionId;
+      const messageId: string | undefined = notification.resourceData?.id;
+
+      if (subscriptionId && messageId) {
+        // Fire-and-forget; the service handles its own error logging
+        this.outlookWebhookService.processNotification(subscriptionId, messageId).catch(() => {});
+      }
+    }
+
+    return res.status(200).json({ received: true });
   }
 }

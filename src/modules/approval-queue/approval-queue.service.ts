@@ -12,7 +12,7 @@ import {
   GetApprovalQueueDto,
   RejectItemDto,
 } from './approval-queue.dto';
-import { HumanDecision } from '../temporal/types';
+import { HumanDecision } from '../temporal/workflows/types';
 import { InfraService } from '../temporal/infra.service';
 
 @Injectable()

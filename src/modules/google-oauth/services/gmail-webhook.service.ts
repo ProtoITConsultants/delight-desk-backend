@@ -137,11 +137,17 @@ export class GmailWebhookService {
     const subject = headers?.['subject'] || null;
     const internalDate = msg.internalDate ? new Date(Number(msg.internalDate)) : null;
 
-    // Upsert thread
-    const thread = await this.repo.upsertThread(userId, threadId, subject);
-
     // Determine if email is incoming or outgoing
     const isIncomingEmail = gmailLabels[0] !== GMAIL_SENT_LABEL;
+
+    // Upsert thread
+    const { thread, isNew } = await this.repo.upsertThread(userId, threadId, subject);
+
+    // When the owner sends the very first email in a thread, mark it as owner-initiated
+    // so that customer replies are NOT routed through the AI pipeline.
+    if (!isIncomingEmail && isNew) {
+      await this.repo.updateThreadById(thread.id, { initiatedBy: 'owner' });
+    }
 
     // Prepare email payload
     const emailPayload = {
@@ -162,12 +168,20 @@ export class GmailWebhookService {
     // Insert email if it doesn't exist
     const { inserted, insertedEmail } = await this.repo.insertEmailIfNotExists(emailPayload);
 
-    // Trigger email pipeline for new incoming emails
-    if (inserted && insertedEmail && isIncomingEmail) {
+    // Trigger email pipeline only for new incoming emails in customer-initiated threads.
+    // Replies to threads the owner started manually are intentional direct conversations
+    // and must not be handled by the AI agent.
+    const isOwnerInitiated = thread.initiatedBy === 'owner';
+    if (inserted && insertedEmail && isIncomingEmail && !isOwnerInitiated) {
       console.log('Triggering email pipeline for:', insertedEmail.id);
       await this.triggerEmailPipeline(insertedEmail);
     } else {
-      console.log('Email already exists or is outgoing, skipping pipeline:', messageId);
+      const reason = !isIncomingEmail
+        ? 'outgoing'
+        : isOwnerInitiated
+          ? 'owner-initiated thread'
+          : 'already exists';
+      console.log(`Skipping pipeline (${reason}):`, messageId);
     }
   }
 

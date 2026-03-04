@@ -1,7 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { gmail_v1 } from 'googleapis';
 import { GmailMessageBuilder } from '../utils/gmail-message.builder';
-import { EmailContentExtractorUtil } from '../utils/email-content-extractor.util';
 import { GMAIL_API } from '../constants/gmail.constants';
 
 /**
@@ -9,10 +8,7 @@ import { GMAIL_API } from '../constants/gmail.constants';
  */
 @Injectable()
 export class GmailService {
-  constructor(
-    private readonly messageBuilder: GmailMessageBuilder,
-    private readonly contentExtractor: EmailContentExtractorUtil,
-  ) {}
+  constructor(private readonly messageBuilder: GmailMessageBuilder) {}
 
   /**
    * Reply to an existing Gmail thread
@@ -42,11 +38,10 @@ export class GmailService {
       throw new Error('Message-ID not found for thread');
     }
 
-    // Detect if message contains HTML
-    const isHtml = this.contentExtractor.containsHtml(message);
-
-    // Build and encode the reply message
-    const encoded = this.messageBuilder.buildReplyEmail(to, subject, message, messageId, isHtml);
+    // Always send as HTML — convert plain text to HTML so \n line breaks are
+    // preserved. Already-HTML content passes through unchanged.
+    const htmlBody = GmailMessageBuilder.plainTextToHtml(message);
+    const encoded = this.messageBuilder.buildReplyEmail(to, subject, htmlBody, messageId, true);
 
     // Send the reply
     await gmail.users.messages.send({
@@ -67,11 +62,10 @@ export class GmailService {
     subject: string,
     message: string,
   ): Promise<{ success: boolean }> {
-    // Detect if message contains HTML
-    const isHtml = this.contentExtractor.containsHtml(message);
-
-    // Build and encode the message
-    const encoded = this.messageBuilder.buildStandaloneEmail(to, subject, message, isHtml);
+    // Always send as HTML — convert plain text to HTML so \n line breaks are
+    // preserved. Already-HTML content passes through unchanged.
+    const htmlBody = GmailMessageBuilder.plainTextToHtml(message);
+    const encoded = this.messageBuilder.buildStandaloneEmail(to, subject, htmlBody, true);
 
     // Send the email
     await gmail.users.messages.send({

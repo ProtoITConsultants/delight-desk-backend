@@ -49,9 +49,25 @@ export class GoogleOauthService {
   }
 
   /**
-   * Disconnect Google account from user profile
+   * Disconnect Google account from user profile.
+   * Stops Gmail push notifications first so no more webhooks are sent after disconnect.
    */
   async disconnectGoogleAccount(userId: string): Promise<boolean> {
+    // Best-effort: stop Gmail push notifications before removing the account.
+    // If the token is already invalid we still want the DB record gone.
+    try {
+      const gmail = await this.getGmailClient(userId);
+      await gmail.users.stop({ userId: 'me' });
+      this.logger.log({ event: 'gmail_watch_stopped', userId });
+    } catch (err: any) {
+      this.logger.warn({
+        event: 'gmail_watch_stop_failed',
+        userId,
+        error: err?.message,
+        hint: 'Proceeding with account removal anyway',
+      });
+    }
+
     return await this.repo.removeExistingAccount(userId);
   }
 

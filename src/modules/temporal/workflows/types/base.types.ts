@@ -1,5 +1,4 @@
-import { EmailEntity } from '../../../database/schema';
-import { Tracking } from '@aftership/tracking-sdk/dist/model/Tracking';
+import { EmailEntity } from '../../../../database/schema';
 
 export enum EscalationType {
   LOW_CLASSIFICATION_CONFIDENCE = 'low_classification_confidence',
@@ -9,7 +8,6 @@ export enum EscalationType {
   INCONSISTENT_DATA = 'inconsistent_data',
   MANUAL_ESCALATION = 'manual_escalation',
   AFTERSHIP_EXCEPTION = 'aftership_exception',
-  // Order Cancellation specific escalation types
   ORDER_NOT_ELIGIBLE = 'order_not_eligible',
   WAREHOUSE_TIMEOUT = 'warehouse_timeout',
   API_CANCELLATION_FAILED = 'api_cancellation_failed',
@@ -41,46 +39,6 @@ export interface HumanResponse {
   respondedBy?: string;
 }
 
-export interface WorkflowState {
-  email: EmailEntity;
-  classification: ClassificationResult;
-  orderNumber?: string;
-  wooOrder?: OrderDetails;
-  aftershipTracking?: Tracking;
-  trackingRetryCount?: number;
-  lastTrackingTag?: string;
-  cancellationRequestId?: string;
-  customerReply?: string;
-  escalation?: EscalationContext;
-  humanResponse?: HumanResponse;
-  approvalQueueId?: string;
-  status?: 'processing' | 'awaiting_human' | 'completed' | 'failed' | 'cancelled' | 'escalated';
-  lastUpdated?: Date;
-  // Track responses per action (by approval item ID)
-  // This is Temporal-safe: stored in workflow state, replayed correctly on restart
-  actionResponses?: Record<string, HumanResponse>;
-}
-
-export interface OrderExtractionResult {
-  orderNumbers?: string[];
-  customerQuery: string;
-}
-
-export interface OrderDetails {
-  orderId: string;
-  status: string;
-  id?: string | number;
-  number?: string | number;
-  trackingNumber?: string;
-  trackingProvider?: string;
-  customerInfo: any;
-  items: any[];
-  billing?: any;
-  total?: string;
-  date_created?: string | Date;
-  date_created_gmt?: string | Date;
-}
-
 export interface ClassificationResult {
   category:
     | 'wismo'
@@ -103,5 +61,37 @@ export interface WorkFlowInput {
   classification: ClassificationResult;
 }
 
-// Export workflow action types
-export * from './workflow-actions.types';
+/**
+ * Base workflow state shared across all agent workflows.
+ * Agent-specific workflows should extend this with their own fields.
+ */
+export interface WorkflowState {
+  email: EmailEntity;
+  classification: ClassificationResult;
+  escalation?: EscalationContext;
+  humanResponse?: HumanResponse;
+  approvalQueueId?: string;
+  status?: 'processing' | 'awaiting_human' | 'completed' | 'failed' | 'cancelled' | 'escalated';
+  lastUpdated?: Date;
+  actionResponses?: Record<string, HumanResponse>;
+}
+
+export interface OrderExtractionResult {
+  orderNumbers?: string[];
+  customerQuery: string;
+}
+
+export interface OrderDetails {
+  orderId: string;
+  status: string;
+  id?: string | number;
+  number?: string | number;
+  trackingNumber?: string;
+  trackingProvider?: string;
+  customerInfo: any;
+  items: any[];
+  billing?: any;
+  total?: string;
+  date_created?: string | Date;
+  date_created_gmt?: string | Date;
+}

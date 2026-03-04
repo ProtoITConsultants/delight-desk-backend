@@ -14,9 +14,9 @@ import {
   EscalationError,
   EscalationType,
   WismoActionType,
-} from '../../../../types';
-import { executeWorkflowAction } from '../../../workflow-action.helpers';
-import { TrackingResult } from '../wismo.types';
+} from '../../../types';
+import { executeWorkflowAction, extractCustomerName } from '../../../workflow-action.helpers';
+import { TrackingResult, WismoWorkflowState } from '../wismo.types';
 import {
   ACTIVITY_TIMEOUTS,
   MAX_TRACKING_RETRIES_IN_DAYS,
@@ -40,7 +40,7 @@ const aiIdentityActivities = proxyActivities<typeof AiIdentityActivities.prototy
   ACTIVITY_TIMEOUTS.AI_IDENTITY,
 );
 
-const { sendCustomerNotificationViaGmailThread } = emailActivities;
+const { sendCustomerNotificationViaThread } = emailActivities;
 const { getWooCommerceOrderById } = wismoOrderActivities;
 const { createAfterShipTracking, fetchAfterShipStatus } = wismoTrackingActivities;
 const { generateTrackingUpdateNotification } = wismoMessageActivities;
@@ -51,7 +51,7 @@ const { getAiIdentity } = aiIdentityActivities;
  * This is the longest-running phase, potentially spanning weeks
  */
 export async function handleWismoTracking(
-  context: ActionExecutionContext,
+  context: ActionExecutionContext<WismoWorkflowState>,
 ): Promise<TrackingResult> {
   log.info('Starting WISMO tracking phase', {
     workflowId: context.workflowId,
@@ -64,6 +64,10 @@ export async function handleWismoTracking(
   try {
     // Get AI identity for message personalization
     const aiIdentity = await getAiIdentity(context.email.userId);
+
+    // Derive customer name from the incoming email address so it stays consistent
+    // across the whole conversation (never flips to the WooCommerce billing name).
+    const customerName = extractCustomerName(context.email.fromEmail);
 
     // ==========================================
     // ACTION 6: Wait for Tracking Number (with retry)
@@ -258,17 +262,19 @@ export async function handleWismoTracking(
               context.state.orderNumber as string,
               latestTracking.tag,
               trackingLink,
-              context.state.wooOrder?.customerInfo?.name || 'Customer',
+              customerName,
               aiIdentity,
               context.state.wooOrder,
               context.state.aftershipTracking,
             );
 
-            // Send notification via Gmail thread
-            await sendCustomerNotificationViaGmailThread(
+            // Send notification via Gmail thread.
+            // Use the original subject so the recipient's mail client threads
+            // this reply into the same conversation (buildReplyEmail adds "Re:").
+            await sendCustomerNotificationViaThread(
               context.email.userId,
-              extractEmail(context.email.fromEmail) as string,
-              `Shipping Update - Order #${context.state.orderNumber}`,
+              extractEmail(context.email.fromEmail),
+              context.email.subject ?? '',
               notificationMessage,
               context.email.threadId,
             );
@@ -361,7 +367,7 @@ export async function handleWismoTracking(
       context.state.orderNumber as string,
       'Delivered',
       trackingLink,
-      context.state.wooOrder?.customerInfo?.name || 'Customer',
+      customerName,
       aiIdentity,
       context.state.wooOrder,
       context.state.aftershipTracking,
@@ -372,7 +378,7 @@ export async function handleWismoTracking(
         type: WismoActionType.SEND_FINAL_NOTIFICATION,
         step: 9,
         description: 'Send final delivery confirmation to customer',
-        actionDetails: `Sending a delivery confirmation email to ${extractEmail(context.email.fromEmail) || context.email.fromEmail} for order #${context.state.orderNumber}. The AI-generated message below can be reviewed and edited before sending. Input: Order number, tracking status, customer name. Output: Delivery confirmation email sent.`,
+        actionDetails: `Sending a delivery confirmation email to ${extractEmail(context.email.fromEmail)} for order #${context.state.orderNumber}. The AI-generated message below can be reviewed and edited before sending. Input: Order number, tracking status, customer name. Output: Delivery confirmation email sent.`,
         proposedEmailBody: finalNotification,
         metadata: {
           orderNumber: context.state.orderNumber,
@@ -385,11 +391,13 @@ export async function handleWismoTracking(
         // Use human-provided modified message if available, otherwise use generated message
         const messageToSend = humanResponse?.modifiedData?.message ?? finalNotification;
 
-        // Send the notification
-        await sendCustomerNotificationViaGmailThread(
+        // Send the notification.
+        // Use the original subject so the recipient's mail client threads
+        // this reply into the same conversation (buildReplyEmail adds "Re:").
+        await sendCustomerNotificationViaThread(
           context.email.userId,
-          extractEmail(context.email.fromEmail) as string,
-          `Delivery Confirmation - Order #${context.state.orderNumber}`,
+          extractEmail(context.email.fromEmail),
+          context.email.subject ?? '',
           messageToSend,
           context.email.threadId,
         );

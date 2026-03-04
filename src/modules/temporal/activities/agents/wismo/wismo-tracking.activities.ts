@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { Activity, ActivityMethod } from 'nestjs-temporal-core';
-import { AftershipService } from '../../../../aftership/aftership.service';
+import { AftershipService } from 'src/modules/aftership/aftership.service';
 import { Tracking } from '@aftership/tracking-sdk/dist/model/Tracking';
 
 @Injectable()

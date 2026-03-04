@@ -1,6 +1,5 @@
 import { condition, log, proxyActivities } from '@temporalio/workflow';
 
-// Import activity types
 import type { ApprovalQueueActivities } from '../activities/shared/approval-queue.activities';
 import type { EscalationActivities } from '../activities/shared/escalation.activities';
 
@@ -18,7 +17,7 @@ import {
   HumanResponse,
   UpdateActionData,
   WorkflowActionType,
-} from '../types';
+} from './types';
 
 /**
  * Maps action type values to human-readable display names.
@@ -144,7 +143,7 @@ export async function executeWorkflowAction<T>(
         threadId: context.email.threadId,
         workflowId: context.workflowId,
         workflowRunId: context.workflowRunId,
-        agentType: context.agentType,
+        agentName: context.agentType,
         customerEmail: context.email.fromEmail,
         customerName: extractCustomerName(context.email.fromEmail),
         emailSubject: context.email.subject || 'No Subject',
@@ -155,8 +154,8 @@ export async function executeWorkflowAction<T>(
         priority: context.state.classification?.priority,
         sentiment: context.state.classification?.sentiment,
         workflowMetadata: {
-          orderNumber: context.state.orderNumber,
           currentStatus: context.state.status,
+          ...actionConfig.metadata,
         },
       };
 
@@ -185,7 +184,6 @@ export async function executeWorkflowAction<T>(
     proposedEmailBody: actionConfig.proposedEmailBody,
     metadata: {
       ...actionConfig.metadata,
-      orderNumber: context.state.orderNumber,
       currentWorkflowStatus: context.state.status,
     },
     autoApproved: !context.requiresModeration,
@@ -414,7 +412,7 @@ async function createEscalationFromError(
     escalationType,
     context.email.body,
     customerName,
-    context.state.orderNumber,
+    actionConfig.metadata?.orderNumber,
     metadata,
   );
 
@@ -447,20 +445,35 @@ async function createEscalationFromError(
 }
 
 /**
- * Extract customer name from email address
+ * Extract customer name from email address.
+ * Prefers the display name ("John Doe <john@example.com>" → "John Doe").
+ * Strips RFC-822 surrounding quotes ('"John Doe" <...>' → "John Doe").
+ * Falls back to the email local-part ("john@example.com" → "john").
  */
-function extractCustomerName(fromEmail: string): string {
-  // Try to extract name from "Name <email@example.com>" format
+export function extractCustomerName(fromEmail: string): string {
   const match = fromEmail.match(/^(.+?)\s*<(.+?)>$/);
   if (match) {
-    return match[1].trim();
+    // Remove surrounding double or single quotes that some mail clients add
+    return match[1].trim().replace(/^["']|["']$/g, '');
   }
 
-  // Otherwise, use the part before @ in the email
   const emailMatch = fromEmail.match(/([^@<]+)[@<]/);
   if (emailMatch) {
     return emailMatch[1].trim();
   }
 
   return 'Customer';
+}
+
+/**
+ * Mark an approval queue as completed.
+ * Reuses the already-proxied ApprovalQueueActivities so callers don't
+ * need to create their own proxyActivities instance.
+ */
+export async function markApprovalQueueCompleted(
+  approvalQueueId: string,
+  userId: string,
+): Promise<void> {
+  await updateApprovalQueueStatus(approvalQueueId, userId, 'completed');
+  log.info('Approval queue marked as completed', { approvalQueueId });
 }

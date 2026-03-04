@@ -4,15 +4,16 @@
  */
 
 import { log, proxyActivities } from '@temporalio/workflow';
+
 import type { EmailActivities } from '../../../../activities/shared/email.activities';
 import {
   ActionExecutionContext,
   EscalationError,
   EscalationType,
   WismoActionType,
-} from '../../../../types';
+} from '../../../types';
 import { executeWorkflowAction } from '../../../workflow-action.helpers';
-import { PreparationResult } from '../wismo.types';
+import { PreparationResult, WismoWorkflowState } from '../wismo.types';
 import { ACTIVITY_TIMEOUTS, CLASSIFICATION_CONFIDENCE_THRESHOLD } from '../wismo.constants';
 
 // Proxy email activities
@@ -24,7 +25,7 @@ const { markEmailAsRead } = emailActivities;
  * Handle preparation phase: mark email as read and verify AI confidence
  */
 export async function handleWismoPreparation(
-  context: ActionExecutionContext,
+  context: ActionExecutionContext<WismoWorkflowState>,
 ): Promise<PreparationResult> {
   log.info('Starting WISMO preparation phase', {
     workflowId: context.workflowId,

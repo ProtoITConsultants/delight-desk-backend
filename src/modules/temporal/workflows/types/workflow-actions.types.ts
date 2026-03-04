@@ -1,5 +1,5 @@
-import { EmailEntity } from '../../../database/schema';
-import { EscalationType, WorkflowState } from './index';
+import { EmailEntity } from '../../../../database/schema';
+import { EscalationType, WorkflowState } from './base.types';
 
 /**
  * Enum defining all possible action types in the WISMO workflow
@@ -72,17 +72,19 @@ export interface ActionConfig {
 }
 
 /**
- * Context passed to action executors
+ * Context passed to action executors.
+ * Generic over the workflow state type so agent-specific workflows
+ * can use their extended state (e.g., WismoWorkflowState).
  */
-export interface ActionExecutionContext {
+export interface ActionExecutionContext<S extends WorkflowState = WorkflowState> {
   workflowId: string;
   workflowRunId: string;
   userId: string;
   email: EmailEntity;
-  state: WorkflowState;
+  state: S;
   requiresModeration: boolean;
   agentType: string;
-  approvalQueueId?: string; // Reference to the approval queue workflow item
+  approvalQueueId?: string;
 }
 
 /**
@@ -131,7 +133,7 @@ export interface CreateApprovalQueueData {
   threadId: string;
   workflowId: string;
   workflowRunId: string;
-  agentType: string;
+  agentName: string;
   customerEmail: string;
   customerName?: string;
   emailSubject: string;

@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { Activity, ActivityMethod } from 'nestjs-temporal-core';
-import { AgentsService } from '../../../../agents/agents.service';
 import { MessageFormattingHelper } from '../../shared/message-formatting.helper';
+import { AgentsService } from 'src/modules/agents/agents.service';
 
 @Injectable()
 @Activity()
@@ -24,18 +24,17 @@ export class WismoMessageActivities {
       Generate a brief, friendly acknowledgement email for a customer who inquired about their order status.
 
       Order Number: ${orderNumber}
-      Customer Name: ${customerName}
       Customer's Question: ${customerQuery}
       ${aiIdentity?.aiAgentName ? `AI Agent Name: ${aiIdentity.aiAgentName}` : ''}
       ${aiIdentity?.aiAgentTitle ? `AI Agent Title: ${aiIdentity.aiAgentTitle}` : ''}
 
       Write a warm acknowledgement that:
-      1. Thanks the customer for reaching out
-      2. Confirms we received their inquiry about order #${orderNumber}
-      3. Lets them know we're looking into it and will provide an update soon
-      4. Sets a positive, reassuring tone
-      5. Keeps it under 100 tokens
-      6. Do not include a salutation (like "Hi" or "Hello") at the beginning
+      1. Confirms we received their inquiry about order #${orderNumber}
+      2. Lets them know we're looking into it and will provide an update soon
+      3. Sets a positive, reassuring tone
+      4. Keeps it under 80 tokens
+      5. Do not include a salutation (like "Hi" or "Hello") at the beginning — a personalised greeting is added automatically
+      6. Do not address or refer to the customer by name anywhere in the body — the greeting already handles personalisation
       7. Do not include a signature or sign-off at the end
 ${voiceContext}
 
@@ -80,7 +79,6 @@ ${voiceContext}
     const prompt = `
       Generate a polite, helpful email asking a customer to provide their order information.
 
-      Customer Name: ${customerName || 'there'}
       Customer's Original Question: ${customerQuery}
       ${aiIdentity?.aiAgentName ? `AI Agent Name: ${aiIdentity.aiAgentName}` : ''}
       ${aiIdentity?.aiAgentTitle ? `AI Agent Title: ${aiIdentity.aiAgentTitle}` : ''}
@@ -88,15 +86,15 @@ ${voiceContext}
       Context: We couldn't find their order number in their email or match their email to recent orders.
 
       Write a friendly email that:
-      1. Thanks them for reaching out
-      2. Explains we'd love to help but need a bit more information
-      3. Politely asks them to provide either:
+      1. Explains we'd love to help but need a bit more information
+      2. Politely asks them to provide either:
          - Their order number (e.g., #12345)
          - OR the email address they used when placing the order
-      4. Reassures them we'll help as soon as they provide this info
-      5. Uses a warm, apologetic tone (we want to help!)
-      6. Keeps it under 120 tokens
-      7. Do not include a salutation (like "Hi" or "Hello") at the beginning
+      3. Reassures them we'll help as soon as they provide this info
+      4. Uses a warm, apologetic tone (we want to help!)
+      5. Keeps it under 100 tokens
+      6. Do not include a salutation (like "Hi" or "Hello") at the beginning — a personalised greeting is added automatically
+      7. Do not address or refer to the customer by name anywhere in the body — the greeting already handles personalisation
       8. Do not include a signature or sign-off at the end
 ${voiceContext}
 
@@ -142,25 +140,32 @@ ${voiceContext}
   ): Promise<string> {
     const voiceContext = this.messageFormattingHelper.buildVoiceAndSettingsContext(aiIdentity);
 
+    // Strip billing/customer identity fields before passing to the AI so the model
+    // cannot accidentally address the customer by the WooCommerce billing name
+    // instead of the name we derive from their sender email address.
+    const { customerInfo: _stripped, ...sanitizedOrderDetails } = orderDetails ?? {};
+
     const prompt = `
       Generate an empathetic customer service response for this order status inquiry based on the available information.
 
-      Order Information: ${JSON.stringify(orderDetails, null, 2)}
-      Tracking Details: ${trackingDetails ? JSON.stringify(trackingDetails, null, 2) : 'No tracking information available yet'}
       Customer Name: ${customerName}
+      Order Information: ${JSON.stringify(sanitizedOrderDetails, null, 2)}
+      Tracking Details: ${trackingDetails ? JSON.stringify(trackingDetails, null, 2) : 'No tracking information available yet'}
       ${aiIdentity?.aiAgentName ? `AI Agent Name: ${aiIdentity.aiAgentName}` : ''}
       ${aiIdentity?.aiAgentTitle ? `AI Agent Title: ${aiIdentity.aiAgentTitle}` : ''}
 
       Write a helpful, empathetic response that:
-      1. Thanks the customer
-      2. Provides clear order status
-      3. Includes tracking details if available (tracking number, carrier, current status, estimated delivery)
-      4. If no tracking available, explain that the order is being prepared and tracking will be available soon
-      5. Sets expectations for delivery
-      6. Offers help if needed
-      7. Keep it under 300 tokens
-      8. Do not include a salutation (like "Hi" or "Hello") at the beginning
+      1. Provides clear order status — get straight to the point
+      2. Includes tracking details if available (tracking number, carrier, current status, estimated delivery)
+      3. If no tracking available, explain that the order is being prepared and tracking will be available soon
+      4. Sets expectations for delivery
+      5. Offers further help with a brief, natural closing line
+      6. Keep it under 250 tokens
+      7. Do not include a salutation (like "Hi" or "Hello") at the beginning — a personalised greeting is added automatically
+      8. Do not address or refer to the customer by name anywhere in the body — the greeting already handles personalisation
       9. Do not include a signature or sign-off at the end
+      10. IMPORTANT: Do NOT use markdown formatting of any kind. Do NOT use [text](url) style links. If you include a tracking URL, write it as plain text directly in the sentence (e.g. "You can track your shipment at https://..."). Never wrap URLs in brackets or parentheses.
+      11. Do NOT use any name or email address found inside the Order Information or Tracking Details objects.
   ${voiceContext}
       Important: Only include information that is actually available in the data provided above. Do not make up tracking numbers, delivery dates, or other details.
       `;
@@ -182,7 +187,8 @@ ${voiceContext}
       temperature,
     );
 
-    const messageContent = response.choices[0].message.content || '';
+    const rawContent = response.choices[0].message.content || '';
+    const messageContent = this.messageFormattingHelper.stripMarkdownLinks(rawContent);
 
     // Format the message with AI identity
     return this.messageFormattingHelper.formatMessageWithAiIdentity(

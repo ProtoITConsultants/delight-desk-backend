@@ -12,17 +12,16 @@ import {
   workflowInfo,
 } from '@temporalio/workflow';
 import type { AiIdentityActivities } from '../../../activities/shared/ai-identity.activities';
-import {
-  ActionExecutionContext,
-  HumanResponse,
-  WorkFlowInput,
-  WorkflowState,
-} from '../../../types';
+
+import { ActionExecutionContext, HumanResponse, WorkFlowInput } from '../../types';
+import { markApprovalQueueCompleted } from '../../workflow-action.helpers';
+import { WismoWorkflowState } from './wismo.types';
 import { ACTIVITY_TIMEOUTS } from './wismo.constants';
 import { handleWismoPreparation } from './sub-workflows/wismo-preparation.sub-workflow';
 import { handleWismoOrderDiscovery } from './sub-workflows/wismo-order-discovery.sub-workflow';
 import { handleWismoOrderProcessing } from './sub-workflows/wismo-order-processing.sub-workflow';
 import { handleWismoTracking } from './sub-workflows/wismo-tracking.sub-workflow';
+import { EmailEntity } from '../../../../../database/schema';
 
 // Proxy activities needed at main workflow level
 const aiIdentityActivities = proxyActivities<typeof AiIdentityActivities.prototype>(
@@ -33,7 +32,13 @@ const { getUserAgentSettings } = aiIdentityActivities;
 
 // Define signals and queries (MUST be at main workflow level)
 export const humanResponseSignal = defineSignal<[HumanResponse, string?]>('humanResponse');
-export const stateQuery = defineQuery<WorkflowState>('state');
+export const stateQuery = defineQuery<WismoWorkflowState>('state');
+
+/**
+ * Signal sent by InfraService whenever a new inbound email arrives on the thread.
+ * The order-discovery sub-workflow waits on this via condition() instead of polling.
+ */
+export const customerReplySignal = defineSignal<[EmailEntity]>('customerReply');
 
 /**
  * Main WISMO workflow orchestrator
@@ -50,14 +55,13 @@ export async function handleWismo(wfInput: WorkFlowInput): Promise<string> {
     confidence: classification.confidence,
   });
 
-  // Initialize workflow state
-  let state: WorkflowState = {
+  let state: WismoWorkflowState = {
     email,
     classification,
     trackingRetryCount: 0,
     escalation: {},
     humanResponse: {},
-    actionResponses: {}, // Track responses per action (Temporal-safe workflow state)
+    actionResponses: {},
     status: 'processing',
     lastUpdated: new Date(),
   };
@@ -86,6 +90,14 @@ export async function handleWismo(wfInput: WorkFlowInput): Promise<string> {
     }
   });
 
+  // Receive the customer's reply email in real-time (sent by InfraService via webhook).
+  // The order-discovery sub-workflow unblocks its condition() as soon as this fires.
+  setHandler(customerReplySignal, (replyEmail: EmailEntity) => {
+    state.customerReplyEmail = replyEmail;
+    state.lastUpdated = new Date();
+    log.info('Customer reply received via signal', { messageId: replyEmail.messageId });
+  });
+
   // Set up state query handler
   setHandler(stateQuery, () => state);
 
@@ -93,8 +105,7 @@ export async function handleWismo(wfInput: WorkFlowInput): Promise<string> {
     // Get agent settings to determine if moderation is required
     const agentSettings = await getUserAgentSettings(email.userId, 'wismo');
 
-    // Create execution context for all actions
-    const context: ActionExecutionContext = {
+    const context: ActionExecutionContext<WismoWorkflowState> = {
       workflowId: wfInfo.workflowId,
       workflowRunId: wfInfo.runId,
       userId: email.userId,
@@ -105,7 +116,7 @@ export async function handleWismo(wfInput: WorkFlowInput): Promise<string> {
     };
 
     log.info('Workflow context initialized', {
-      requiresModeration: context,
+      requiresModeration: context.requiresModeration,
     });
 
     // ==========================================
@@ -215,16 +226,7 @@ export async function handleWismo(wfInput: WorkFlowInput): Promise<string> {
     // ==========================================
 
     if (state.approvalQueueId) {
-      const approvalQueueActivitiesForCompletion = proxyActivities<
-        typeof import('../../../activities/shared/approval-queue.activities').ApprovalQueueActivities.prototype
-      >(ACTIVITY_TIMEOUTS.APPROVAL_QUEUE);
-
-      await approvalQueueActivitiesForCompletion.updateApprovalQueueStatus(
-        state.approvalQueueId,
-        email.userId,
-        'completed',
-      );
-      log.info('Approval queue marked as completed');
+      await markApprovalQueueCompleted(state.approvalQueueId, email.userId);
     }
 
     state.status = 'completed';

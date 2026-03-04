@@ -3,7 +3,8 @@
  * Handles Actions 3-3.1: Extract order number and request order info from customer
  */
 
-import { log, proxyActivities, sleep } from '@temporalio/workflow';
+import { condition, log, proxyActivities } from '@temporalio/workflow';
+
 import type { EmailActivities } from '../../../../activities/shared/email.activities';
 import type { WismoOrderActivities } from '../../../../activities/agents/wismo/wismo-order.activities';
 import type { WismoMessageActivities } from '../../../../activities/agents/wismo/wismo-messages.activities';
@@ -13,14 +14,10 @@ import {
   EscalationError,
   EscalationType,
   WismoActionType,
-} from '../../../../types';
-import { executeWorkflowAction } from '../../../workflow-action.helpers';
-import { OrderDiscoveryResult } from '../wismo.types';
-import {
-  ACTIVITY_TIMEOUTS,
-  CUSTOMER_REPLY_CHECK_INTERVAL,
-  MAX_CUSTOMER_REPLY_WAIT_DAYS,
-} from '../wismo.constants';
+} from '../../../types';
+import { executeWorkflowAction, extractCustomerName } from '../../../workflow-action.helpers';
+import { OrderDiscoveryResult, WismoWorkflowState } from '../wismo.types';
+import { ACTIVITY_TIMEOUTS, MAX_CUSTOMER_REPLY_WAIT_DAYS } from '../wismo.constants';
 import { extractEmail, formatWooCommerceOrder } from '../wismo.helpers';
 
 // Proxy activities
@@ -35,7 +32,7 @@ const aiIdentityActivities = proxyActivities<typeof AiIdentityActivities.prototy
   ACTIVITY_TIMEOUTS.AI_IDENTITY,
 );
 
-const { sendCustomerNotificationViaGmailThread, checkForCustomerReplyInThread } = emailActivities;
+const { sendCustomerNotificationViaThread } = emailActivities;
 const { extractOrderNumberFromEmail, getMostRecentOrderByEmail } = wismoOrderActivities;
 const { generateOrderInfoRequestMessage } = wismoMessageActivities;
 const { getAiIdentity } = aiIdentityActivities;
@@ -44,7 +41,7 @@ const { getAiIdentity } = aiIdentityActivities;
  * Handle order discovery phase: extract order number or request from customer
  */
 export async function handleWismoOrderDiscovery(
-  context: ActionExecutionContext,
+  context: ActionExecutionContext<WismoWorkflowState>,
 ): Promise<OrderDiscoveryResult> {
   log.info('Starting WISMO order discovery phase', {
     workflowId: context.workflowId,
@@ -74,7 +71,7 @@ export async function handleWismoOrderDiscovery(
           try {
             const order = await getMostRecentOrderByEmail(
               context.email.userId,
-              extractEmail(context.email.fromEmail as string) as string,
+              extractEmail(context.email.fromEmail),
             );
 
             // Check if order exists before accessing properties
@@ -137,7 +134,7 @@ export async function handleWismoOrderDiscovery(
 
       // Get AI identity and pre-generate follow-up message so it can be shown in the UI
       const aiIdentity = await getAiIdentity(context.email.userId);
-      const customerName = extractEmail(context.email.fromEmail as string)?.split('@')[0] || '';
+      const customerName = extractCustomerName(context.email.fromEmail);
       const followUpMessage = await generateOrderInfoRequestMessage(
         customerName,
         orderDetection?.customerQuery || 'order status inquiry',
@@ -159,78 +156,60 @@ export async function handleWismoOrderDiscovery(
           const messageToSend = humanResponse?.modifiedData?.message ?? followUpMessage;
 
           // Send follow-up email
-          await sendCustomerNotificationViaGmailThread(
+          await sendCustomerNotificationViaThread(
             context.email.userId,
-            extractEmail(context.email.fromEmail) as string,
-            `Re: ${context.email.subject}`,
+            extractEmail(context.email.fromEmail),
+            context.email.subject ?? '',
             messageToSend,
             context.email.threadId,
           );
 
-          log.info('Follow-up email sent requesting order information');
+          log.info(
+            'Follow-up email sent requesting order information - waiting for customer reply via signal',
+          );
 
-          // Wait for customer reply with periodic checks
-          let replyReceived = false;
-          let replyCheckCount = 0;
-          const maxChecks = (MAX_CUSTOMER_REPLY_WAIT_DAYS * 24 * 60) / 10;
-          let lastMessageId = context.email.messageId;
+          // Park the workflow until InfraService delivers the customer's reply via
+          // customerReplySignal (triggered in real-time by the incoming webhook).
+          context.state.awaitingCustomerReply = true;
+          const maxWaitMs = MAX_CUSTOMER_REPLY_WAIT_DAYS * 24 * 60 * 60 * 1000;
+          const replyReceived = await condition(
+            () => !!context.state.customerReplyEmail,
+            maxWaitMs,
+          );
+          context.state.awaitingCustomerReply = false;
 
-          while (!replyReceived && replyCheckCount < maxChecks) {
-            await sleep(CUSTOMER_REPLY_CHECK_INTERVAL);
-            replyCheckCount++;
+          if (replyReceived && context.state.customerReplyEmail) {
+            const replyEmail = context.state.customerReplyEmail;
+            customerReplied = true;
 
-            const replyCheck = await checkForCustomerReplyInThread(
-              context.email.userId,
-              context.email.threadId,
-              lastMessageId,
-            );
+            log.info('Customer replied with order information', {
+              messageId: replyEmail.messageId,
+            });
 
-            if (replyCheck.hasNewReply && replyCheck.newEmail) {
-              replyReceived = true;
-              customerReplied = true;
-              lastMessageId = replyCheck.newEmail.messageId;
+            orderDetection = await extractOrderNumberFromEmail(replyEmail);
 
-              log.info('Customer replied with order information', {
-                messageId: replyCheck.newEmail.messageId,
-              });
+            if (orderDetection?.orderNumbers?.length) {
+              context.state.orderNumber = orderDetection.orderNumbers.toString();
+            } else {
+              // Try to find order by email address mentioned in the reply body
+              try {
+                const emailMatch = replyEmail.body?.match(
+                  /[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/,
+                );
+                const extractedEmail = emailMatch
+                  ? emailMatch[0]
+                  : extractEmail(context.email.fromEmail);
 
-              // Try to extract order information from the reply
-              const replyEmail = {
-                ...context.email,
-                messageId: replyCheck.newEmail.messageId,
-                fromEmail: replyCheck.newEmail.from,
-                subject: replyCheck.newEmail.subject,
-                body: replyCheck.newEmail.body,
-              };
-
-              orderDetection = await extractOrderNumberFromEmail(replyEmail);
-
-              if (orderDetection?.orderNumbers?.length) {
-                context.state.orderNumber = orderDetection.orderNumbers.toString();
-              } else {
-                // Try to find order by email mentioned in reply
-                try {
-                  const emailMatch = replyCheck.newEmail.body.match(
-                    /[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/,
-                  );
-                  const extractedEmail = emailMatch
-                    ? emailMatch[0]
-                    : extractEmail(context.email.fromEmail as string);
-
-                  const order = await getMostRecentOrderByEmail(
-                    context.email.userId,
-                    extractedEmail as string,
-                  );
-                  context.state.orderNumber = order['id'].toString() || order['number'].toString();
-                  context.state.wooOrder = formatWooCommerceOrder(order);
-                } catch (error) {
-                  log.error('Still could not find order after customer reply', { error });
-                }
+                const order = await getMostRecentOrderByEmail(context.email.userId, extractedEmail);
+                context.state.orderNumber = order['id'].toString() || order['number'].toString();
+                context.state.wooOrder = formatWooCommerceOrder(order);
+              } catch (error) {
+                log.error('Still could not find order after customer reply', { error });
               }
             }
           }
 
-          // If customer didn't reply or still no order, throw escalation
+          // If timed out or still no order found, escalate
           if (!replyReceived || !context.state.orderNumber) {
             throw new EscalationError(
               EscalationType.ORDER_NOT_FOUND,
@@ -239,7 +218,6 @@ export async function handleWismoOrderDiscovery(
                 : 'Customer did not respond to order information request',
               {
                 customerReplied: replyReceived,
-                replyCheckCount,
                 maxWaitDays: MAX_CUSTOMER_REPLY_WAIT_DAYS,
               },
             );
@@ -248,7 +226,6 @@ export async function handleWismoOrderDiscovery(
           return {
             customerReplied: replyReceived,
             orderNumber: context.state.orderNumber,
-            replyCheckCount,
           };
         },
         context,

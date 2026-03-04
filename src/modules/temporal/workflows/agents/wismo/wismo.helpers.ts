@@ -1,9 +1,9 @@
 /**
  * WISMO Workflow Helpers
- * Shared utility functions for WISMO workflows
+ * Utility functions for WISMO workflows (runs inside Temporal sandbox)
  */
 
-import { OrderDetails } from '../../../types';
+import { OrderDetails } from '../../types';
 
 /**
  * Format WooCommerce order data into standardized OrderDetails
@@ -29,26 +29,10 @@ export function formatWooCommerceOrder(order: any): OrderDetails {
 }
 
 /**
- * Extract email address from formatted email string
- * Handles formats like: "John Doe <john@example.com>" or "john@example.com"
+ * Extract email address from formatted email string.
+ * Handles "John Doe <john@example.com>" and plain "john@example.com".
  */
-export function extractEmail(fromEmail: string): string | null {
+export function extractEmail(fromEmail: string): string {
   const match = fromEmail.match(/<([^>]+)>/);
-  return match ? match[1] : null;
-}
-
-/**
- * Extract customer name from email string
- * Falls back to email prefix if name not available
- */
-export function extractCustomerName(fromEmail: string): string {
-  // Try to extract name before email
-  const nameMatch = fromEmail.match(/^([^<]+)</);
-  if (nameMatch) {
-    return nameMatch[1].trim();
-  }
-
-  // Fallback to email prefix
-  const email = extractEmail(fromEmail) || fromEmail;
-  return email.split('@')[0];
+  return match ? match[1] : fromEmail;
 }

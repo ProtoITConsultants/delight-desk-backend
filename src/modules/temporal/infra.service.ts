@@ -1,18 +1,30 @@
 import { EmailEntity } from 'src/database/schema';
-import { BadRequestException, ConflictException, Injectable } from '@nestjs/common';
+import { BadRequestException, ConflictException, Injectable, Logger } from '@nestjs/common';
 import { ClassificationUtil } from './utils/classification.util';
 import { TemporalService } from 'nestjs-temporal-core';
-import { WorkFlowInput } from './types';
+import { WorkFlowInput } from './workflows/types';
 import { ConfigService } from '@nestjs/config';
 import { WorkflowNotFoundError } from '@temporalio/common';
+import { WorkflowExecutionAlreadyStartedError } from '@temporalio/client';
 import { AgentsService } from '../agents/agents.service';
 import { EmailThreadsRepository } from '../../database/repos/email-threads.repository';
 import { AgentType } from '../../common/agent-types';
-import { threadMessage } from './workflows/email.workflow';
-import { humanResponseSignal } from './workflows/agents/wismo';
+
+/**
+ * Signal name constants used to communicate with running workflows.
+ * These must match the names in defineSignal() calls inside workflow code.
+ * Using string constants here avoids importing workflow-sandbox code into NestJS.
+ */
+const SIGNAL_NAMES = {
+  THREAD_MESSAGE: 'threadMessage',
+  HUMAN_RESPONSE: 'humanResponse',
+  CUSTOMER_REPLY: 'customerReply',
+} as const;
 
 @Injectable()
 export class InfraService {
+  private readonly logger = new Logger(InfraService.name);
+
   constructor(
     private readonly agentsService: AgentsService,
     private readonly configService: ConfigService,
@@ -23,6 +35,30 @@ export class InfraService {
 
   async processEmail(email: EmailEntity) {
     const workflowId = `workflow-thread-${email.threadId}`;
+    const thread = await this.emailThreadsRepo.findById(email.threadId);
+
+    // If a workflow is already running for this thread, deliver the email as a
+    // customer-reply signal directly.  We skip re-classification here so that
+    // a short follow-up ("My order id is 23433") is never silently dropped
+    // because it classifies as a different or disabled agent category.
+    if (thread.workflowId) {
+      try {
+        const handle: any = await this.temporalService.getWorkflowHandle(thread.workflowId);
+        await handle.signal(SIGNAL_NAMES.CUSTOMER_REPLY, email);
+      } catch (error) {
+        if (error instanceof WorkflowNotFoundError) {
+          this.logger.log(
+            `Workflow ${thread.workflowId} already completed - treating email as new thread`,
+          );
+          // Fall through to start a fresh workflow below
+        } else {
+          throw new BadRequestException(error.message);
+        }
+      }
+      return;
+    }
+
+    // New thread - classify the email and start a workflow if the agent is enabled.
     const classification = await this.classificationService.classify(email);
 
     const { isEnabled } = await this.agentsService.getAgentSettings(
@@ -31,32 +67,31 @@ export class InfraService {
     );
 
     if (!isEnabled) {
-      console.log(`Agent: ${classification.category} is Not Enabled.`);
+      this.logger.log(`Agent: ${classification.category} is Not Enabled.`);
       return;
     }
 
     const workflowInput: WorkFlowInput = { email, classification };
-    const thread = await this.emailThreadsRepo.findById(email.threadId);
 
-    if (!thread.workflowId) {
+    try {
       await this.temporalService.startWorkflow('processEmailWorkflow', [workflowInput], {
         workflowId: workflowId,
         taskQueue: this.configService.get('TEMPORAL_TASK_QUEUE'),
       });
 
       await this.emailThreadsRepo.updateById(thread.id, { workflowId });
-    }
-
-    if (thread.workflowId) {
-      try {
-        const handle: any = await this.temporalService.getWorkflowHandle(thread.workflowId);
-        await handle.signal(threadMessage, workflowInput);
-      } catch (error) {
-        if (error instanceof WorkflowNotFoundError) {
-          throw new ConflictException(error.message);
-        }
-        throw new BadRequestException(error.message);
+    } catch (error) {
+      // Two webhook notifications for the same first email can arrive within
+      // milliseconds of each other (common with Microsoft Graph and Gmail).
+      // Both find workflowId = null and try to start the same workflow.
+      // The second attempt loses the race — treat it as a no-op.
+      if (error instanceof WorkflowExecutionAlreadyStartedError) {
+        this.logger.warn(
+          `Workflow ${workflowId} already started by a concurrent request — skipping duplicate`,
+        );
+        return;
       }
+      throw error;
     }
   }
 
@@ -79,11 +114,9 @@ export class InfraService {
   ) {
     try {
       const handle: any = await this.temporalService.getWorkflowHandle(workflowId);
-      // Pass both the human response and the approval item ID
-      // This allows the workflow to route the response to the correct action
-      await handle.signal(humanResponseSignal, humanResponse, approvalItemId);
+      await handle.signal(SIGNAL_NAMES.HUMAN_RESPONSE, humanResponse, approvalItemId);
     } catch (error) {
-      console.error('Failed to send signal to workflow:', error);
+      this.logger.error('Failed to send signal to workflow:', error);
       throw new Error('Failed to send approval signal to workflow');
     }
   }

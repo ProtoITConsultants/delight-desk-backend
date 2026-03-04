@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { Activity, ActivityMethod } from 'nestjs-temporal-core';
-import { AiAssistantService } from '../../../ai-assistant/ai-assistant.service';
-import { AgentsService } from '../../../agents/agents.service';
+import { AiAssistantService } from 'src/modules/ai-assistant/ai-assistant.service';
+import { AgentsService } from 'src/modules/agents/agents.service';
 
 @Injectable()
 @Activity()

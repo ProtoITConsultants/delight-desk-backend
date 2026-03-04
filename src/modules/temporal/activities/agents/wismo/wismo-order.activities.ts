@@ -1,9 +1,9 @@
 import { Injectable } from '@nestjs/common';
 import { Activity, ActivityMethod } from 'nestjs-temporal-core';
-import type { EmailEntity } from '../../../../../database/schema/email.schema';
-import { WooCommerceRestApiService } from '../../../../woocommerce/woocommerce-rest-api.service';
-import { AgentsService } from '../../../../agents/agents.service';
-import { OrderDetails, OrderExtractionResult } from '../../../types';
+import type { EmailEntity } from 'src/database/schema';
+import { WooCommerceRestApiService } from 'src/modules/woocommerce/woocommerce-rest-api.service';
+import { AgentsService } from 'src/modules/agents/agents.service';
+import type { OrderDetails, OrderExtractionResult } from '../../../workflows/types';
 
 @Injectable()
 @Activity()

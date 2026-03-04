@@ -115,6 +115,15 @@ export class MessageFormattingHelper {
   }
 
   /**
+   * Strip markdown link syntax [text](url) -> url from plain-text email content.
+   * Prevents raw markdown slugs from appearing in Gmail when the AI uses markdown formatting.
+   */
+  stripMarkdownLinks(text: string): string {
+    // Replace [label](url) with just the url
+    return text.replace(/\[([^\]]*)\]\((https?:\/\/[^)]+)\)/g, '$2');
+  }
+
+  /**
    * Extract customer name from email address
    * This is deterministic - same email always produces same name
    */

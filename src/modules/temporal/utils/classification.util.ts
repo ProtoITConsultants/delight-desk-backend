@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { OpenAIService } from '../../openai/openai.service';
-import { ClassificationResult } from '../types';
+import { ClassificationResult } from '../workflows/types';
 
 @Injectable()
 export class ClassificationUtil {
@@ -74,6 +74,11 @@ export class ClassificationUtil {
               - Context: Complaints, legal threats, multiple failed attempts
               - Keywords/Phrases: "Human", "speak to someone", "real person", "human agent", "escalate", "transfer me", "I need a person", "connect me to someone", "I want to talk to a human", "get a human on the line"
               - Priority: ALWAYS urgent regardless of other factors
+          
+          9. **thankful**
+          - Intent: Customer is expressing gratitude, appreciation, or positive feedback
+          - Context: Thank-you messages, compliments, positive reviews, satisfied responses
+          - Examples: "Thank you so much!", "Great service!", "Really appreciate the help", "You guys are amazing"
   
           PRIORITY ASSESSMENT:
           - **urgent**: Human escalation requests, events tomorrow, damaged goods, safety issues

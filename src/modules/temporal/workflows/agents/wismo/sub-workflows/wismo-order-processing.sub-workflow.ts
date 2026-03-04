@@ -13,9 +13,9 @@ import {
   EscalationError,
   EscalationType,
   WismoActionType,
-} from '../../../../types';
-import { executeWorkflowAction } from '../../../workflow-action.helpers';
-import { OrderProcessingResult } from '../wismo.types';
+} from '../../../types';
+import { executeWorkflowAction, extractCustomerName } from '../../../workflow-action.helpers';
+import { OrderProcessingResult, WismoWorkflowState } from '../wismo.types';
 import { ACTIVITY_TIMEOUTS } from '../wismo.constants';
 import { extractEmail, formatWooCommerceOrder } from '../wismo.helpers';
 
@@ -31,7 +31,7 @@ const aiIdentityActivities = proxyActivities<typeof AiIdentityActivities.prototy
   ACTIVITY_TIMEOUTS.AI_IDENTITY,
 );
 
-const { sendCustomerNotificationViaGmailThread } = emailActivities;
+const { sendCustomerNotificationViaThread } = emailActivities;
 const { getWooCommerceOrderById } = wismoOrderActivities;
 const { generateAcknowledgementMessage } = wismoMessageActivities;
 const { getAiIdentity } = aiIdentityActivities;
@@ -41,7 +41,7 @@ const { getAiIdentity } = aiIdentityActivities;
  * Requires orderDetection to be passed for acknowledgement message context
  */
 export async function handleWismoOrderProcessing(
-  context: ActionExecutionContext,
+  context: ActionExecutionContext<WismoWorkflowState>,
   orderDetection?: any,
 ): Promise<OrderProcessingResult> {
   log.info('Starting WISMO order processing phase', {
@@ -158,10 +158,10 @@ ${aiIdentity?.signature || 'Best regards,\nCustomer Support Team'}`;
           const messageToSend = humanResponse?.modifiedData?.message ?? statusMessage;
 
           // Send email to customer
-          await sendCustomerNotificationViaGmailThread(
+          await sendCustomerNotificationViaThread(
             context.email.userId,
-            extractEmail(context.email.fromEmail) as string,
-            `Re: ${context.email.subject}`,
+            extractEmail(context.email.fromEmail),
+            context.email.subject ?? '',
             messageToSend,
             context.email.threadId,
           );
@@ -216,9 +216,11 @@ ${aiIdentity?.signature || 'Best regards,\nCustomer Support Team'}`;
       const aiIdentity = await getAiIdentity(context.email.userId);
 
       // Pre-generate the acknowledgement message so it can be shown in the UI before approval
+      const customerName = extractCustomerName(context.email.fromEmail);
+
       const acknowledgementMessage = await generateAcknowledgementMessage(
         context.state.orderNumber as string,
-        context.state.wooOrder?.customerInfo?.name || 'Customer',
+        customerName,
         orderDetection?.customerQuery || 'order status inquiry',
         aiIdentity,
       );
@@ -228,20 +230,20 @@ ${aiIdentity?.signature || 'Best regards,\nCustomer Support Team'}`;
           type: WismoActionType.SEND_ACKNOWLEDGEMENT,
           step: 5,
           description: 'Send acknowledgement email to customer',
-          actionDetails: `Sending an AI-generated acknowledgement email to ${extractEmail(context.email.fromEmail) || context.email.fromEmail} confirming receipt of their order status inquiry for order #${context.state.orderNumber}. The proposed message can be reviewed and edited before sending. Input: Order number, customer name. Output: Acknowledgement email sent.`,
+          actionDetails: `Sending an AI-generated acknowledgement email to ${extractEmail(context.email.fromEmail)} confirming receipt of their order status inquiry for order #${context.state.orderNumber}. The proposed message can be reviewed and edited before sending. Input: Order number, customer name. Output: Acknowledgement email sent.`,
           proposedEmailBody: acknowledgementMessage,
           metadata: {
             orderNumber: context.state.orderNumber,
-            customerName: context.state.wooOrder?.customerInfo?.name,
+            customerName,
           },
         },
         async (humanResponse) => {
           const messageToSend = humanResponse?.modifiedData?.message ?? acknowledgementMessage;
 
-          await sendCustomerNotificationViaGmailThread(
+          await sendCustomerNotificationViaThread(
             context.email.userId,
-            extractEmail(context.email.fromEmail) as string,
-            `Re: ${context.email.subject}`,
+            extractEmail(context.email.fromEmail),
+            context.email.subject ?? '',
             messageToSend,
             context.email.threadId,
           );

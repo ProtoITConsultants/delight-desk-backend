@@ -87,14 +87,6 @@ export class EditAndApproveDto {
   @IsNotEmpty()
   @IsString()
   editedResponse: string;
-
-  @ApiPropertyOptional({
-    description: 'Additional notes for the edit',
-    example: 'Updated to match brand voice',
-  })
-  @IsOptional()
-  @IsString()
-  notes?: string;
 }
 
 export interface ApprovalQueueStatsResponse {

@@ -10,6 +10,7 @@ import type { WismoOrderActivities } from '../../../../activities/agents/wismo/w
 import type { WismoMessageActivities } from '../../../../activities/agents/wismo/wismo-messages.activities';
 import type { AiIdentityActivities } from '../../../../activities/shared/ai-identity.activities';
 import {
+  ActionStatus,
   ActionExecutionContext,
   EscalationError,
   EscalationType,
@@ -61,8 +62,8 @@ export async function handleWismoOrderDiscovery(
       {
         type: WismoActionType.EXTRACT_ORDER_NUMBER,
         step: 3,
-        description: 'Extract order number from email or find by customer email',
-        actionDetails: `Extracting the order number from the email body using AI parsing, or looking up the customer's most recent order by their email address. Input: Email body, customer email (${context.email.fromEmail}). Output: Order number or null (triggers follow-up request).`,
+        description: 'Extract order number from email',
+        actionDetails: `Extracting the order number from the email body using AI parsing, or looking up the customer's most recent order by their email address.`,
       },
       async () => {
         orderDetection = await extractOrderNumberFromEmail(context.email);
@@ -146,13 +147,13 @@ export async function handleWismoOrderDiscovery(
           type: WismoActionType.REQUEST_ORDER_INFO,
           step: 3.1,
           description: 'Request order information from customer and wait for reply',
-          actionDetails: `Order number not found in the original email. Sending a follow-up message to ${context.email.fromEmail} requesting their order number, then waiting up to ${MAX_CUSTOMER_REPLY_WAIT_DAYS} days for their reply. Input: Customer email. Output: Order number extracted from reply, or escalation if no response.`,
+          actionDetails: `Order number not found in the original email. Sending a follow-up message to ${context.email.fromEmail} requesting their order number, then waiting up to ${MAX_CUSTOMER_REPLY_WAIT_DAYS} days for their reply.`,
           proposedEmailBody: followUpMessage,
           metadata: {
             maxWaitDays: MAX_CUSTOMER_REPLY_WAIT_DAYS,
           },
         },
-        async (humanResponse) => {
+        async (humanResponse, runtimeControl) => {
           const messageToSend = humanResponse?.modifiedData?.message ?? followUpMessage;
 
           // Send follow-up email
@@ -171,12 +172,17 @@ export async function handleWismoOrderDiscovery(
           // Park the workflow until InfraService delivers the customer's reply via
           // customerReplySignal (triggered in real-time by the incoming webhook).
           context.state.awaitingCustomerReply = true;
+          await runtimeControl?.setStatus(ActionStatus.AWAITING_CUSTOMER_REPLY);
           const maxWaitMs = MAX_CUSTOMER_REPLY_WAIT_DAYS * 24 * 60 * 60 * 1000;
           const replyReceived = await condition(
             () => !!context.state.customerReplyEmail,
             maxWaitMs,
           );
           context.state.awaitingCustomerReply = false;
+
+          if (replyReceived) {
+            await runtimeControl?.setStatus(ActionStatus.EXECUTING);
+          }
 
           if (replyReceived && context.state.customerReplyEmail) {
             const replyEmail = context.state.customerReplyEmail;

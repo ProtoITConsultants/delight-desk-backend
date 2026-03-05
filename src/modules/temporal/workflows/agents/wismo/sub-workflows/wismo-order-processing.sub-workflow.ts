@@ -63,7 +63,7 @@ export async function handleWismoOrderProcessing(
           type: WismoActionType.FETCH_ORDER_DETAILS,
           step: 4,
           description: `Fetch order #${context.state.orderNumber} details from WooCommerce`,
-          actionDetails: `Fetching full order details from WooCommerce for order #${context.state.orderNumber}. Input: Order number. Output: Order status, items, shipping info, and tracking number (if available).`,
+          actionDetails: `Fetching full order details from WooCommerce for order #${context.state.orderNumber}.`,
           metadata: {
             orderNumber: context.state.orderNumber,
           },

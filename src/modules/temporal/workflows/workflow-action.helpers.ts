@@ -7,6 +7,7 @@ import {
   ActionConfig,
   ActionExecutionContext,
   ActionExecutionResult,
+  ActionRuntimeControl,
   ActionStatus,
   CreateActionData,
   CreateApprovalQueueData,
@@ -117,7 +118,10 @@ const { createEscalation, generateEscalationResponse } = escalationActivities;
  */
 export async function executeWorkflowAction<T>(
   actionConfig: ActionConfig,
-  actionExecutor: (humanResponse?: HumanResponse | null) => Promise<T>,
+  actionExecutor: (
+    humanResponse?: HumanResponse | null,
+    runtimeControl?: ActionRuntimeControl,
+  ) => Promise<T>,
   context: ActionExecutionContext,
   humanResponseGetter?: () => HumanResponse | null,
 ): Promise<ActionExecutionResult<T>> {
@@ -233,7 +237,6 @@ export async function executeWorkflowAction<T>(
         const updateData: UpdateActionData = {
           actionStatus: ActionStatus.REJECTED,
           reviewedAt: new Date(),
-          reviewNotes: humanResponse?.notes,
         };
         await updateApprovalQueueAction(action.id, updateData);
 
@@ -261,7 +264,6 @@ export async function executeWorkflowAction<T>(
         actionStatus: ActionStatus.APPROVED,
         reviewedBy: humanResponse.respondedBy,
         reviewedAt: humanResponse.respondedAt,
-        reviewNotes: humanResponse.notes,
       });
 
       // If user modified the data, we might need to use it in the executor
@@ -305,11 +307,20 @@ export async function executeWorkflowAction<T>(
     step: actionConfig.step,
   });
 
+  const runtimeControl: ActionRuntimeControl = {
+    setStatus: async (status, additionalData = {}) => {
+      await updateApprovalQueueAction(action.id, {
+        actionStatus: status,
+        ...additionalData,
+      });
+    },
+  };
+
   // 6. Execute the actual action
   // Pass the action's human response so email executors can use modifiedData.message
   const humanActionResponse = context.state.actionResponses?.[action.id];
   try {
-    const result = await actionExecutor(humanActionResponse);
+    const result = await actionExecutor(humanActionResponse, runtimeControl);
 
     // 7. Mark action as successfully executed
     await markActionAsExecuted(action.id, {

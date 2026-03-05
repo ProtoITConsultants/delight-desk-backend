@@ -52,6 +52,7 @@ export enum ActionStatus {
   APPROVED = 'approved',
   REJECTED = 'rejected',
   EXECUTING = 'executing',
+  AWAITING_CUSTOMER_REPLY = 'awaiting_customer_reply',
   EXECUTED = 'executed',
   FAILED = 'failed',
   ESCALATED = 'escalated',
@@ -95,6 +96,14 @@ export interface ActionExecutionResult<T = any> {
   result?: T;
   escalation?: EscalationDetails;
   actionId?: string; // ID of the action record created
+}
+
+/**
+ * Runtime controls available to action executors.
+ * Allows long-running executors to reflect intermediate states in UI.
+ */
+export interface ActionRuntimeControl {
+  setStatus: (status: ActionStatus, additionalData?: Omit<UpdateActionData, 'actionStatus'>) => Promise<void>;
 }
 
 /**
@@ -163,7 +172,6 @@ export interface CreateActionData {
   autoApproved: boolean;
   reviewedBy?: string;
   reviewedAt?: Date;
-  reviewNotes?: string;
 }
 
 /**
@@ -187,7 +195,6 @@ export interface UpdateActionData {
   actionStatus?: ActionStatus;
   reviewedBy?: string;
   reviewedAt?: Date;
-  reviewNotes?: string;
   executedAt?: Date;
   executionResult?: Record<string, any>;
   escalatedDuringExecution?: boolean;

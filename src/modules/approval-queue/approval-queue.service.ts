@@ -145,7 +145,7 @@ export class ApprovalQueueService {
       actionId, // Pass action ID
     );
 
-    return updated;
+    return { message: 'Action approved successfully' };
   }
 
   async rejectAction(userId: string, actionId: string, reviewedBy: string, dto: RejectItemDto) {
@@ -174,7 +174,6 @@ export class ApprovalQueueService {
       actionStatus: 'rejected',
       reviewedBy,
       reviewedAt: new Date(),
-      reviewNotes: `${dto.reason}${dto.notes ? ` - ${dto.notes}` : ''}`,
     });
 
     // Send signal to Temporal workflow
@@ -190,15 +189,10 @@ export class ApprovalQueueService {
       actionId, // Pass action ID
     );
 
-    return updated;
+    return { message: 'Action rejected successfully' };
   }
 
-  async editAndApprove(
-    userId: string,
-    actionId: string,
-    reviewedBy: string,
-    dto: EditAndApproveDto,
-  ) {
+  async editAndApprove(userId: string, actionId: string, dto: EditAndApproveDto) {
     const action = await this.approvalQueueActionsRepository.findById(actionId);
 
     if (!action) {
@@ -221,11 +215,11 @@ export class ApprovalQueueService {
 
     // Update action with edited response
     const actionMetadata = action.metadata || {};
-    const updated = await this.approvalQueueActionsRepository.updateAction(actionId, {
+    await this.approvalQueueActionsRepository.updateAction(actionId, {
       actionStatus: 'approved',
-      reviewedBy,
+      reviewedBy: userId,
       reviewedAt: new Date(),
-      reviewNotes: dto.notes,
+      proposedEmailBody: dto.editedResponse,
       metadata: {
         ...(typeof actionMetadata === 'object' ? actionMetadata : {}),
         editedResponse: dto.editedResponse,
@@ -241,14 +235,13 @@ export class ApprovalQueueService {
         modifiedData: {
           message: dto.editedResponse,
         },
-        respondedBy: reviewedBy,
+        respondedBy: userId,
         respondedAt: new Date(),
-        notes: dto.notes,
       },
       actionId, // Pass action ID
     );
 
-    return updated;
+    return { message: 'Action edited and approved successfully' };
   }
 
   async cancelWorkflow(userId: string, workflowId: string) {

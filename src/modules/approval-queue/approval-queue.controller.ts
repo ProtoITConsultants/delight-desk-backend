@@ -166,6 +166,6 @@ export class ApprovalQueueController {
     @Param('id') id: string,
     @Body() dto: EditAndApproveDto,
   ) {
-    return this.approvalQueueService.editAndApprove(userId, id, userId, dto);
+    return this.approvalQueueService.editAndApprove(userId, id, dto);
   }
 }

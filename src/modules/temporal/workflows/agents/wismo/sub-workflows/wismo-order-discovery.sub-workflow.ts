@@ -4,6 +4,7 @@
  */
 
 import { condition, log, proxyActivities } from '@temporalio/workflow';
+import type { EmailEntity } from '../../../../../../database/schema';
 
 import type { EmailActivities } from '../../../../activities/shared/email.activities';
 import type { WismoOrderActivities } from '../../../../activities/agents/wismo/wismo-order.activities';
@@ -17,9 +18,10 @@ import {
   WismoActionType,
 } from '../../../types';
 import { executeWorkflowAction, extractCustomerName } from '../../../workflow-action.helpers';
-import { OrderDiscoveryResult, WismoWorkflowState } from '../wismo.types';
+import { OrderDiscoveryResult, WismoOrderDetection, WismoWorkflowState } from '../wismo.types';
 import { ACTIVITY_TIMEOUTS, MAX_CUSTOMER_REPLY_WAIT_DAYS } from '../wismo.constants';
 import { extractEmail, formatWooCommerceOrder } from '../wismo.helpers';
+import { buildWismoFailureResult } from './wismo-subworkflow.helpers';
 
 // Proxy activities
 const emailActivities = proxyActivities<typeof EmailActivities.prototype>(ACTIVITY_TIMEOUTS.EMAIL);
@@ -37,6 +39,43 @@ const { sendCustomerNotificationViaThread } = emailActivities;
 const { extractOrderNumberFromEmail, getMostRecentOrderByEmail } = wismoOrderActivities;
 const { generateOrderInfoRequestMessage } = wismoMessageActivities;
 const { getAiIdentity } = aiIdentityActivities;
+const EMAIL_IN_TEXT_REGEX = /[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/;
+
+function applyResolvedOrderToState(
+  context: ActionExecutionContext<WismoWorkflowState>,
+  order: any,
+): boolean {
+  if (!order || !order.id) {
+    return false;
+  }
+
+  context.state.orderNumber = order['id'].toString() || order['number'].toString();
+  context.state.wooOrder = formatWooCommerceOrder(order);
+  return true;
+}
+
+async function tryResolveMostRecentOrderByEmail(
+  context: ActionExecutionContext<WismoWorkflowState>,
+  email: string,
+): Promise<boolean> {
+  const order = await getMostRecentOrderByEmail(context.email.userId, email);
+  return applyResolvedOrderToState(context, order);
+}
+
+async function resolveOrderFromCustomerReply(
+  context: ActionExecutionContext<WismoWorkflowState>,
+  replyEmail: EmailEntity,
+): Promise<void> {
+  const detection = await extractOrderNumberFromEmail(replyEmail);
+  if (detection?.orderNumbers?.length) {
+    context.state.orderNumber = detection.orderNumbers.toString();
+    return;
+  }
+
+  const emailMatch = replyEmail.body?.match(EMAIL_IN_TEXT_REGEX);
+  const extractedEmail = emailMatch ? emailMatch[0] : extractEmail(context.email.fromEmail);
+  await tryResolveMostRecentOrderByEmail(context, extractedEmail);
+}
 
 /**
  * Handle order discovery phase: extract order number or request from customer
@@ -49,7 +88,7 @@ export async function handleWismoOrderDiscovery(
     emailId: context.email.id,
   });
 
-  let orderDetection: any = null;
+  let orderDetection: WismoOrderDetection | undefined;
   let requiredCustomerInteraction = false;
   let customerReplied = false;
 
@@ -70,16 +109,11 @@ export async function handleWismoOrderDiscovery(
 
         if (!orderDetection?.orderNumbers?.length) {
           try {
-            const order = await getMostRecentOrderByEmail(
-              context.email.userId,
-              extractEmail(context.email.fromEmail),
-            );
-
-            // Check if order exists before accessing properties
-            if (order && order.id) {
-              context.state.orderNumber = order['id'].toString() || order['number'].toString();
-              context.state.wooOrder = formatWooCommerceOrder(order);
-            } else {
+              const orderResolved = await tryResolveMostRecentOrderByEmail(
+                context,
+                extractEmail(context.email.fromEmail),
+              );
+              if (!orderResolved) {
               // No order found - don't escalate, let Action 3.1 handle follow-up
               log.info(
                 'No order found - will proceed to Action 3.1 to request order info from customer',
@@ -98,25 +132,10 @@ export async function handleWismoOrderDiscovery(
       context,
     );
 
-    if (!extractOrderResult.success) {
-      if (extractOrderResult.escalation) {
-        context.state.status = 'escalated';
-        context.state.escalation = {
-          type: extractOrderResult.escalation.type,
-          reason: extractOrderResult.escalation.reason,
-          timestamp: new Date(),
-        };
-        return {
-          success: false,
-          state: context.state,
-          requiredCustomerInteraction: false,
-          escalation: extractOrderResult.escalation,
-        };
-      }
-      context.state.status = 'cancelled';
+    const extractOrderFailure = buildWismoFailureResult(context.state, extractOrderResult);
+    if (extractOrderFailure) {
       return {
-        success: false,
-        state: context.state,
+        ...extractOrderFailure,
         requiredCustomerInteraction: false,
       };
     }
@@ -192,26 +211,13 @@ export async function handleWismoOrderDiscovery(
               messageId: replyEmail.messageId,
             });
 
-            orderDetection = await extractOrderNumberFromEmail(replyEmail);
-
-            if (orderDetection?.orderNumbers?.length) {
-              context.state.orderNumber = orderDetection.orderNumbers.toString();
-            } else {
-              // Try to find order by email address mentioned in the reply body
-              try {
-                const emailMatch = replyEmail.body?.match(
-                  /[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/,
-                );
-                const extractedEmail = emailMatch
-                  ? emailMatch[0]
-                  : extractEmail(context.email.fromEmail);
-
-                const order = await getMostRecentOrderByEmail(context.email.userId, extractedEmail);
-                context.state.orderNumber = order['id'].toString() || order['number'].toString();
-                context.state.wooOrder = formatWooCommerceOrder(order);
-              } catch (error) {
-                log.error('Still could not find order after customer reply', { error });
-              }
+            try {
+              await resolveOrderFromCustomerReply(context, replyEmail);
+            } catch (error) {
+              log.error('Still could not find order after customer reply', { error });
+            } finally {
+              // Keep workflow state compact once this response has been processed.
+              context.state.customerReplyEmail = undefined;
             }
           }
 
@@ -237,26 +243,10 @@ export async function handleWismoOrderDiscovery(
         context,
       );
 
-      if (!requestOrderInfoResult.success) {
-        if (requestOrderInfoResult.escalation) {
-          context.state.status = 'escalated';
-          context.state.escalation = {
-            type: requestOrderInfoResult.escalation.type,
-            reason: requestOrderInfoResult.escalation.reason,
-            timestamp: new Date(),
-          };
-          return {
-            success: false,
-            state: context.state,
-            requiredCustomerInteraction: true,
-            customerReplied,
-            escalation: requestOrderInfoResult.escalation,
-          };
-        }
-        context.state.status = 'cancelled';
+      const requestOrderInfoFailure = buildWismoFailureResult(context.state, requestOrderInfoResult);
+      if (requestOrderInfoFailure) {
         return {
-          success: false,
-          state: context.state,
+          ...requestOrderInfoFailure,
           requiredCustomerInteraction: true,
           customerReplied,
         };

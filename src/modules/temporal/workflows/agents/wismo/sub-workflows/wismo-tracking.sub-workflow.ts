@@ -24,6 +24,7 @@ import {
   TRACKING_RETRY_INTERVAL,
 } from '../wismo.constants';
 import { extractEmail, formatWooCommerceOrder } from '../wismo.helpers';
+import { buildWismoFailureResult } from './wismo-subworkflow.helpers';
 
 // Proxy activities
 const emailActivities = proxyActivities<typeof EmailActivities.prototype>(ACTIVITY_TIMEOUTS.EMAIL);
@@ -45,6 +46,117 @@ const { getWooCommerceOrderById } = wismoOrderActivities;
 const { createAfterShipTracking, fetchAfterShipStatus } = wismoTrackingActivities;
 const { generateTrackingUpdateNotification } = wismoMessageActivities;
 const { getAiIdentity } = aiIdentityActivities;
+const EXCEPTION_TRACKING_TAGS = new Set(['Exception', 'AttemptFail', 'Expired']);
+
+function buildTrackingLink(
+  tracking?: Partial<{ courier_tracking_link?: string | null; tracking_number?: string | null }>,
+): string {
+  return tracking?.courier_tracking_link || tracking?.tracking_number || 'Not available';
+}
+
+function buildTrackingPhaseFailureResult(
+  context: ActionExecutionContext<WismoWorkflowState>,
+  failure: ReturnType<typeof buildWismoFailureResult>,
+  options: {
+    delivered: boolean;
+    updatesCount: number;
+    finalNotificationSent: boolean;
+    includeTrackingInfo: boolean;
+  },
+): TrackingResult {
+  const base: TrackingResult = {
+    ...(failure || { success: false, state: context.state }),
+    delivered: options.delivered,
+    updatesCount: options.updatesCount,
+    finalNotificationSent: options.finalNotificationSent,
+  };
+
+  if (!options.includeTrackingInfo) {
+    return base;
+  }
+
+  return {
+    ...base,
+    trackingNumber: context.state.wooOrder?.trackingNumber,
+    trackingProvider: context.state.wooOrder?.trackingProvider,
+  };
+}
+
+function assertNoTrackingException(context: ActionExecutionContext<WismoWorkflowState>): void {
+  const tag = context.state.aftershipTracking?.tag;
+  if (!tag || !EXCEPTION_TRACKING_TAGS.has(tag)) {
+    return;
+  }
+
+  throw new EscalationError(
+    EscalationType.AFTERSHIP_EXCEPTION,
+    `Shipping exception occurred: ${tag}`,
+    {
+      trackingStatus: tag,
+      trackingNumber: context.state.aftershipTracking?.tracking_number,
+      orderNumber: context.state.orderNumber,
+      issue: 'Delivery exception occurred',
+    },
+  );
+}
+
+async function monitorTrackingUntilDelivered(
+  context: ActionExecutionContext<WismoWorkflowState>,
+  customerName: string,
+  aiIdentity: Awaited<ReturnType<typeof getAiIdentity>>,
+  updatesCount: number,
+): Promise<{ finalStatus?: string; updatesCount: number; delivered: true }> {
+  while (context.state.aftershipTracking && context.state.aftershipTracking.tag !== 'Delivered') {
+    await sleep(STATUS_CHECK_INTERVAL);
+
+    // Fetch latest status
+    const latestTracking = await fetchAfterShipStatus(context.state.aftershipTracking.id!);
+    context.state.aftershipTracking = latestTracking;
+
+    // Check if status changed
+    if (latestTracking.tag && latestTracking.tag !== context.state.lastTrackingTag) {
+      const trackingLink = buildTrackingLink(latestTracking);
+
+      const notificationMessage = await generateTrackingUpdateNotification(
+        context.state.orderNumber as string,
+        latestTracking.tag,
+        trackingLink,
+        customerName,
+        aiIdentity,
+        context.state.wooOrder,
+        context.state.aftershipTracking,
+      );
+
+      // Send notification via Gmail thread.
+      // Use the original subject so the recipient's mail client threads
+      // this reply into the same conversation (buildReplyEmail adds "Re:").
+      await sendCustomerNotificationViaThread(
+        context.email.userId,
+        extractEmail(context.email.fromEmail),
+        context.email.subject ?? '',
+        notificationMessage,
+        context.email.threadId,
+      );
+
+      log.info('Tracking status changed - notification sent', {
+        oldStatus: context.state.lastTrackingTag,
+        newStatus: latestTracking.tag,
+      });
+
+      context.state.lastTrackingTag = latestTracking.tag;
+      updatesCount++;
+    }
+
+    // Handle exception status - escalate
+    assertNoTrackingException(context);
+  }
+
+  return {
+    finalStatus: context.state.aftershipTracking?.tag,
+    updatesCount,
+    delivered: true,
+  };
+}
 
 /**
  * Handle tracking phase: wait for tracking, create tracking, monitor status, send final notification
@@ -78,7 +190,7 @@ export async function handleWismoTracking(
         type: WismoActionType.WAIT_FOR_TRACKING,
         step: 6,
         description: `Wait for tracking number to become available (up to ${MAX_TRACKING_RETRIES_IN_DAYS} days)`,
-        actionDetails: `Polling WooCommerce for a tracking number on order #${context.state.orderNumber}. Checks every ${TRACKING_RETRY_INTERVAL} for up to ${MAX_TRACKING_RETRIES_IN_DAYS} days. Input: Order number. Output: Tracking number and carrier, or escalation if unavailable after max retries.`,
+        actionDetails: `Polling WooCommerce for a tracking number on order #${context.state.orderNumber}. Checks every ${TRACKING_RETRY_INTERVAL} for up to ${MAX_TRACKING_RETRIES_IN_DAYS} days.`,
         metadata: {
           orderNumber: context.state.orderNumber,
           maxRetries: MAX_TRACKING_RETRIES_IN_DAYS,
@@ -135,31 +247,14 @@ export async function handleWismoTracking(
       context,
     );
 
-    if (!waitForTrackingResult.success) {
-      if (waitForTrackingResult.escalation) {
-        context.state.status = 'escalated';
-        context.state.escalation = {
-          type: waitForTrackingResult.escalation.type,
-          reason: waitForTrackingResult.escalation.reason,
-          timestamp: new Date(),
-        };
-        return {
-          success: false,
-          state: context.state,
-          delivered: false,
-          updatesCount: 0,
-          finalNotificationSent: false,
-          escalation: waitForTrackingResult.escalation,
-        };
-      }
-      context.state.status = 'cancelled';
-      return {
-        success: false,
-        state: context.state,
+    const waitForTrackingFailure = buildWismoFailureResult(context.state, waitForTrackingResult);
+    if (waitForTrackingFailure) {
+      return buildTrackingPhaseFailureResult(context, waitForTrackingFailure, {
         delivered: false,
         updatesCount: 0,
         finalNotificationSent: false,
-      };
+        includeTrackingInfo: false,
+      });
     }
 
     // ==========================================
@@ -171,7 +266,7 @@ export async function handleWismoTracking(
         type: WismoActionType.CREATE_AFTERSHIP_TRACKING,
         step: 7,
         description: `Create AfterShip tracking for ${context.state.wooOrder?.trackingNumber}`,
-        actionDetails: `Creating an AfterShip tracking entry to enable real-time shipment monitoring. Input: Tracking number (${context.state.wooOrder?.trackingNumber}), carrier (${context.state.wooOrder?.trackingProvider || 'auto-detect'}), order ID. Output: AfterShip tracking ID used for status polling.`,
+        actionDetails: `Creating an AfterShip tracking entry to enable real-time shipment monitoring.`,
         metadata: {
           trackingNumber: context.state.wooOrder?.trackingNumber,
           trackingProvider: context.state.wooOrder?.trackingProvider,
@@ -193,35 +288,14 @@ export async function handleWismoTracking(
       context,
     );
 
-    if (!createTrackingResult.success) {
-      if (createTrackingResult.escalation) {
-        context.state.status = 'escalated';
-        context.state.escalation = {
-          type: createTrackingResult.escalation.type,
-          reason: createTrackingResult.escalation.reason,
-          timestamp: new Date(),
-        };
-        return {
-          success: false,
-          state: context.state,
-          trackingNumber: context.state.wooOrder?.trackingNumber,
-          trackingProvider: context.state.wooOrder?.trackingProvider,
-          delivered: false,
-          updatesCount: 0,
-          finalNotificationSent: false,
-          escalation: createTrackingResult.escalation,
-        };
-      }
-      context.state.status = 'cancelled';
-      return {
-        success: false,
-        state: context.state,
-        trackingNumber: context.state.wooOrder?.trackingNumber,
-        trackingProvider: context.state.wooOrder?.trackingProvider,
+    const createTrackingFailure = buildWismoFailureResult(context.state, createTrackingResult);
+    if (createTrackingFailure) {
+      return buildTrackingPhaseFailureResult(context, createTrackingFailure, {
         delivered: false,
         updatesCount: 0,
         finalNotificationSent: false,
-      };
+        includeTrackingInfo: true,
+      });
     }
 
     // ==========================================
@@ -233,119 +307,24 @@ export async function handleWismoTracking(
         type: WismoActionType.MONITOR_TRACKING_STATUS,
         step: 8,
         description: 'Monitor tracking status and send updates until delivered',
-        actionDetails: `Monitoring shipment status for order #${context.state.orderNumber} (tracking: ${context.state.aftershipTracking?.tracking_number}) until delivery. Checks status every ${STATUS_CHECK_INTERVAL} and automatically sends customer email notifications on each status change. Escalates on shipping exceptions (failed delivery, expired). Input: AfterShip tracking ID. Output: Delivery confirmed or escalation.`,
+        actionDetails: `Monitoring shipment status for order #${context.state.orderNumber} (tracking: ${context.state.aftershipTracking?.tracking_number}) until delivery. Checks status every ${STATUS_CHECK_INTERVAL} and automatically sends customer email notifications on each status change.`,
         metadata: {
           trackingNumber: context.state.aftershipTracking?.tracking_number,
           orderNumber: context.state.orderNumber,
         },
       },
-      async () => {
-        while (
-          context.state.aftershipTracking &&
-          context.state.aftershipTracking.tag !== 'Delivered'
-        ) {
-          await sleep(STATUS_CHECK_INTERVAL);
-
-          // Fetch latest status
-          const latestTracking = await fetchAfterShipStatus(context.state.aftershipTracking.id!);
-
-          // Check if status changed
-          if (latestTracking.tag && latestTracking.tag !== context.state.lastTrackingTag) {
-            // Use courier-specific tracking link, fallback to tracking number only if not available
-            const trackingLink =
-              latestTracking.courier_tracking_link ||
-              latestTracking.tracking_number ||
-              'Not available';
-
-            // Generate notification message
-            const notificationMessage = await generateTrackingUpdateNotification(
-              context.state.orderNumber as string,
-              latestTracking.tag,
-              trackingLink,
-              customerName,
-              aiIdentity,
-              context.state.wooOrder,
-              context.state.aftershipTracking,
-            );
-
-            // Send notification via Gmail thread.
-            // Use the original subject so the recipient's mail client threads
-            // this reply into the same conversation (buildReplyEmail adds "Re:").
-            await sendCustomerNotificationViaThread(
-              context.email.userId,
-              extractEmail(context.email.fromEmail),
-              context.email.subject ?? '',
-              notificationMessage,
-              context.email.threadId,
-            );
-
-            log.info('Tracking status changed - notification sent', {
-              oldStatus: context.state.lastTrackingTag,
-              newStatus: latestTracking.tag,
-            });
-
-            context.state.lastTrackingTag = latestTracking.tag;
-            context.state.aftershipTracking = latestTracking;
-            updatesCount++;
-          }
-
-          // Handle exception status - escalate
-          if (
-            latestTracking.tag === 'Exception' ||
-            latestTracking.tag === 'AttemptFail' ||
-            latestTracking.tag === 'Expired'
-          ) {
-            throw new EscalationError(
-              EscalationType.AFTERSHIP_EXCEPTION,
-              `Shipping exception occurred: ${latestTracking.tag}`,
-              {
-                trackingStatus: latestTracking.tag,
-                trackingNumber: latestTracking.tracking_number,
-                orderNumber: context.state.orderNumber,
-                issue: 'Delivery exception occurred',
-              },
-            );
-          }
-        }
-
-        return {
-          finalStatus: context.state.aftershipTracking?.tag,
-          updatesCount,
-          delivered: true,
-        };
-      },
+      () => monitorTrackingUntilDelivered(context, customerName, aiIdentity, updatesCount),
       context,
     );
 
-    if (!monitorTrackingResult.success) {
-      if (monitorTrackingResult.escalation) {
-        context.state.status = 'escalated';
-        context.state.escalation = {
-          type: monitorTrackingResult.escalation.type,
-          reason: monitorTrackingResult.escalation.reason,
-          timestamp: new Date(),
-        };
-        return {
-          success: false,
-          state: context.state,
-          trackingNumber: context.state.wooOrder?.trackingNumber,
-          trackingProvider: context.state.wooOrder?.trackingProvider,
-          delivered: false,
-          updatesCount,
-          finalNotificationSent: false,
-          escalation: monitorTrackingResult.escalation,
-        };
-      }
-      context.state.status = 'cancelled';
-      return {
-        success: false,
-        state: context.state,
-        trackingNumber: context.state.wooOrder?.trackingNumber,
-        trackingProvider: context.state.wooOrder?.trackingProvider,
+    const monitorTrackingFailure = buildWismoFailureResult(context.state, monitorTrackingResult);
+    if (monitorTrackingFailure) {
+      return buildTrackingPhaseFailureResult(context, monitorTrackingFailure, {
         delivered: false,
         updatesCount,
         finalNotificationSent: false,
-      };
+        includeTrackingInfo: true,
+      });
     }
 
     // Update updatesCount from monitoring result
@@ -358,10 +337,7 @@ export async function handleWismoTracking(
     // ==========================================
 
     // Pre-generate the final notification so it can be shown and optionally edited in the UI
-    const trackingLink =
-      context.state.aftershipTracking?.courier_tracking_link ||
-      context.state.aftershipTracking?.tracking_number ||
-      'Not available';
+    const trackingLink = buildTrackingLink(context.state.aftershipTracking);
 
     const finalNotification = await generateTrackingUpdateNotification(
       context.state.orderNumber as string,
@@ -378,7 +354,7 @@ export async function handleWismoTracking(
         type: WismoActionType.SEND_FINAL_NOTIFICATION,
         step: 9,
         description: 'Send final delivery confirmation to customer',
-        actionDetails: `Sending a delivery confirmation email to ${extractEmail(context.email.fromEmail)} for order #${context.state.orderNumber}. The AI-generated message below can be reviewed and edited before sending. Input: Order number, tracking status, customer name. Output: Delivery confirmation email sent.`,
+        actionDetails: `Sending a delivery confirmation email to ${extractEmail(context.email.fromEmail)} for order #${context.state.orderNumber}. The AI-generated message below can be reviewed and edited before sending.`,
         proposedEmailBody: finalNotification,
         metadata: {
           orderNumber: context.state.orderNumber,
@@ -413,35 +389,17 @@ export async function handleWismoTracking(
       context,
     );
 
-    if (!sendFinalNotificationResult.success) {
-      if (sendFinalNotificationResult.escalation) {
-        context.state.status = 'escalated';
-        context.state.escalation = {
-          type: sendFinalNotificationResult.escalation.type,
-          reason: sendFinalNotificationResult.escalation.reason,
-          timestamp: new Date(),
-        };
-        return {
-          success: false,
-          state: context.state,
-          trackingNumber: context.state.wooOrder?.trackingNumber,
-          trackingProvider: context.state.wooOrder?.trackingProvider,
-          delivered: true,
-          updatesCount,
-          finalNotificationSent: false,
-          escalation: sendFinalNotificationResult.escalation,
-        };
-      }
-      context.state.status = 'cancelled';
-      return {
-        success: false,
-        state: context.state,
-        trackingNumber: context.state.wooOrder?.trackingNumber,
-        trackingProvider: context.state.wooOrder?.trackingProvider,
+    const sendFinalNotificationFailure = buildWismoFailureResult(
+      context.state,
+      sendFinalNotificationResult,
+    );
+    if (sendFinalNotificationFailure) {
+      return buildTrackingPhaseFailureResult(context, sendFinalNotificationFailure, {
         delivered: true,
         updatesCount,
         finalNotificationSent: false,
-      };
+        includeTrackingInfo: true,
+      });
     }
 
     finalNotificationSent = true;

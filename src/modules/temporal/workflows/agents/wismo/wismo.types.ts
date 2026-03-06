@@ -5,7 +5,9 @@
 
 import { Tracking } from '@aftership/tracking-sdk/dist/model/Tracking';
 import { EmailEntity } from '../../../../../database/schema';
-import { EscalationDetails, OrderDetails, WorkflowState } from '../../types';
+import { EscalationDetails, OrderDetails, OrderExtractionResult, WorkflowState } from '../../types';
+
+export interface WismoOrderDetection extends Partial<OrderExtractionResult> {}
 
 /**
  * WISMO-specific workflow state extending the base WorkflowState.
@@ -48,7 +50,7 @@ export interface OrderDiscoveryResult extends WismoPhaseResult {
   orderNumber?: string;
   requiredCustomerInteraction: boolean;
   customerReplied?: boolean;
-  orderDetection?: any;
+  orderDetection?: WismoOrderDetection;
 }
 
 /**

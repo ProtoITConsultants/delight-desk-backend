@@ -1,8 +1,9 @@
 import * as wf from '@temporalio/workflow';
 import { handleWismo } from './agents/wismo';
 import { WorkFlowInput } from './types';
+import { WORKFLOW_SIGNAL_NAMES } from '../workflow-signals.constants';
 
-export const threadMessage = wf.defineSignal<[WorkFlowInput]>('threadMessage');
+export const threadMessage = wf.defineSignal<[WorkFlowInput]>(WORKFLOW_SIGNAL_NAMES.THREAD_MESSAGE);
 
 class EmailWorkflowOrchestrator {
   private workflowInputQueue: WorkFlowInput[];
@@ -51,8 +52,6 @@ class EmailWorkflowOrchestrator {
       case 'returns':
       case 'promo_code':
       case 'address_change':
-      case 'escalation':
-      case 'thankful':
         wf.log.info(`${agentType} workflow not yet implemented`, { emailId: input.email.id });
         return `${agentType} workflow not yet implemented for email [${input.email.id}]`;
 

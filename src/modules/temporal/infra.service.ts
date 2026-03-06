@@ -9,17 +9,7 @@ import { WorkflowExecutionAlreadyStartedError } from '@temporalio/client';
 import { AgentsService } from '../agents/agents.service';
 import { EmailThreadsRepository } from '../../database/repos/email-threads.repository';
 import { AgentType } from '../../common/agent-types';
-
-/**
- * Signal name constants used to communicate with running workflows.
- * These must match the names in defineSignal() calls inside workflow code.
- * Using string constants here avoids importing workflow-sandbox code into NestJS.
- */
-const SIGNAL_NAMES = {
-  THREAD_MESSAGE: 'threadMessage',
-  HUMAN_RESPONSE: 'humanResponse',
-  CUSTOMER_REPLY: 'customerReply',
-} as const;
+import { WORKFLOW_SIGNAL_NAMES } from './workflow-signals.constants';
 
 @Injectable()
 export class InfraService {
@@ -44,7 +34,7 @@ export class InfraService {
     if (thread.workflowId) {
       try {
         const handle: any = await this.temporalService.getWorkflowHandle(thread.workflowId);
-        await handle.signal(SIGNAL_NAMES.CUSTOMER_REPLY, email);
+        await handle.signal(WORKFLOW_SIGNAL_NAMES.CUSTOMER_REPLY, email);
       } catch (error) {
         if (error instanceof WorkflowNotFoundError) {
           this.logger.log(
@@ -60,14 +50,11 @@ export class InfraService {
 
     // New thread - classify the email and start a workflow if the agent is enabled.
     const classification = await this.classificationService.classify(email);
-
-    const { isEnabled } = await this.agentsService.getAgentSettings(
-      classification.category as AgentType,
-      email,
-    );
+    const executionAgentType: AgentType = classification.category;
+    const { isEnabled } = await this.agentsService.getAgentSettings(executionAgentType, email);
 
     if (!isEnabled) {
-      this.logger.log(`Agent: ${classification.category} is Not Enabled.`);
+      this.logger.log(`Agent: ${executionAgentType} is Not Enabled.`);
       return;
     }
 
@@ -114,7 +101,7 @@ export class InfraService {
   ) {
     try {
       const handle: any = await this.temporalService.getWorkflowHandle(workflowId);
-      await handle.signal(SIGNAL_NAMES.HUMAN_RESPONSE, humanResponse, approvalItemId);
+      await handle.signal(WORKFLOW_SIGNAL_NAMES.HUMAN_RESPONSE, humanResponse, approvalItemId);
     } catch (error) {
       this.logger.error('Failed to send signal to workflow:', error);
       throw new Error('Failed to send approval signal to workflow');

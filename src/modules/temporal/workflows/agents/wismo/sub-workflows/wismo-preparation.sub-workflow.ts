@@ -15,6 +15,7 @@ import {
 import { executeWorkflowAction } from '../../../workflow-action.helpers';
 import { PreparationResult, WismoWorkflowState } from '../wismo.types';
 import { ACTIVITY_TIMEOUTS, CLASSIFICATION_CONFIDENCE_THRESHOLD } from '../wismo.constants';
+import { assessCustomerDistress, buildWismoFailureResult } from './wismo-subworkflow.helpers';
 
 // Proxy email activities
 const emailActivities = proxyActivities<typeof EmailActivities.prototype>(ACTIVITY_TIMEOUTS.EMAIL);
@@ -34,6 +35,7 @@ export async function handleWismoPreparation(
 
   let emailMarkedAsRead = false;
   let confidenceVerified = false;
+  let distressAssessed = false;
 
   try {
     // ==========================================
@@ -51,26 +53,10 @@ export async function handleWismoPreparation(
       context,
     );
 
-    if (!markReadResult.success) {
-      if (markReadResult.escalation) {
-        context.state.status = 'escalated';
-        context.state.escalation = {
-          type: markReadResult.escalation.type,
-          reason: markReadResult.escalation.reason,
-          timestamp: new Date(),
-        };
-        return {
-          success: false,
-          state: context.state,
-          emailMarkedAsRead: false,
-          confidenceVerified: false,
-          escalation: markReadResult.escalation,
-        };
-      }
-      context.state.status = 'cancelled';
+    const markReadFailure = buildWismoFailureResult(context.state, markReadResult);
+    if (markReadFailure) {
       return {
-        success: false,
-        state: context.state,
+        ...markReadFailure,
         emailMarkedAsRead: false,
         confidenceVerified: false,
       };
@@ -95,6 +81,19 @@ export async function handleWismoPreparation(
         },
       },
       async () => {
+        if (
+          context.state.classification.category !== 'wismo'
+        ) {
+          throw new EscalationError(
+            EscalationType.MANUAL_ESCALATION,
+            `WISMO workflow received incompatible classification category: ${context.state.classification.category}`,
+            {
+              category: context.state.classification.category,
+              expected: ['wismo'],
+            },
+          );
+        }
+
         if (context.state.classification.confidence < CLASSIFICATION_CONFIDENCE_THRESHOLD) {
           throw new EscalationError(
             EscalationType.LOW_CLASSIFICATION_CONFIDENCE,
@@ -111,26 +110,10 @@ export async function handleWismoPreparation(
       context,
     );
 
-    if (!confidenceCheckResult.success) {
-      if (confidenceCheckResult.escalation) {
-        context.state.status = 'escalated';
-        context.state.escalation = {
-          type: confidenceCheckResult.escalation.type,
-          reason: confidenceCheckResult.escalation.reason,
-          timestamp: new Date(),
-        };
-        return {
-          success: false,
-          state: context.state,
-          emailMarkedAsRead: true,
-          confidenceVerified: false,
-          escalation: confidenceCheckResult.escalation,
-        };
-      }
-      context.state.status = 'cancelled';
+    const confidenceFailure = buildWismoFailureResult(context.state, confidenceCheckResult);
+    if (confidenceFailure) {
       return {
-        success: false,
-        state: context.state,
+        ...confidenceFailure,
         emailMarkedAsRead: true,
         confidenceVerified: false,
       };
@@ -138,9 +121,77 @@ export async function handleWismoPreparation(
 
     confidenceVerified = true;
 
+    // ==========================================
+    // ACTION 2.1: Detect Customer Distress Signals
+    // ==========================================
+    const distressCheckResult = await executeWorkflowAction(
+      {
+        type: WismoActionType.DETECT_CUSTOMER_DISTRESS,
+        step: 2.1,
+        description: 'Detect urgency and frustration signals for auto-escalation',
+        actionDetails:
+          'Scoring customer distress using email language, classifier priority, and sentiment to decide whether immediate human escalation is required.',
+      },
+      async () => {
+        if (context.state.classification.scenarios?.escalation) {
+          throw new EscalationError(
+            EscalationType.CUSTOMER_DISTRESS_URGENT,
+            'Classifier marked this email as escalation scenario',
+            {
+              scenarios: context.state.classification.scenarios,
+              classification: {
+                category: context.state.classification.category,
+                priority: context.state.classification.priority,
+                sentiment: context.state.classification.sentiment,
+              },
+            },
+          );
+        }
+
+        const distressAssessment = assessCustomerDistress(
+          context.email.body,
+          context.email.subject,
+          context.state.classification.priority,
+          context.state.classification.sentiment,
+        );
+
+        if (distressAssessment.shouldEscalate) {
+          throw new EscalationError(
+            EscalationType.CUSTOMER_DISTRESS_URGENT,
+            `Customer distress detected (score ${distressAssessment.score}/${distressAssessment.threshold})`,
+            {
+              score: distressAssessment.score,
+              threshold: distressAssessment.threshold,
+              reasons: distressAssessment.reasons,
+              matchedKeywords: distressAssessment.matchedKeywords,
+              classification: {
+                priority: context.state.classification.priority,
+                sentiment: context.state.classification.sentiment,
+              },
+            },
+          );
+        }
+
+        return distressAssessment;
+      },
+      context,
+    );
+
+    const distressFailure = buildWismoFailureResult(context.state, distressCheckResult);
+    if (distressFailure) {
+      return {
+        ...distressFailure,
+        emailMarkedAsRead: true,
+        confidenceVerified: true,
+      };
+    }
+
+    distressAssessed = true;
+
     log.info('WISMO preparation phase completed successfully', {
       emailMarkedAsRead,
       confidenceVerified,
+      distressAssessed,
     });
 
     return {

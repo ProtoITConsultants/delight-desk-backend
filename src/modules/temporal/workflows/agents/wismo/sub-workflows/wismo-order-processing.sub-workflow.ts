@@ -15,9 +15,10 @@ import {
   WismoActionType,
 } from '../../../types';
 import { executeWorkflowAction, extractCustomerName } from '../../../workflow-action.helpers';
-import { OrderProcessingResult, WismoWorkflowState } from '../wismo.types';
+import { OrderProcessingResult, WismoOrderDetection, WismoWorkflowState } from '../wismo.types';
 import { ACTIVITY_TIMEOUTS } from '../wismo.constants';
 import { extractEmail, formatWooCommerceOrder } from '../wismo.helpers';
+import { buildWismoFailureResult } from './wismo-subworkflow.helpers';
 
 // Proxy activities
 const emailActivities = proxyActivities<typeof EmailActivities.prototype>(ACTIVITY_TIMEOUTS.EMAIL);
@@ -35,6 +36,19 @@ const { sendCustomerNotificationViaThread } = emailActivities;
 const { getWooCommerceOrderById } = wismoOrderActivities;
 const { generateAcknowledgementMessage } = wismoMessageActivities;
 const { getAiIdentity } = aiIdentityActivities;
+const PROBLEMATIC_ORDER_STATUSES = new Set(['cancelled', 'refunded', 'failed']);
+
+function buildProblematicStatusMessage(
+  orderNumber: string | undefined,
+  orderStatus: string,
+  signature: string,
+) {
+  return `Thank you for contacting us regarding order #${orderNumber}.
+
+We've checked your order and found that it is currently marked as "${orderStatus}". Due to this status, we cannot provide tracking information at this time.
+
+${signature}`;
+}
 
 /**
  * Handle order processing phase: fetch order details and send acknowledgement
@@ -42,7 +56,7 @@ const { getAiIdentity } = aiIdentityActivities;
  */
 export async function handleWismoOrderProcessing(
   context: ActionExecutionContext<WismoWorkflowState>,
-  orderDetection?: any,
+  orderDetection?: WismoOrderDetection,
 ): Promise<OrderProcessingResult> {
   log.info('Starting WISMO order processing phase', {
     workflowId: context.workflowId,
@@ -51,6 +65,14 @@ export async function handleWismoOrderProcessing(
 
   let orderFetched = false;
   let acknowledgementSent = false;
+  let aiIdentityCache: Awaited<ReturnType<typeof getAiIdentity>> | null = null;
+
+  const getCachedAiIdentity = async () => {
+    if (!aiIdentityCache) {
+      aiIdentityCache = await getAiIdentity(context.email.userId);
+    }
+    return aiIdentityCache;
+  };
 
   try {
     // ==========================================
@@ -91,26 +113,10 @@ export async function handleWismoOrderProcessing(
         context,
       );
 
-      if (!fetchOrderResult.success) {
-        if (fetchOrderResult.escalation) {
-          context.state.status = 'escalated';
-          context.state.escalation = {
-            type: fetchOrderResult.escalation.type,
-            reason: fetchOrderResult.escalation.reason,
-            timestamp: new Date(),
-          };
-          return {
-            success: false,
-            state: context.state,
-            orderFetched: false,
-            acknowledgementSent: false,
-            escalation: fetchOrderResult.escalation,
-          };
-        }
-        context.state.status = 'cancelled';
+      const fetchOrderFailure = buildWismoFailureResult(context.state, fetchOrderResult);
+      if (fetchOrderFailure) {
         return {
-          success: false,
-          state: context.state,
+          ...fetchOrderFailure,
           orderFetched: false,
           acknowledgementSent: false,
         };
@@ -127,19 +133,18 @@ export async function handleWismoOrderProcessing(
     // ==========================================
     // Check if order status requires escalation (cancelled, refunded, failed)
 
-    const problematicStatuses = ['cancelled', 'refunded', 'failed'];
     const orderStatus = context.state.wooOrder?.status?.toLowerCase();
 
-    if (orderStatus && problematicStatuses.includes(orderStatus)) {
+    if (orderStatus && PROBLEMATIC_ORDER_STATUSES.has(orderStatus)) {
       // Get AI identity for message personalization
-      const aiIdentity = await getAiIdentity(context.email.userId);
+      const aiIdentity = await getCachedAiIdentity();
 
       // Pre-generate the status notification message so it can be shown in the UI
-      const statusMessage = `Thank you for contacting us regarding order #${context.state.orderNumber}.
-
-We've checked your order and found that it is currently marked as "${orderStatus}". Due to this status, we cannot provide tracking information at this time.
-
-${aiIdentity?.signature || 'Best regards,\nCustomer Support Team'}`;
+      const statusMessage = buildProblematicStatusMessage(
+        context.state.orderNumber,
+        orderStatus,
+        aiIdentity?.signature || 'Best regards,\nCustomer Support Team',
+      );
 
       const statusValidationResult = await executeWorkflowAction(
         {
@@ -213,7 +218,7 @@ ${aiIdentity?.signature || 'Best regards,\nCustomer Support Team'}`;
 
     if (context.requiresModeration) {
       // Get AI identity for message personalization
-      const aiIdentity = await getAiIdentity(context.email.userId);
+      const aiIdentity = await getCachedAiIdentity();
 
       // Pre-generate the acknowledgement message so it can be shown in the UI before approval
       const customerName = extractCustomerName(context.email.fromEmail);
@@ -230,7 +235,7 @@ ${aiIdentity?.signature || 'Best regards,\nCustomer Support Team'}`;
           type: WismoActionType.SEND_ACKNOWLEDGEMENT,
           step: 5,
           description: 'Send acknowledgement email to customer',
-          actionDetails: `Sending an AI-generated acknowledgement email to ${extractEmail(context.email.fromEmail)} confirming receipt of their order status inquiry for order #${context.state.orderNumber}. The proposed message can be reviewed and edited before sending. Input: Order number, customer name. Output: Acknowledgement email sent.`,
+          actionDetails: `Sending an AI-generated acknowledgement email to ${extractEmail(context.email.fromEmail)} confirming receipt of their order status inquiry for order #${context.state.orderNumber}. The proposed message can be reviewed and edited before sending.`,
           proposedEmailBody: acknowledgementMessage,
           metadata: {
             orderNumber: context.state.orderNumber,
@@ -254,25 +259,9 @@ ${aiIdentity?.signature || 'Best regards,\nCustomer Support Team'}`;
       );
 
       if (!sendAckResult.success) {
-        if (sendAckResult.escalation) {
-          context.state.status = 'escalated';
-          context.state.escalation = {
-            type: sendAckResult.escalation.type,
-            reason: sendAckResult.escalation.reason,
-            timestamp: new Date(),
-          };
-          return {
-            success: false,
-            state: context.state,
-            orderFetched: true,
-            acknowledgementSent: false,
-            escalation: sendAckResult.escalation,
-          };
-        }
-        context.state.status = 'cancelled';
+        const sendAckFailure = buildWismoFailureResult(context.state, sendAckResult);
         return {
-          success: false,
-          state: context.state,
+          ...(sendAckFailure || { success: false, state: context.state }),
           orderFetched: true,
           acknowledgementSent: false,
         };

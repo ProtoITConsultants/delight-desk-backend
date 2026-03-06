@@ -2,6 +2,7 @@ import { EmailEntity } from '../../../../database/schema';
 
 export enum EscalationType {
   LOW_CLASSIFICATION_CONFIDENCE = 'low_classification_confidence',
+  CUSTOMER_DISTRESS_URGENT = 'customer_distress_urgent',
   ORDER_NUMBER_DETECTION_FAILED = 'order_number_detection_failed',
   ORDER_NOT_FOUND = 'order_not_found',
   TRACKING_RETRY_THRESHOLD_EXCEEDED = 'tracking_retry_threshold_exceeded',
@@ -22,6 +23,11 @@ export enum HumanDecision {
   MODIFY_AND_APPROVE = 'modify_and_approve',
 }
 
+export interface HumanModifiedData {
+  message?: string;
+  [key: string]: unknown;
+}
+
 export interface EscalationContext {
   type?: EscalationType;
   reason?: string;
@@ -33,7 +39,7 @@ export interface EscalationContext {
 
 export interface HumanResponse {
   decision?: HumanDecision;
-  modifiedData?: any;
+  modifiedData?: HumanModifiedData;
   notes?: string;
   respondedAt?: Date;
   respondedBy?: string;
@@ -47,13 +53,15 @@ export interface ClassificationResult {
     | 'returns'
     | 'promo_code'
     | 'address_change'
-    | 'order_cancellation'
-    | 'escalation'
-    | 'thankful';
+    | 'order_cancellation';
   confidence: number;
   reasoning: string;
   priority: 'low' | 'medium' | 'high' | 'urgent';
   sentiment: 'positive' | 'neutral' | 'negative';
+  scenarios?: {
+    escalation: boolean;
+    thankful: boolean;
+  };
 }
 
 export interface WorkFlowInput {

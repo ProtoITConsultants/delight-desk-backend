@@ -7,6 +7,7 @@ import { EscalationType, WorkflowState } from './base.types';
 export enum WismoActionType {
   MARK_EMAIL_READ = 'mark_email_read',
   VERIFY_AI_CONFIDENCE = 'verify_ai_confidence',
+  DETECT_CUSTOMER_DISTRESS = 'detect_customer_distress',
   EXTRACT_ORDER_NUMBER = 'extract_order_number',
   FETCH_ORDER_DETAILS = 'fetch_order_details',
   SEND_ACKNOWLEDGEMENT = 'send_acknowledgement',
@@ -168,10 +169,6 @@ export interface CreateActionData {
   name?: string;
   actionDetails?: string;
   proposedEmailBody?: string;
-  metadata?: Record<string, any>;
-  autoApproved: boolean;
-  reviewedBy?: string;
-  reviewedAt?: Date;
 }
 
 /**
@@ -184,7 +181,6 @@ export interface CreateApprovalItemData extends CreateApprovalQueueData {
   actionStatus: ActionStatus;
   parentWorkflowId: string;
   previousActionId?: string;
-  autoApproved: boolean;
   proposedResponse: string;
 }
 
@@ -193,13 +189,8 @@ export interface CreateApprovalItemData extends CreateApprovalQueueData {
  */
 export interface UpdateActionData {
   actionStatus?: ActionStatus;
-  reviewedBy?: string;
-  reviewedAt?: Date;
-  executedAt?: Date;
-  executionResult?: Record<string, any>;
-  escalatedDuringExecution?: boolean;
   escalationId?: string;
-  executionError?: Record<string, any>;
+  escalationReason?: string;
 }
 
 /**

@@ -16,7 +16,6 @@ import {
   EscalationType,
   HumanDecision,
   HumanResponse,
-  UpdateActionData,
   WorkflowActionType,
 } from './types';
 
@@ -29,6 +28,7 @@ const ACTION_NAME_MAP: Record<string, string> = {
   oc_mark_email_read: 'Mark Email as Read',
   verify_ai_confidence: 'Verify AI Classification',
   oc_verify_ai_confidence: 'Verify AI Classification',
+  detect_customer_distress: 'Detect Customer Distress',
   extract_order_number: 'Extract Order Number',
   oc_extract_order_number: 'Extract Order Number',
   request_order_info: 'Request Order Information',
@@ -98,6 +98,188 @@ const {
 
 const { createEscalation, generateEscalationResponse } = escalationActivities;
 
+interface WorkflowActionRecord {
+  id: string;
+}
+
+async function ensureApprovalQueueExists(
+  context: ActionExecutionContext,
+  actionConfig: ActionConfig,
+): Promise<void> {
+  if (context.approvalQueueId) {
+    return;
+  }
+
+  const existingQueue = await findApprovalQueueByWorkflowId(context.workflowId, context.userId);
+  if (existingQueue) {
+    context.approvalQueueId = existingQueue.id;
+    context.state.approvalQueueId = existingQueue.id;
+    log.info('Using existing approval queue', { approvalQueueId: existingQueue.id });
+    return;
+  }
+
+  const approvalQueueData: CreateApprovalQueueData = {
+    userId: context.userId,
+    emailId: context.email.id,
+    threadId: context.email.threadId,
+    workflowId: context.workflowId,
+    workflowRunId: context.workflowRunId,
+    agentName: context.agentType,
+    customerEmail: context.email.fromEmail,
+    customerName: extractCustomerName(context.email.fromEmail),
+    emailSubject: context.email.subject || 'No Subject',
+    emailBody: context.email.body,
+    emailDate: context.email.internalDate?.toString() || new Date().toString(),
+    category: context.state.classification?.category,
+    confidence: context.state.classification?.confidence?.toString(),
+    priority: context.state.classification?.priority,
+    sentiment: context.state.classification?.sentiment,
+    workflowMetadata: {
+      currentStatus: context.state.status,
+      ...actionConfig.metadata,
+    },
+  };
+
+  const approvalQueue = await createApprovalQueueItem(approvalQueueData);
+  context.approvalQueueId = approvalQueue.id;
+  context.state.approvalQueueId = approvalQueue.id;
+
+  log.info('Approval queue created for workflow', {
+    approvalQueueId: approvalQueue.id,
+    workflowId: context.workflowId,
+  });
+}
+
+async function createAndInitializeAction(
+  actionConfig: ActionConfig,
+  context: ActionExecutionContext,
+): Promise<WorkflowActionRecord> {
+  const actionData: CreateActionData = {
+    approvalQueueId: context.approvalQueueId!,
+    actionType: actionConfig.type,
+    actionStep: String(actionConfig.step), // Convert to string to support sub-steps like "3.1"
+    actionStatus: context.requiresModeration ? ActionStatus.PENDING_APPROVAL : ActionStatus.APPROVED,
+    description: actionConfig.description,
+    name: actionConfig.name ?? getActionName(actionConfig.type),
+    actionDetails: actionConfig.actionDetails,
+    proposedEmailBody: actionConfig.proposedEmailBody,
+  };
+
+  const action = await createApprovalQueueAction(actionData);
+
+  log.info('Action record created', {
+    actionId: action.id,
+    actionType: actionConfig.type,
+  });
+
+  if (actionConfig.step === 1) {
+    await updateApprovalQueueStatus(context.approvalQueueId!, context.userId, 'in_progress');
+    log.info('Workflow marked as in_progress');
+  }
+
+  return action;
+}
+
+function getHumanResponseForAction(
+  actionId: string,
+  context: ActionExecutionContext,
+  humanResponseGetter?: () => HumanResponse | null,
+): HumanResponse | null | undefined {
+  if (humanResponseGetter) {
+    return humanResponseGetter();
+  }
+  return context.state.actionResponses?.[actionId];
+}
+
+async function awaitHumanModeration(
+  action: WorkflowActionRecord,
+  actionConfig: ActionConfig,
+  context: ActionExecutionContext,
+  humanResponseGetter?: () => HumanResponse | null,
+): Promise<ActionExecutionResult | null> {
+  if (!context.requiresModeration) {
+    return null;
+  }
+
+  log.info('Waiting for human approval', {
+    actionId: action.id,
+    actionType: actionConfig.type,
+    step: actionConfig.step,
+  });
+
+  try {
+    const receivedResponse = await condition(() => {
+      const response = getHumanResponseForAction(action.id, context, humanResponseGetter);
+      return response !== null && response !== undefined;
+    }, '7 days');
+
+    const humanResponse = getHumanResponseForAction(action.id, context, humanResponseGetter);
+
+    if (!receivedResponse || !humanResponse || humanResponse.decision === HumanDecision.REJECT) {
+      await updateApprovalQueueAction(action.id, {
+        actionStatus: ActionStatus.REJECTED,
+      });
+
+      log.warn('Action rejected or timed out', {
+        actionId: action.id,
+        actionType: actionConfig.type,
+        decision: humanResponse?.decision || 'TIMEOUT',
+      });
+
+      return {
+        success: false,
+        actionId: action.id,
+      };
+    }
+
+    log.info('Action approved by human', {
+      actionId: action.id,
+      actionType: actionConfig.type,
+      decision: humanResponse.decision,
+      respondedBy: humanResponse.respondedBy,
+    });
+
+    await updateApprovalQueueAction(action.id, {
+      actionStatus: ActionStatus.APPROVED,
+    });
+
+    if (humanResponse.modifiedData) {
+      log.info('Human provided modified data', {
+        actionId: action.id,
+        hasModifiedData: true,
+      });
+    }
+
+    return null;
+  } catch (error) {
+    log.error('Error waiting for approval', {
+      error,
+      actionId: action.id,
+      actionType: actionConfig.type,
+    });
+
+    await updateApprovalQueueAction(action.id, {
+      actionStatus: ActionStatus.FAILED,
+    });
+
+    return {
+      success: false,
+      actionId: action.id,
+    };
+  }
+}
+
+function createRuntimeControl(actionId: string): ActionRuntimeControl {
+  return {
+    setStatus: async (status, additionalData = {}) => {
+      await updateApprovalQueueAction(actionId, {
+        actionStatus: status,
+        ...additionalData,
+      });
+    },
+  };
+}
+
 /**
  * Main function to execute a workflow action with approval and escalation handling
  *
@@ -131,169 +313,17 @@ export async function executeWorkflowAction<T>(
     requiresModeration: context.requiresModeration,
   });
 
-  // 1. Check if approval queue exists for this workflow, create if not (first action only)
-  if (!context.approvalQueueId) {
-    const existingQueue = await findApprovalQueueByWorkflowId(context.workflowId, context.userId);
+  await ensureApprovalQueueExists(context, actionConfig);
+  const action = await createAndInitializeAction(actionConfig, context);
 
-    if (existingQueue) {
-      context.approvalQueueId = existingQueue.id;
-      context.state.approvalQueueId = existingQueue.id;
-      log.info('Using existing approval queue', { approvalQueueId: existingQueue.id });
-    } else {
-      // Create approval queue item (workflow-level) - only once
-      const approvalQueueData: CreateApprovalQueueData = {
-        userId: context.userId,
-        emailId: context.email.id,
-        threadId: context.email.threadId,
-        workflowId: context.workflowId,
-        workflowRunId: context.workflowRunId,
-        agentName: context.agentType,
-        customerEmail: context.email.fromEmail,
-        customerName: extractCustomerName(context.email.fromEmail),
-        emailSubject: context.email.subject || 'No Subject',
-        emailBody: context.email.body,
-        emailDate: context.email.internalDate?.toString() || new Date().toString(),
-        category: context.state.classification?.category,
-        confidence: context.state.classification?.confidence?.toString(),
-        priority: context.state.classification?.priority,
-        sentiment: context.state.classification?.sentiment,
-        workflowMetadata: {
-          currentStatus: context.state.status,
-          ...actionConfig.metadata,
-        },
-      };
-
-      const approvalQueue = await createApprovalQueueItem(approvalQueueData);
-      context.approvalQueueId = approvalQueue.id;
-      context.state.approvalQueueId = approvalQueue.id;
-
-      log.info('Approval queue created for workflow', {
-        approvalQueueId: approvalQueue.id,
-        workflowId: context.workflowId,
-      });
-    }
-  }
-
-  // 2. Create action record for this specific action
-  const actionData: CreateActionData = {
-    approvalQueueId: context.approvalQueueId!,
-    actionType: actionConfig.type,
-    actionStep: String(actionConfig.step), // Convert to string to support sub-steps like "3.1"
-    actionStatus: context.requiresModeration
-      ? ActionStatus.PENDING_APPROVAL
-      : ActionStatus.APPROVED,
-    description: actionConfig.description,
-    name: actionConfig.name ?? getActionName(actionConfig.type),
-    actionDetails: actionConfig.actionDetails,
-    proposedEmailBody: actionConfig.proposedEmailBody,
-    metadata: {
-      ...actionConfig.metadata,
-      currentWorkflowStatus: context.state.status,
-    },
-    autoApproved: !context.requiresModeration,
-  };
-
-  const action = await createApprovalQueueAction(actionData);
-
-  log.info('Action record created', {
-    actionId: action.id,
-    actionType: actionConfig.type,
-    autoApproved: !context.requiresModeration,
-  });
-
-  // 3. Update workflow status to in_progress (if first action)
-  if (actionConfig.step === 1) {
-    await updateApprovalQueueStatus(context.approvalQueueId!, context.userId, 'in_progress');
-    log.info('Workflow marked as in_progress');
-  }
-
-  // 4. If moderation required, wait for approval
-  if (context.requiresModeration) {
-    log.info('Waiting for human approval', {
-      actionId: action.id,
-      actionType: actionConfig.type,
-      step: actionConfig.step,
-    });
-
-    try {
-      // Wait for approval signal with timeout (7 days)
-      // Read from workflow state (Temporal-safe!) instead of in-memory Map
-      const receivedResponse = await condition(() => {
-        if (humanResponseGetter) {
-          const response = humanResponseGetter();
-          return response !== null;
-        }
-        // Read from workflow state using action ID
-        const response = context.state.actionResponses?.[action.id];
-        return response !== undefined;
-      }, '7 days');
-
-      const humanResponse = humanResponseGetter
-        ? humanResponseGetter()
-        : context.state.actionResponses?.[action.id];
-
-      if (!receivedResponse || !humanResponse || humanResponse.decision === HumanDecision.REJECT) {
-        // Action was rejected or timed out
-        const updateData: UpdateActionData = {
-          actionStatus: ActionStatus.REJECTED,
-          reviewedAt: new Date(),
-        };
-        await updateApprovalQueueAction(action.id, updateData);
-
-        log.warn('Action rejected or timed out', {
-          actionId: action.id,
-          actionType: actionConfig.type,
-          decision: humanResponse?.decision || 'TIMEOUT',
-        });
-
-        return {
-          success: false,
-          actionId: action.id,
-        };
-      }
-
-      log.info('Action approved by human', {
-        actionId: action.id,
-        actionType: actionConfig.type,
-        decision: humanResponse.decision,
-        respondedBy: humanResponse.respondedBy,
-      });
-
-      // Update action with review info
-      await updateApprovalQueueAction(action.id, {
-        actionStatus: ActionStatus.APPROVED,
-        reviewedBy: humanResponse.respondedBy,
-        reviewedAt: humanResponse.respondedAt,
-      });
-
-      // If user modified the data, we might need to use it in the executor
-      // For now, we'll just log it - specific actions can access it via context
-      if (humanResponse.modifiedData) {
-        log.info('Human provided modified data', {
-          actionId: action.id,
-          hasModifiedData: true,
-        });
-      }
-    } catch (error) {
-      log.error('Error waiting for approval', {
-        error,
-        actionId: action.id,
-        actionType: actionConfig.type,
-      });
-
-      await updateApprovalQueueAction(action.id, {
-        actionStatus: ActionStatus.FAILED,
-        executionError: {
-          message: 'Failed to receive approval',
-          error: error instanceof Error ? error.message : String(error),
-        },
-      });
-
-      return {
-        success: false,
-        actionId: action.id,
-      };
-    }
+  const moderationResult = await awaitHumanModeration(
+    action,
+    actionConfig,
+    context,
+    humanResponseGetter,
+  );
+  if (moderationResult) {
+    return moderationResult;
   }
 
   // 5. Update action status to executing
@@ -307,29 +337,20 @@ export async function executeWorkflowAction<T>(
     step: actionConfig.step,
   });
 
-  const runtimeControl: ActionRuntimeControl = {
-    setStatus: async (status, additionalData = {}) => {
-      await updateApprovalQueueAction(action.id, {
-        actionStatus: status,
-        ...additionalData,
-      });
-    },
-  };
+  const runtimeControl = createRuntimeControl(action.id);
 
   // 6. Execute the actual action
   // Pass the action's human response so email executors can use modifiedData.message
   const humanActionResponse = context.state.actionResponses?.[action.id];
+  if (context.state.actionResponses?.[action.id]) {
+    delete context.state.actionResponses[action.id];
+  }
+
   try {
     const result = await actionExecutor(humanActionResponse, runtimeControl);
 
     // 7. Mark action as successfully executed
-    await markActionAsExecuted(action.id, {
-      success: true,
-      result,
-      executedAt: new Date(),
-      actionType: actionConfig.type,
-      step: actionConfig.step,
-    });
+    await markActionAsExecuted(action.id);
 
     log.info('Action executed successfully', {
       actionId: action.id,
@@ -355,11 +376,7 @@ export async function executeWorkflowAction<T>(
     const escalation = await createEscalationFromError(error, context, actionConfig);
 
     // Mark action as escalated
-    await markActionAsEscalated(action.id, escalation.id, {
-      message: error instanceof Error ? error.message : String(error),
-      stack: error instanceof Error ? error.stack : undefined,
-      type: error instanceof EscalationError ? error.type : EscalationType.MANUAL_ESCALATION,
-    });
+    await markActionAsEscalated(action.id, escalation.id, escalation.reason);
 
     // Mark workflow as escalated
     await updateApprovalQueueStatus(
@@ -418,7 +435,6 @@ async function createEscalationFromError(
   const {
     response: aiResponse,
     confidence: aiConfidence,
-    reason: aiReason,
   } = await generateEscalationResponse(
     escalationType,
     context.email.body,
@@ -432,7 +448,7 @@ async function createEscalationFromError(
     workflowId: context.workflowId,
     threadId: context.email.threadId,
     userId: context.userId,
-    reason: aiReason || escalationReason,
+    reason: escalationReason,
     email: context.email,
     aiSuggestedResponse: aiResponse,
     aiSuggestedResponseConfidence: aiConfidence?.toString(),
@@ -448,7 +464,7 @@ async function createEscalationFromError(
   return {
     id: escalation.id,
     type: escalationType,
-    reason: aiReason || escalationReason,
+    reason: escalationReason,
     aiSuggestedResponse: aiResponse,
     aiSuggestedResponseConfidence: aiConfidence?.toString(),
     metadata,

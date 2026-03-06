@@ -28,11 +28,8 @@ export class ClassificationUtil {
       response_format,
     );
 
-    const classification = JSON.parse(
-      response.choices[0].message.content || '{}',
-    ) as ClassificationResult;
-
-    return classification;
+    const classification = JSON.parse(response.choices[0].message.content || '{}') as ClassificationResult;
+    return this.normalizeClassification(classification);
   }
 
   private buildClassificationPrompt(email: any): string {
@@ -68,17 +65,11 @@ export class ClassificationUtil {
           7. **order_cancellation**
           - Intent: Customer wants to stop an order before it ships
           - Context: Prevent shipment, cancel before processing and refund payment          
-            
-          8. **escalation**
-              - Intent: Customer is frustrated, threatening, or has complex multi-issue problems
-              - Context: Complaints, legal threats, multiple failed attempts
-              - Keywords/Phrases: "Human", "speak to someone", "real person", "human agent", "escalate", "transfer me", "I need a person", "connect me to someone", "I want to talk to a human", "get a human on the line"
-              - Priority: ALWAYS urgent regardless of other factors
-          
-          9. **thankful**
-          - Intent: Customer is expressing gratitude, appreciation, or positive feedback
-          - Context: Thank-you messages, compliments, positive reviews, satisfied responses
-          - Examples: "Thank you so much!", "Great service!", "Really appreciate the help", "You guys are amazing"
+
+          SCENARIO FLAGS (NOT CATEGORY):
+          - escalation: true if customer requests human escalation OR shows high distress/threatening language
+          - thankful: true if customer mainly expresses gratitude or positive appreciation
+          - These are scenario overlays. They can coexist with any intent category.
   
           PRIORITY ASSESSMENT:
           - **urgent**: Human escalation requests, events tomorrow, damaged goods, safety issues
@@ -87,12 +78,13 @@ export class ClassificationUtil {
           - **low**: Simple questions, compliments, product info requests
   
           ANALYSIS INSTRUCTIONS:
-          1. **FIRST CHECK FOR HUMAN ESCALATION**: Look for any requests to speak to a human, real person, agent, or escalation - if found, classify as "escalation" with "urgent" priority
-          2. Read the email content to understand the customer's underlying concern and emotional state
-          3. Identify the primary intent - what does the customer actually want?
-          4. Consider context clues like order numbers, timing expressions, emotional language
-          5. Assign appropriate priority based on urgency and customer sentiment
-          6. Be confident in your assessment - modern AI should easily understand customer intent
+          1. ALWAYS choose category from intent categories only (never "escalation" or "thankful")
+          2. Set scenario flags separately under scenarios.{escalation, thankful}
+          3. Read the email content to understand the customer's underlying concern and emotional state
+          4. Identify the primary intent - what does the customer actually want?
+          5. Consider context clues like order numbers, timing expressions, emotional language
+          6. Assign appropriate priority based on urgency and customer sentiment
+          7. Be confident in your assessment - modern AI should easily understand customer intent
 
           Email Details:
           Subject: ${email.subject || 'N/A'}
@@ -101,12 +93,26 @@ export class ClassificationUtil {
 
           Return a JSON object with:
           {
-            "category": "<category>",
+            "category": "<wismo|subscription|product|returns|promo_code|address_change|order_cancellation>",
             "confidence": <0-100>,
             "reasoning": "<brief explanation>",
             "priority": "<low|medium|high|urgent>",
-            "sentiment": "<positive|neutral|negative>"
+            "sentiment": "<positive|neutral|negative>",
+            "scenarios": {
+              "escalation": <true|false>,
+              "thankful": <true|false>
+            }
           }
           `.trim();
+  }
+
+  private normalizeClassification(classification: ClassificationResult): ClassificationResult {
+    return {
+      ...classification,
+      scenarios: {
+        escalation: classification.scenarios?.escalation ?? false,
+        thankful: classification.scenarios?.thankful ?? false,
+      },
+    };
   }
 }

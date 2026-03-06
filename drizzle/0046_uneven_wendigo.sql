@@ -1,0 +1,1 @@
+DROP TABLE "approval_queue_activity_log" CASCADE;

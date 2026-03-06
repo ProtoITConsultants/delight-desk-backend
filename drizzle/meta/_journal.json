@@ -316,6 +316,20 @@
       "when": 1772644101896,
       "tag": "0044_unknown_proemial_gods",
       "breakpoints": true
+    },
+    {
+      "idx": 45,
+      "version": "7",
+      "when": 1772815984725,
+      "tag": "0045_mysterious_quasimodo",
+      "breakpoints": true
+    },
+    {
+      "idx": 46,
+      "version": "7",
+      "when": 1772817318708,
+      "tag": "0046_uneven_wendigo",
+      "breakpoints": true
     }
   ]
 }

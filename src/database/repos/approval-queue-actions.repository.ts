@@ -85,20 +85,11 @@ export class ApprovalQueueActionsRepository {
     actionStatus: string,
     additionalData?: Partial<typeof approvalQueueActions.$inferInsert>,
   ) {
-    // Ensure date fields are proper Date objects
-    const updateData: any = { ...additionalData };
-    if (updateData.reviewedAt && !(updateData.reviewedAt instanceof Date)) {
-      updateData.reviewedAt = new Date(updateData.reviewedAt);
-    }
-    if (updateData.executedAt && !(updateData.executedAt instanceof Date)) {
-      updateData.executedAt = new Date(updateData.executedAt);
-    }
-
     const [updated] = await this.db
       .update(approvalQueueActions)
       .set({
         actionStatus,
-        ...updateData,
+        ...(additionalData || {}),
         updatedAt: new Date(),
       })
       .where(eq(approvalQueueActions.id, id))
@@ -111,19 +102,10 @@ export class ApprovalQueueActionsRepository {
    * Update action
    */
   async updateAction(id: string, data: Partial<typeof approvalQueueActions.$inferInsert>) {
-    // Ensure date fields are proper Date objects
-    const updateData: any = { ...data };
-    if (updateData.reviewedAt && !(updateData.reviewedAt instanceof Date)) {
-      updateData.reviewedAt = new Date(updateData.reviewedAt);
-    }
-    if (updateData.executedAt && !(updateData.executedAt instanceof Date)) {
-      updateData.executedAt = new Date(updateData.executedAt);
-    }
-
     const [updated] = await this.db
       .update(approvalQueueActions)
       .set({
-        ...updateData,
+        ...data,
         updatedAt: new Date(),
       })
       .where(eq(approvalQueueActions.id, id))
@@ -135,20 +117,11 @@ export class ApprovalQueueActionsRepository {
   /**
    * Mark action as executed
    */
-  async markAsExecuted(id: string, executionResult?: any) {
-    // Ensure executedAt from result is a proper Date if provided
-    const executedAt = executionResult?.executedAt
-      ? executionResult.executedAt instanceof Date
-        ? executionResult.executedAt
-        : new Date(executionResult.executedAt)
-      : new Date();
-
+  async markAsExecuted(id: string) {
     const [updated] = await this.db
       .update(approvalQueueActions)
       .set({
         actionStatus: 'executed',
-        executedAt,
-        executionResult,
         updatedAt: new Date(),
       })
       .where(eq(approvalQueueActions.id, id))
@@ -160,14 +133,13 @@ export class ApprovalQueueActionsRepository {
   /**
    * Mark action as escalated
    */
-  async markAsEscalated(id: string, escalationId: string, executionError?: any) {
+  async markAsEscalated(id: string, escalationId: string, escalationReason?: string) {
     const [updated] = await this.db
       .update(approvalQueueActions)
       .set({
         actionStatus: 'escalated',
-        escalatedDuringExecution: true,
         escalationId,
-        executionError,
+        escalationReason: escalationReason || null,
         updatedAt: new Date(),
       })
       .where(eq(approvalQueueActions.id, id))

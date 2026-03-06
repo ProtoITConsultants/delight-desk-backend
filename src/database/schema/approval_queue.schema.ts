@@ -48,24 +48,4 @@ export const approvalQueue = pgTable('approval_queue', {
   updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
 });
 
-export const approvalQueueActivityLog = pgTable('approval_queue_activity_log', {
-  id: uuid('id').primaryKey().defaultRandom(),
-
-  approvalQueueId: uuid('approval_queue_id').notNull(),
-
-  userId: uuid('user_id'),
-
-  // created, pending_review, approved, rejected, edited, executed, failed
-  action: varchar('action', { length: 50 }).notNull(),
-
-  // Human-readable description of the action
-  description: text('description').notNull(),
-
-  // Additional metadata for the action
-  metadata: jsonb('metadata'),
-
-  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
-});
-
 export type ApprovalQueueEntity = InferSelectModel<typeof approvalQueue>;
-export type ApprovalQueueActivityLogEntity = InferSelectModel<typeof approvalQueueActivityLog>;

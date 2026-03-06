@@ -18,27 +18,6 @@ export class ApprovalQueueActivities {
 
   @ActivityMethod({ name: 'createApprovalQueueItem' })
   async createApprovalQueueItem(data: any): Promise<any> {
-    // #region agent log
-    fetch('http://127.0.0.1:7417/ingest/1b01cce3-7c7a-45b0-90d3-394286ccf426', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'X-Debug-Session-Id': '2163c6' },
-      body: JSON.stringify({
-        sessionId: '2163c6',
-        location: 'approval-queue.activities.ts:21',
-        message: 'createApprovalQueueItem data keys',
-        data: {
-          keys: Object.keys(data || {}),
-          hasAgentType: 'agentType' in (data || {}),
-          hasAgentName: 'agentName' in (data || {}),
-          agentTypeValue: (data || {}).agentType,
-          agentNameValue: (data || {}).agentName,
-        },
-        runId: 'post-fix',
-        hypothesisId: 'H-A',
-        timestamp: Date.now(),
-      }),
-    }).catch(() => {});
-    // #endregion
     return this.approvalQueueRepository.createApprovalQueueItem(data);
   }
 
@@ -70,20 +49,20 @@ export class ApprovalQueueActivities {
   }
 
   @ActivityMethod({ name: 'markActionAsExecuted' })
-  async markActionAsExecuted(actionId: string, executionResult: any): Promise<any> {
-    return this.approvalQueueActionsRepository.markAsExecuted(actionId, executionResult);
+  async markActionAsExecuted(actionId: string): Promise<any> {
+    return this.approvalQueueActionsRepository.markAsExecuted(actionId);
   }
 
   @ActivityMethod({ name: 'markActionAsEscalated' })
   async markActionAsEscalated(
     actionId: string,
     escalationId: string,
-    executionError: any,
+    escalationReason: string,
   ): Promise<any> {
     return this.approvalQueueActionsRepository.markAsEscalated(
       actionId,
       escalationId,
-      executionError,
+      escalationReason,
     );
   }
 

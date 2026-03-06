@@ -2,7 +2,7 @@ import { Inject, Injectable } from '@nestjs/common';
 import { and, desc, eq, inArray, sql } from 'drizzle-orm';
 import { NodePgDatabase } from 'drizzle-orm/node-postgres';
 import { DATABASE_CONNECTION } from '../database.module';
-import { approvalQueue, approvalQueueActions, approvalQueueActivityLog } from '../schema';
+import { approvalQueue, approvalQueueActions } from '../schema';
 
 @Injectable()
 export class ApprovalQueueRepository {
@@ -10,20 +10,6 @@ export class ApprovalQueueRepository {
 
   async createApprovalQueueItem(data: typeof approvalQueue.$inferInsert) {
     const [created] = await this.db.insert(approvalQueue).values(data).returning();
-
-    // Log the creation
-    await this.logActivity({
-      approvalQueueId: created.id,
-      userId: data.userId,
-      action: 'created',
-      description: 'Approval queue workflow created',
-      metadata: {
-        agentName: data.agentName,
-        category: data.category,
-        priority: data.priority,
-      },
-    });
-
     return created;
   }
 
@@ -168,14 +154,6 @@ export class ApprovalQueueRepository {
       .where(and(eq(approvalQueue.id, id), eq(approvalQueue.userId, userId)))
       .returning();
 
-    await this.logActivity({
-      approvalQueueId: id,
-      userId,
-      action: 'status_updated',
-      description: `Workflow status updated to: ${status}`,
-      metadata: { status, ...additionalData },
-    });
-
     return updated;
   }
 
@@ -216,20 +194,7 @@ export class ApprovalQueueRepository {
         .update(approvalQueue)
         .set({ status: 'cancelled', updatedAt: new Date() })
         .where(and(eq(approvalQueue.id, id), eq(approvalQueue.userId, userId)));
-
-      await tx.insert(approvalQueueActivityLog).values({
-        approvalQueueId: id,
-        userId,
-        action: 'status_updated',
-        description: 'Workflow status updated to: cancelled',
-        metadata: { status: 'cancelled' },
-      });
     });
-  }
-
-  async logActivity(data: typeof approvalQueueActivityLog.$inferInsert) {
-    const [log] = await this.db.insert(approvalQueueActivityLog).values(data).returning();
-    return log;
   }
 
   async getStats(userId: string) {

@@ -1,8 +1,5 @@
 import { InferSelectModel } from 'drizzle-orm';
 import {
-  boolean,
-  integer,
-  jsonb,
   pgTable,
   text,
   timestamp,
@@ -37,23 +34,9 @@ export const approvalQueueActions = pgTable('approval_queue_actions', {
   // Proposed email body for actions that send AI-generated emails
   proposedEmailBody: text('proposed_email_body'),
 
-  // Action metadata (order details, tracking info, etc.)
-  metadata: jsonb('metadata'),
-
-  // Approval tracking
-  autoApproved: boolean('auto_approved').default(false).notNull(), // True if moderation disabled
-  reviewedBy: uuid('reviewed_by'), // User who reviewed this action
-  reviewedAt: timestamp('reviewed_at', { withTimezone: true }),
-  reviewNotes: text('review_notes'),
-
-  // Execution tracking
-  executedAt: timestamp('executed_at', { withTimezone: true }),
-  executionResult: jsonb('execution_result'),
-  executionError: jsonb('execution_error'), // Error details if action failed
-
   // Escalation tracking
-  escalatedDuringExecution: boolean('escalated_during_execution').default(false).notNull(),
   escalationId: uuid('escalation_id').references(() => escalations.id),
+  escalationReason: text('escalation_reason'),
 
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),

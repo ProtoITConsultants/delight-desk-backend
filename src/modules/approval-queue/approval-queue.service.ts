@@ -6,6 +6,7 @@ import {
 } from '@nestjs/common';
 import { ApprovalQueueRepository } from '../../database/repos/approval-queue.repository';
 import { ApprovalQueueActionsRepository } from '../../database/repos/approval-queue-actions.repository';
+import { EscalationsRepository } from '../../database/repos/escalations.repository';
 import {
   ApprovalQueueStatsResponse,
   EditAndApproveDto,
@@ -20,6 +21,7 @@ export class ApprovalQueueService {
   constructor(
     private readonly approvalQueueRepository: ApprovalQueueRepository,
     private readonly approvalQueueActionsRepository: ApprovalQueueActionsRepository,
+    private readonly escalationsRepository: EscalationsRepository,
     private readonly infraService: InfraService,
   ) {}
 
@@ -57,6 +59,19 @@ export class ApprovalQueueService {
 
     const ids = items.map((item) => item.approval.id);
     const allActions = await this.approvalQueueActionsRepository.getActionsForApprovalQueueIds(ids);
+    const escalationIds = allActions
+      .map((action) => action.escalationId)
+      .filter((id): id is string => Boolean(id));
+    const escalationReasonById =
+      escalationIds.length > 0
+        ? new Map(
+            (await this.escalationsRepository.findByIds(escalationIds)).map((escalation) => [
+              escalation.id,
+              escalation.reason,
+            ]),
+          )
+        : new Map<string, string>();
+
     const actionsByApprovalId = allActions.reduce<Record<string, typeof allActions>>(
       (acc, action) => {
         const key = action.approvalQueueId;
@@ -88,6 +103,9 @@ export class ApprovalQueueService {
           step: action.actionStep,
           createdAt: action.createdAt,
           proposedEmailBody: action.proposedEmailBody,
+          escalationId: action.escalationId,
+          escalationReason:
+            action.escalationReason ?? escalationReasonById.get(action.escalationId ?? '') ?? null,
         })),
       };
     });
@@ -129,8 +147,6 @@ export class ApprovalQueueService {
     // Update action status
     const updated = await this.approvalQueueActionsRepository.updateAction(actionId, {
       actionStatus: 'approved',
-      reviewedBy,
-      reviewedAt: new Date(),
     });
 
     // Send signal to Temporal workflow to continue execution
@@ -172,8 +188,6 @@ export class ApprovalQueueService {
     // Update action status
     const updated = await this.approvalQueueActionsRepository.updateAction(actionId, {
       actionStatus: 'rejected',
-      reviewedBy,
-      reviewedAt: new Date(),
     });
 
     // Send signal to Temporal workflow
@@ -214,16 +228,9 @@ export class ApprovalQueueService {
     }
 
     // Update action with edited response
-    const actionMetadata = action.metadata || {};
     await this.approvalQueueActionsRepository.updateAction(actionId, {
       actionStatus: 'approved',
-      reviewedBy: userId,
-      reviewedAt: new Date(),
       proposedEmailBody: dto.editedResponse,
-      metadata: {
-        ...(typeof actionMetadata === 'object' ? actionMetadata : {}),
-        editedResponse: dto.editedResponse,
-      },
     });
 
     // Send signal to Temporal workflow with edited response

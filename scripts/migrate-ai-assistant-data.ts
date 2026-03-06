@@ -6,7 +6,6 @@ import * as fs from 'fs';
 import {
   approvalQueue,
   approvalQueueActions,
-  approvalQueueActivityLog,
   emails,
   emailThreads,
   escalations,
@@ -27,7 +26,6 @@ interface MigrationData {
   escalations: any[];
   approvalQueue: any[];
   approvalQueueActions: any[];
-  approvalQueueActivityLog: any[];
   userMapping: UserMapping[];
 }
 
@@ -38,7 +36,6 @@ interface MigrationStats {
   escalationsImported: number;
   approvalQueueImported: number;
   actionsImported: number;
-  activityLogsImported: number;
   errors: string[];
 }
 
@@ -138,15 +135,6 @@ class DataMigrationService {
         : [];
       console.log(`Found ${actionsData.length} approval queue actions`);
 
-      // Export activity logs
-      const activityLogsData = approvalQueueIds.length
-        ? await this.sourceDb
-            .select()
-            .from(approvalQueueActivityLog)
-            .where(inArray(approvalQueueActivityLog.approvalQueueId, approvalQueueIds))
-        : [];
-      console.log(`Found ${activityLogsData.length} activity logs`);
-
       // Create user mapping template
       const userMapping: UserMapping[] = usersToExport.map((user) => ({
         localUserId: user.id,
@@ -162,7 +150,6 @@ class DataMigrationService {
         escalations: escalationsData,
         approvalQueue: approvalQueueData,
         approvalQueueActions: actionsData,
-        approvalQueueActivityLog: activityLogsData,
         userMapping,
       };
 
@@ -195,7 +182,6 @@ class DataMigrationService {
       escalationsImported: 0,
       approvalQueueImported: 0,
       actionsImported: 0,
-      activityLogsImported: 0,
       errors: [],
     };
 
@@ -365,54 +351,24 @@ class DataMigrationService {
         const newEscalationId = action.escalationId
           ? escalationIdMap.get(action.escalationId)
           : null;
-        const newReviewedBy = action.reviewedBy ? this.userIdMap.get(action.reviewedBy) : null;
 
         if (!newApprovalQueueId) {
           stats.errors.push(`Missing approval queue mapping for action ${action.id}`);
           continue;
         }
 
-        const actionData = this.convertDates(action, [
-          'createdAt',
-          'updatedAt',
-          'reviewedAt',
-          'executedAt',
-        ]);
+        const actionData = this.convertDates(action, ['createdAt', 'updatedAt']);
 
         await this.targetDb.insert(approvalQueueActions).values({
           ...actionData,
           approvalQueueId: newApprovalQueueId,
           escalationId: newEscalationId,
-          reviewedBy: newReviewedBy,
           id: undefined,
         });
 
         stats.actionsImported++;
       }
       console.log(`✓ Imported ${stats.actionsImported} approval queue actions`);
-
-      // Import activity logs
-      for (const log of migrationData.approvalQueueActivityLog) {
-        const newApprovalQueueId = approvalQueueIdMap.get(log.approvalQueueId);
-        const newUserId = log.userId ? this.userIdMap.get(log.userId) : null;
-
-        if (!newApprovalQueueId) {
-          stats.errors.push(`Missing approval queue mapping for activity log ${log.id}`);
-          continue;
-        }
-
-        const logData = this.convertDates(log, ['createdAt']);
-
-        await this.targetDb.insert(approvalQueueActivityLog).values({
-          ...logData,
-          approvalQueueId: newApprovalQueueId,
-          userId: newUserId,
-          id: undefined,
-        });
-
-        stats.activityLogsImported++;
-      }
-      console.log(`✓ Imported ${stats.activityLogsImported} activity logs`);
 
       console.log('\n✅ Migration completed successfully!\n');
       this.printStats(stats);
@@ -448,7 +404,6 @@ class DataMigrationService {
     console.log(`  Escalations: ${data.escalations.length}`);
     console.log(`  Approval queue items: ${data.approvalQueue.length}`);
     console.log(`  Approval queue actions: ${data.approvalQueueActions.length}`);
-    console.log(`  Activity logs: ${data.approvalQueueActivityLog.length}`);
     console.log('');
   }
 
@@ -460,7 +415,6 @@ class DataMigrationService {
     console.log(`  Escalations imported: ${stats.escalationsImported}`);
     console.log(`  Approval queue imported: ${stats.approvalQueueImported}`);
     console.log(`  Actions imported: ${stats.actionsImported}`);
-    console.log(`  Activity logs imported: ${stats.activityLogsImported}`);
     if (stats.errors.length > 0) {
       console.log(`  Errors: ${stats.errors.length}`);
       stats.errors.forEach((err) => console.log(`    - ${err}`));

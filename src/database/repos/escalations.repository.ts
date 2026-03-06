@@ -158,6 +158,19 @@ export class EscalationsRepository {
     return escalation;
   }
 
+  async findByIds(ids: string[]) {
+    if (!ids.length) {
+      return [];
+    }
+    return this.db
+      .select({
+        id: escalations.id,
+        reason: escalations.reason,
+      })
+      .from(escalations)
+      .where(inArray(escalations.id, ids));
+  }
+
   async findByIdWithDetails(id: string, userId: string) {
     const result = await this.db
       .select({

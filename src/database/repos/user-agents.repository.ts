@@ -17,26 +17,7 @@ export class UserAgentsRepository {
     return rows[0] ?? null;
   }
 
-  async update(
-    userId: string,
-    agentId: string,
-    fields: {
-      isEnabled?: boolean;
-      requiresModeration?: boolean;
-    },
-  ) {
-    const updates: Partial<typeof userAgents.$inferInsert> = {
-      updatedAt: new Date(),
-    };
-
-    if (fields.isEnabled !== undefined) {
-      updates.isEnabled = fields.isEnabled;
-    }
-
-    if (fields.requiresModeration !== undefined) {
-      updates.requiresModeration = fields.requiresModeration;
-    }
-
+  async update(userId: string, agentId: string, updates: Partial<typeof userAgents.$inferInsert>) {
     await this.db
       .update(userAgents)
       .set(updates)

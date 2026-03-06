@@ -43,23 +43,28 @@ export class AgentsService {
   }
 
   async updateUserAgentSettings(userId: string, agentId: string, dto: UpdateUserAgentDto) {
-    if (dto.isEnabled === undefined && dto.requiresModeration === undefined) {
-      throw new BadRequestException('At least one field must be provided.');
+    const { isEnabled, requiresModeration } = dto;
+    if (!isEnabled && !requiresModeration) {
+      throw new BadRequestException(
+        'At least one field must be provided to update agent settings.',
+      );
     }
 
     const agent = await this.agentsRepo.getAgentById(agentId);
     if (!agent) throw new NotFoundException('Agent not found');
 
-    if (agent.type === AgentTypes.WISMO && dto.isEnabled !== undefined) {
-      await this.handleWismoEnable(userId, dto.isEnabled);
+    if (isEnabled) {
+      const hasStore = await this.storeRepo.userHasStore(userId);
+      if (!hasStore) {
+        throw new ConflictException(
+          'Please connect your WooCommerce store before enabling the agent',
+        );
+      }
     }
 
-    const updateData: Partial<UpdateUserAgentDto> = {};
-    if (dto.isEnabled !== undefined) updateData.isEnabled = dto.isEnabled;
-    if (dto.requiresModeration !== undefined)
-      updateData.requiresModeration = dto.requiresModeration;
+    await this.userAgentsRepo.update(userId, agentId, { isEnabled, requiresModeration });
 
-    await this.userAgentsRepo.update(userId, agentId, updateData);
+    return { message: 'Agent settings updated successfully' };
   }
 
   async getSystemSettings(userId: string) {
@@ -72,29 +77,6 @@ export class AgentsService {
     const settings = await this.systemSettingsRepo.findByUser(userId);
     if (!settings) throw new NotFoundException('Settings not found');
     await this.systemSettingsRepo.update(userId, dto);
-  }
-
-  private async handleWismoEnable(userId: string, isEnabled: boolean) {
-    if (isEnabled) {
-      const hasStore = await this.storeRepo.userHasStore(userId);
-      if (!hasStore) {
-        throw new ConflictException(
-          'Please connect the WooCommerce store before enabling WISMO agent',
-        );
-      }
-
-      // TODO: Debug axios error later
-      // const { status } = await this.wooCommerceService.getWoocommerceTrackingPluginStatus(userId);
-      // if (status !== 'active') {
-      //   throw new ConflictException(
-      //     'You do not have enough tracking info to proceed for WISMO agent',
-      //   );
-      // }
-
-      await this.updateSystemSettings(userId, { hasTrackingPluginForWoocommerce: true });
-    } else {
-      await this.updateSystemSettings(userId, { hasTrackingPluginForWoocommerce: false });
-    }
   }
 
   async getAgentSettings(agentType: AgentType, email: EmailEntity) {

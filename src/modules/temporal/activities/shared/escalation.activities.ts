@@ -24,14 +24,10 @@ export class EscalationActivities {
     orderNumber?: string,
     context?: any,
   ): Promise<{ response: string; confidence: number; reason: string }> {
-    const contextInfo = context
-      ? Object.entries(context)
-          .map(([key, value]) => `${key}: ${value}`)
-          .join('\n')
-      : '';
+    const contextInfo = context ? JSON.stringify(context, null, 2) : '';
 
     const prompt = `
-      Generate both a customer-facing response AND an internal escalation reason for this customer service escalation.
+      Generate a customer-facing response for a customer service escalation.
 
       Escalation Type: ${escalationType}
       Customer Name: ${customerName || 'there'}
@@ -39,30 +35,24 @@ export class EscalationActivities {
       Customer's Original Query: ${customerQuery}
       ${contextInfo ? `\nAdditional Context:\n${contextInfo}` : ''}
 
-      Generate TWO things:
-
-      1. CUSTOMER RESPONSE: Write a professional, empathetic response that:
+      Write a professional, empathetic response that:
          - Acknowledges the issue professionally
          - Shows empathy and understanding
-         - Explains what happened (if applicable)
+         - Does NOT invent root causes, system issues, timelines, or guarantees
+         - Uses only facts present in the provided query/context
+         - If details are missing, explicitly say the team is reviewing and will follow up
          - Provides next steps or resolution timeline
          - Maintains a helpful, apologetic tone
          - Keeps it under 150 words
          - Do NOT include a signature or sign-off
 
-      2. INTERNAL REASON: Write a concise, technical reason (1-2 sentences, max 100 characters) explaining WHY this is escalated.
-         Focus on the technical/business reason, not the customer-facing message.
-         Examples:
-         - "Low confidence (45%) in email classification as order inquiry"
-         - "Order #12345 not found in WooCommerce after customer confirmation"
-         - "Tracking number unavailable after 7 days of checking"
-
-      3. CONFIDENCE SCORE: Provide a confidence score (0-100) indicating how confident you are that the customer response appropriately addresses the issue.
+      Also provide a confidence score (0-100) indicating how confident you are that the response is safe and appropriate.
+      INTERNAL REASON RULE: return an empty string for "reason" because internal escalation reason is deterministic from workflow errors.
 
       Return your response in JSON format:
       {
         "response": "your customer-facing response here",
-        "reason": "concise internal escalation reason",
+        "reason": "",
         "confidence": 85
       }
     `;
@@ -71,14 +61,14 @@ export class EscalationActivities {
       {
         role: 'system',
         content:
-          'You are a professional customer service system that generates both customer responses and internal escalation reasons. Always respond with valid JSON.',
+          'You are a professional customer service system. Never invent operational causes. Use only provided facts. Always respond with valid JSON.',
       },
       {
         role: 'user',
         content: prompt,
       },
     ];
-    const temperature = 0.7;
+    const temperature = 0.2;
 
     const completion = await this.agentsService['openaiService'].createChatCompletion(
       messages,
@@ -100,7 +90,7 @@ export class EscalationActivities {
       return {
         response: parsed.response || '',
         confidence: parsed.confidence || 50,
-        reason: (parsed.reason || 'Escalated for manual review').substring(0, 200).trim(),
+        reason: '',
       };
     } catch (error) {
       // Fallback if JSON parsing fails

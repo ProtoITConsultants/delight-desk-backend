@@ -26,7 +26,7 @@ export class SetFulfillmentMethodDto {
   @IsString()
   shipbobPersonalAccessToken?: string;
 
-  @ApiPropertyOptional({ description: 'ShipStation API key' })
+  @ApiPropertyOptional({ description: 'ShipStation API Key' })
   @IsOptional()
   @IsString()
   shipstationApiKey?: string;

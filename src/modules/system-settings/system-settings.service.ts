@@ -1,25 +1,39 @@
 import { BadRequestException, Injectable } from '@nestjs/common';
-import axios from 'axios';
 import { SystemSettingsRepository } from 'src/database/repos/system-settings.repository';
+import { ShipBobService } from '../shipbob/shipbob.service';
+import { ShipStationService } from '../shipstation/shipstation.service';
 import { FulfillmentMethod, SetFulfillmentMethodDto } from './dto';
+import { FulfillmentMethodResponse, SetFulfillmentMethodResponse } from './system-settings.types';
 
 @Injectable()
 export class SystemSettingsService {
-  constructor(private readonly systemSettingsRepository: SystemSettingsRepository) {}
+  constructor(
+    private readonly systemSettingsRepository: SystemSettingsRepository,
+    private readonly shipBobService: ShipBobService,
+    private readonly shipStationService: ShipStationService,
+  ) {}
 
-  async getFulfillmentMethod(userId: string) {
+  async getFulfillmentMethod(userId: string): Promise<FulfillmentMethodResponse> {
     const settings = await this.systemSettingsRepository.findByUser(userId);
+    const rawMethod = settings?.fulfillmentMethod;
+    const method: FulfillmentMethod = Object.values(FulfillmentMethod).includes(
+      rawMethod as FulfillmentMethod,
+    )
+      ? (rawMethod as FulfillmentMethod)
+      : FulfillmentMethod.SELF;
 
     return {
-      method: settings?.fulfillmentMethod ?? 'self',
+      method,
       warehouseEmail: settings?.warehouseEmail ?? null,
       shipbobPersonalAccessToken: settings?.shipbobPersonalAccessToken ? '••••••••' : null,
-      shipbobChannelId: settings?.shipbobChannelId ?? null,
       shipstationApiKey: settings?.shipstationApiKey ? '••••••••' : null,
     };
   }
 
-  async setFulfillmentMethod(userId: string, dto: SetFulfillmentMethodDto) {
+  async setFulfillmentMethod(
+    userId: string,
+    dto: SetFulfillmentMethodDto,
+  ): Promise<SetFulfillmentMethodResponse> {
     switch (dto.method) {
       case FulfillmentMethod.SELF:
         await this.systemSettingsRepository.upsert(userId, {
@@ -48,13 +62,14 @@ export class SystemSettingsService {
         if (!dto.shipbobPersonalAccessToken) {
           throw new BadRequestException('shipbobPersonalAccessToken is required for shipbob');
         }
-        // TODO: Implement proper verification later on
-        // await this.verifyShipBobCredentials(dto.shipbobPersonalAccessToken, dto.shipbobChannelId);
+        const { channelId: shipbobChannelId } = await this.shipBobService.verifyCredentials(
+          dto.shipbobPersonalAccessToken,
+        );
         await this.systemSettingsRepository.upsert(userId, {
           fulfillmentMethod: dto.method,
           warehouseEmail: null,
           shipbobPersonalAccessToken: dto.shipbobPersonalAccessToken,
-          shipbobChannelId: null, // TODO: Get channel id using pat and store in system settings
+          shipbobChannelId,
           shipstationApiKey: null,
         });
         break;
@@ -63,8 +78,7 @@ export class SystemSettingsService {
         if (!dto.shipstationApiKey) {
           throw new BadRequestException('shipstationApiKey is required for shipstation');
         }
-        // TODO: Implement proper verification later on
-        // await this.verifyShipStationCredentials(dto.shipstationApiKey);
+        await this.shipStationService.verifyCredentials(dto.shipstationApiKey);
         await this.systemSettingsRepository.upsert(userId, {
           fulfillmentMethod: dto.method,
           warehouseEmail: null,
@@ -76,36 +90,5 @@ export class SystemSettingsService {
     }
 
     return { message: 'Fulfillment method updated successfully' };
-  }
-
-  private async verifyShipBobCredentials(apiKey: string, channelId: string) {
-    try {
-      await axios.get('https://api.shipbob.com/2025-07/channel', {
-        headers: {
-          Authorization: `Bearer ${apiKey}`,
-          shipbob_channel_id: channelId,
-        },
-      });
-    } catch (error: any) {
-      if (error?.response?.status === 401 || error?.response?.status === 403) {
-        throw new BadRequestException('Invalid ShipBob API key or channel ID');
-      }
-      throw new BadRequestException('Invalid ShipBob API key or channel ID');
-    }
-  }
-
-  private async verifyShipStationCredentials(apiKey: string) {
-    try {
-      await axios.get('https://ssapi.shipstation.com/accounts', {
-        headers: {
-          Authorization: `SS ${apiKey}:`,
-        },
-      });
-    } catch (error: any) {
-      if (error?.response?.status === 401) {
-        throw new BadRequestException('Invalid ShipStation API key');
-      }
-      throw new BadRequestException('Invalid ShipStation API key');
-    }
   }
 }

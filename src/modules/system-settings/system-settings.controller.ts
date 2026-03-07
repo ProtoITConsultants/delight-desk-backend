@@ -4,6 +4,7 @@ import { CurrentUserId } from 'src/decorators/current-user.decorator';
 import { SessionGuard } from 'src/guards/session.guard';
 import { SetFulfillmentMethodDto } from './dto';
 import { SystemSettingsService } from './system-settings.service';
+import { FulfillmentMethodResponse, SetFulfillmentMethodResponse } from './system-settings.types';
 
 @ApiTags('System Settings')
 @Controller('system-settings')
@@ -19,7 +20,7 @@ export class SystemSettingsController {
   @ApiCookieAuth('connect.sid')
   @ApiResponse({ status: 200, description: 'Fulfillment method retrieved successfully' })
   @ApiResponse({ status: 401, description: 'Unauthorized - User not authenticated' })
-  getFulfillmentMethod(@CurrentUserId() userId: string) {
+  getFulfillmentMethod(@CurrentUserId() userId: string): Promise<FulfillmentMethodResponse> {
     return this.systemSettingsService.getFulfillmentMethod(userId);
   }
 
@@ -37,7 +38,10 @@ export class SystemSettingsController {
     description: 'Bad request - Invalid credentials or missing required fields',
   })
   @ApiResponse({ status: 401, description: 'Unauthorized - User not authenticated' })
-  setFulfillmentMethod(@CurrentUserId() userId: string, @Body() dto: SetFulfillmentMethodDto) {
+  setFulfillmentMethod(
+    @CurrentUserId() userId: string,
+    @Body() dto: SetFulfillmentMethodDto,
+  ): Promise<SetFulfillmentMethodResponse> {
     return this.systemSettingsService.setFulfillmentMethod(userId, dto);
   }
 }

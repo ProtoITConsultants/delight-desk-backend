@@ -21,6 +21,7 @@ export const systemSettings = pgTable('system_settings', {
   shipbobPersonalAccessToken: text('shipbob_personal_access_token'),
   shipbobChannelId: text('shipbob_channel_id'),
   shipstationApiKey: text('shipstation_api_key'),
+  shipstationApiSecret: text('shipstation_api_secret'),
 
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),

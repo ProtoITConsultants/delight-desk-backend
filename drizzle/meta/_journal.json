@@ -330,6 +330,13 @@
       "when": 1772817318708,
       "tag": "0046_uneven_wendigo",
       "breakpoints": true
+    },
+    {
+      "idx": 47,
+      "version": "7",
+      "when": 1772822407692,
+      "tag": "0047_small_firelord",
+      "breakpoints": true
     }
   ]
 }

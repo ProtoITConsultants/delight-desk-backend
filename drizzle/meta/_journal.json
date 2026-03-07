@@ -337,6 +337,13 @@
       "when": 1772822407692,
       "tag": "0047_small_firelord",
       "breakpoints": true
+    },
+    {
+      "idx": 48,
+      "version": "7",
+      "when": 1772881694999,
+      "tag": "0048_strange_rattler",
+      "breakpoints": true
     }
   ]
 }

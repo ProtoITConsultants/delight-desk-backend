@@ -1,51 +1,34 @@
 import { BadRequestException, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import axios from 'axios';
-
-/**
- * ShipStation Order Status enum
- * Based on ShipStation API documentation
- */
-export enum ShipStationOrderStatus {
-  AWAITING_PAYMENT = 'awaiting_payment',
-  AWAITING_SHIPMENT = 'awaiting_shipment',
-  PENDING_FULFILLMENT = 'pending_fulfillment',
-  SHIPPED = 'shipped',
-  ON_HOLD = 'on_hold',
-  CANCELLED = 'cancelled',
-}
+import { SystemSettingsRepository } from 'src/database/repos/system-settings.repository';
+import {
+  ShipStationLabel,
+  ShipStationLabelsResponse,
+  ShipStationShipment,
+  ShipStationShipmentsResponse,
+  ShipStationShipmentStatus,
+  ShipStationVoidLabelResponse,
+} from './shipstation.types';
 
 /**
  * ShipStation Service
- * Integrates with ShipStation API V1 for order and shipment management
+ * Integrates with ShipStation API v2 for shipment and label cancellation workflows.
  *
- * API Documentation: https://www.shipstation.com/docs/api/
- * Authentication Docs: https://www.shipstation.com/docs/api/requirements/
+ * OpenAPI: ShipStation API v2 (3.1.0 / version 2.0.0)
  */
 @Injectable()
 export class ShipStationService {
   private readonly logger = new Logger(ShipStationService.name);
-  private readonly apiKey: string;
   private readonly baseUrl: string;
-  private readonly axiosInstance: any;
   private readonly isTestMode: boolean;
 
-  constructor(private readonly configService: ConfigService) {
-    this.apiKey = this.configService.get<string>('SHIPSTATION_API_KEY') || '';
-    this.baseUrl =
-      this.configService.get<string>('SHIPSTATION_BASE_URL') || 'https://ssapi.shipstation.com';
+  constructor(
+    private readonly configService: ConfigService,
+    private readonly systemSettingsRepository: SystemSettingsRepository,
+  ) {
+    this.baseUrl = this.configService.get<string>('SHIPSTATION_BASE_URL') as string;
     this.isTestMode = this.configService.get<string>('SHIPSTATION_TEST_MODE') === 'true';
-
-    if (!this.apiKey) {
-      throw new Error('SHIPSTATION_API_KEY is not configured');
-    }
-
-    this.axiosInstance = axios.create({
-      baseURL: this.baseUrl,
-      headers: {
-        'api-key': this.apiKey,
-      },
-    });
 
     this.logger.log('ShipStation service initialized', {
       baseUrl: this.baseUrl,
@@ -54,332 +37,376 @@ export class ShipStationService {
   }
 
   /**
-   * Get order by order number (external reference, e.g., WooCommerce order number)
-   * @param orderNumber - External order number
-   * @returns Order details or null if not found
+   * Get shipment by shipment number (treated as external order number from WooCommerce).
    *
-   * API: GET /orders?orderNumber={orderNumber}
-   * Docs: https://www.shipstation.com/docs/api/orders/list-orders/
+   * API: GET /v2/shipments?shipment_number={orderNumber}
    */
-  async getOrderByOrderNumber(orderNumber: string): Promise<any | null> {
+  async getOrderByOrderNumber(
+    userId: string,
+    orderNumber: string,
+  ): Promise<ShipStationShipment | null> {
     try {
-      this.logger.log(`Fetching ShipStation order by number: ${orderNumber}`);
+      this.logger.log(`Fetching ShipStation shipment by shipment_number: ${orderNumber}`);
+      const axiosInstance = await this.getClientForUser(userId);
 
-      const response = await this.axiosInstance.get('/orders', {
+      const response = await axiosInstance.get<ShipStationShipmentsResponse>('/v2/shipments', {
         params: {
-          orderNumber,
+          shipment_number: orderNumber,
+          page: 1,
+          page_size: 1,
         },
       });
 
-      if (response.data && response.data.orders && response.data.orders.length > 0) {
-        const order = response.data.orders[0];
-        this.logger.log(`ShipStation order found: ${orderNumber}`, {
-          orderId: order.orderId,
-          orderStatus: order.orderStatus,
+      const shipment = response.data.shipments?.[0];
+      if (shipment) {
+        this.logger.log(`ShipStation shipment found for ${orderNumber}`, {
+          shipmentId: shipment.shipment_id,
+          shipmentStatus: shipment.shipment_status,
         });
-        return order;
+        return shipment;
       }
 
-      this.logger.warn(`No ShipStation order found for order number: ${orderNumber}`);
+      this.logger.warn(`No ShipStation shipment found for shipment_number: ${orderNumber}`);
       return null;
-    } catch (error) {
-      if (error.response?.status === 404) {
+    } catch (error: any) {
+      if (error?.response?.status === 404) {
         return null;
       }
 
-      this.logger.error(`Error fetching ShipStation order: ${error.message}`, {
+      this.logger.error(`Error fetching ShipStation shipment: ${error?.message}`, {
+        userId,
         orderNumber,
-        error,
+        status: error?.response?.status,
+        data: error?.response?.data,
       });
-      throw new BadRequestException('Failed to fetch order from ShipStation');
+      this.throwShipStationApiError(error, 'Failed to fetch order from ShipStation');
     }
   }
 
   /**
-   * Get order by ShipStation order ID
-   * @param orderId - ShipStation internal order ID
-   * @returns Order details
-   * @throws NotFoundException if order not found
-   *
-   * API: GET /orders/{orderId}
-   * Docs: https://www.shipstation.com/docs/api/orders/get-order/
+   * Resolve a ShipStation shipment from the WooCommerce order ID.
    */
-  async getOrderById(orderId: number): Promise<any> {
+  async getOrderByWooCommerceOrderId(
+    userId: string,
+    wooCommerceOrderId: string,
+  ): Promise<ShipStationShipment | null> {
+    return this.getOrderByOrderNumber(userId, wooCommerceOrderId);
+  }
+
+  /**
+   * Get shipment by ShipStation shipment ID.
+   *
+   * API: GET /v2/shipments/{shipment_id}
+   */
+  async getOrderById(userId: string, orderId: number | string): Promise<ShipStationShipment> {
+    const shipmentId = String(orderId);
+
     try {
-      this.logger.log(`Fetching ShipStation order by ID: ${orderId}`);
+      this.logger.log(`Fetching ShipStation shipment by ID: ${shipmentId}`);
+      const axiosInstance = await this.getClientForUser(userId);
 
-      const response = await this.axiosInstance.get(`/orders/${orderId}`);
-
-      this.logger.log(`ShipStation order retrieved: ${orderId}`, {
-        orderNumber: response.data.orderNumber,
-        orderStatus: response.data.orderStatus,
+      const response = await axiosInstance.get<ShipStationShipment>(`/v2/shipments/${shipmentId}`);
+      return response.data;
+    } catch (error: any) {
+      this.logger.error(`Error fetching ShipStation shipment by ID: ${error?.message}`, {
+        userId,
+        shipmentId,
+        status: error?.response?.status,
+        data: error?.response?.data,
       });
 
-      return response.data;
-    } catch (error) {
-      if (error.response) {
-        this.logger.error(`ShipStation API error: ${error.message}`, {
-          status: error.response?.status,
-          data: error.response?.data,
-          orderId,
-        });
-
-        if (error.response?.status === 404) {
-          throw new NotFoundException(`ShipStation order not found: ${orderId}`);
-        }
-
-        if (error.response?.status === 401) {
-          throw new BadRequestException('ShipStation API authentication failed');
-        }
-
-        throw new BadRequestException(
-          `Failed to fetch ShipStation order: ${error.response?.data?.message || error.message}`,
-        );
+      if (error?.response?.status === 404) {
+        throw new NotFoundException(`ShipStation shipment not found: ${shipmentId}`);
       }
 
-      this.logger.error(`Unexpected error fetching ShipStation order: ${error.message}`, {
-        orderId,
-        error,
-      });
-      throw new BadRequestException('Failed to fetch order from ShipStation');
+      this.throwShipStationApiError(error, 'Failed to fetch order from ShipStation');
     }
   }
 
   /**
-   * Check if order is eligible for cancellation
-   * An order is eligible if it hasn't been shipped yet
-   * @param orderNumber - External order number (e.g., WooCommerce order number)
-   * @returns Eligibility result with reason
-   * @throws NotFoundException if order not found
+   * Check whether a shipment is eligible for cancellation.
+   * A cancelled shipment is not eligible. Active labels must be voided first.
    */
   async checkCancellationEligibility(
+    userId: string,
     orderNumber: string,
-  ): Promise<{ eligible: boolean; reason: string; order: any }> {
+  ): Promise<{ eligible: boolean; reason: string; order: ShipStationShipment }> {
     try {
-      this.logger.log(`Checking cancellation eligibility for order: ${orderNumber}`);
+      this.logger.log(`Checking ShipStation cancellation eligibility for: ${orderNumber}`);
 
-      const order = await this.getOrderByOrderNumber(orderNumber);
-
-      if (!order) {
+      const shipment = await this.getOrderByOrderNumber(userId, orderNumber);
+      if (!shipment) {
         throw new NotFoundException(`Order not found in ShipStation: ${orderNumber}`);
       }
 
-      // Check if order status allows cancellation
-      if (order.orderStatus === ShipStationOrderStatus.SHIPPED) {
+      if (shipment.shipment_status === ShipStationShipmentStatus.CANCELLED) {
         return {
           eligible: false,
-          reason: 'Order has already been shipped',
-          order,
+          reason: 'Shipment is already cancelled',
+          order: shipment,
         };
       }
 
-      if (order.orderStatus === ShipStationOrderStatus.CANCELLED) {
+      const labels = await this.getShipmentLabels(userId, shipment.shipment_id);
+      const activeLabels = labels.filter((label) => !label.voided);
+      if (activeLabels.length > 0) {
         return {
           eligible: false,
-          reason: 'Order is already cancelled',
-          order,
+          reason: 'Shipment has active labels that must be voided before cancellation',
+          order: shipment,
         };
       }
 
-      // Check if order has shipments with labels
-      if (order.shipments && order.shipments.length > 0) {
-        const shippedShipments = order.shipments.filter((s: any) => s.voided === false);
-        if (shippedShipments.length > 0) {
-          return {
-            eligible: false,
-            reason: 'Order has active shipment labels that need to be voided first',
-            order,
-          };
-        }
-      }
-
-      // Order is eligible for cancellation
       return {
         eligible: true,
-        reason: 'Order is eligible for cancellation',
-        order,
+        reason: 'Shipment is eligible for cancellation',
+        order: shipment,
       };
-    } catch (error) {
+    } catch (error: any) {
       if (error instanceof NotFoundException || error instanceof BadRequestException) {
         throw error;
       }
 
-      this.logger.error(`Error checking cancellation eligibility: ${error.message}`, {
+      this.logger.error(`Error checking ShipStation cancellation eligibility: ${error?.message}`, {
+        userId,
         orderNumber,
-        error,
       });
       throw new BadRequestException('Failed to check cancellation eligibility');
     }
   }
 
   /**
-   * Void shipment labels for an order
-   * Must be done before canceling/deleting an order with shipments
-   * @param shipmentId - ShipStation shipment ID
-   * @returns Void result
-   * @throws BadRequestException if voiding fails
+   * Void a label by its ShipStation label ID.
    *
-   * API: POST /shipments/voidlabel
-   * Docs: https://www.shipstation.com/docs/api/shipments/void-label/
+   * API: PUT /v2/labels/{label_id}/void
    */
-  async voidShipmentLabel(shipmentId: number): Promise<{ approved: boolean; message: string }> {
-    try {
-      this.logger.log(`Voiding shipment label: ${shipmentId}`);
+  async voidShipmentLabel(
+    userId: string,
+    labelId: number | string,
+  ): Promise<{ approved: boolean; message: string }> {
+    const normalizedLabelId = String(labelId);
 
-      const response = await this.axiosInstance.post('/shipments/voidlabel', {
-        shipmentId,
+    try {
+      this.logger.log(`Voiding ShipStation label: ${normalizedLabelId}`);
+      const axiosInstance = await this.getClientForUser(userId);
+
+      const response = await axiosInstance.put<ShipStationVoidLabelResponse>(
+        `/v2/labels/${normalizedLabelId}/void`,
+      );
+
+      this.logger.log(`ShipStation label void response: ${normalizedLabelId}`, {
+        approved: response.data.approved,
+        reasonCode: response.data.reason_code,
       });
 
-      this.logger.log(`Shipment label voided: ${shipmentId}`, {
+      return {
         approved: response.data.approved,
         message: response.data.message,
+      };
+    } catch (error: any) {
+      this.logger.error(`Error voiding ShipStation label: ${error?.message}`, {
+        userId,
+        labelId: normalizedLabelId,
+        status: error?.response?.status,
+        data: error?.response?.data,
       });
-
-      return response.data;
-    } catch (error) {
-      if (error.response) {
-        this.logger.error(`ShipStation void label API error: ${error.message}`, {
-          status: error.response?.status,
-          data: error.response?.data,
-          shipmentId,
-        });
-
-        throw new BadRequestException(
-          `Failed to void shipment label: ${error.response?.data?.message || error.message}`,
-        );
-      }
-
-      this.logger.error(`Unexpected error voiding shipment label: ${error.message}`, {
-        shipmentId,
-        error,
-      });
-      throw new BadRequestException('Failed to void shipment label');
+      this.throwShipStationApiError(error, 'Failed to void shipment label');
     }
   }
 
   /**
-   * Delete (cancel) an order
-   * This is a soft delete - order is set to inactive but remains in database
-   * @param orderId - ShipStation internal order ID
-   * @returns Deletion result
-   * @throws NotFoundException if order not found
-   * @throws BadRequestException for API errors
+   * Cancel a shipment by ShipStation shipment ID.
    *
-   * API: DELETE /orders/{orderId}
-   * Docs: https://www.shipstation.com/docs/api/orders/delete/
+   * API: PUT /v2/shipments/{shipment_id}/cancel (204 on success)
    */
-  async deleteOrder(orderId: number): Promise<{ success: boolean; message: string }> {
+  async deleteOrder(
+    userId: string,
+    orderId: number | string,
+  ): Promise<{ success: boolean; message: string }> {
+    const shipmentId = String(orderId);
+
     try {
-      this.logger.log(`Deleting ShipStation order: ${orderId}`);
+      this.logger.log(`Cancelling ShipStation shipment: ${shipmentId}`);
+      const axiosInstance = await this.getClientForUser(userId);
+      await axiosInstance.put(`/v2/shipments/${shipmentId}/cancel`);
 
-      const response = await this.axiosInstance.delete(`/orders/${orderId}`);
-
-      this.logger.log(`ShipStation order deleted: ${orderId}`, {
-        success: response.data.success,
-        message: response.data.message,
+      return {
+        success: true,
+        message: `Shipment ${shipmentId} cancelled successfully`,
+      };
+    } catch (error: any) {
+      this.logger.error(`Error cancelling ShipStation shipment: ${error?.message}`, {
+        userId,
+        shipmentId,
+        status: error?.response?.status,
+        data: error?.response?.data,
       });
 
-      return response.data;
-    } catch (error) {
-      if (error.response) {
-        this.logger.error(`ShipStation delete order API error: ${error.message}`, {
-          status: error.response?.status,
-          data: error.response?.data,
-          orderId,
-        });
-
-        if (error.response?.status === 404) {
-          throw new NotFoundException(`ShipStation order not found: ${orderId}`);
-        }
-
-        if (error.response?.status === 401) {
-          throw new BadRequestException('ShipStation API authentication failed');
-        }
-
-        throw new BadRequestException(
-          `Failed to delete order: ${error.response?.data?.message || error.message}`,
-        );
+      if (error?.response?.status === 404) {
+        throw new NotFoundException(`ShipStation shipment not found: ${shipmentId}`);
       }
 
-      this.logger.error(`Unexpected error deleting ShipStation order: ${error.message}`, {
-        orderId,
-        error,
-      });
-      throw new BadRequestException('Failed to delete order from ShipStation');
+      this.throwShipStationApiError(error, 'Failed to cancel shipment in ShipStation');
     }
   }
 
   /**
-   * Cancel order by order number
-   * Handles voiding labels if necessary, then deletes the order
-   * @param orderNumber - External order number (e.g., WooCommerce order number)
-   * @returns Cancellation result with details
-   * @throws NotFoundException if order not found
-   * @throws BadRequestException for API errors or if order can't be cancelled
+   * Cancel a shipment by shipment number (external order number).
+   * Any active labels are voided first, then the shipment is cancelled.
    */
-  async cancelOrder(orderNumber: string): Promise<{
+  async cancelOrder(
+    userId: string,
+    orderNumber: string,
+  ): Promise<{
     success: boolean;
     message: string;
     voidedLabels: number;
     details: any;
   }> {
     try {
-      this.logger.log(`Attempting to cancel ShipStation order: ${orderNumber}`);
+      this.logger.log(`Attempting ShipStation cancellation for order number: ${orderNumber}`);
 
-      // Check eligibility
-      const eligibility = await this.checkCancellationEligibility(orderNumber);
-
-      if (!eligibility.eligible) {
-        this.logger.warn(`Order ${orderNumber} not eligible for cancellation`, {
-          reason: eligibility.reason,
-        });
-        throw new BadRequestException(`Cannot cancel order: ${eligibility.reason}`);
+      const shipment = await this.getOrderByOrderNumber(userId, orderNumber);
+      if (!shipment) {
+        throw new NotFoundException(`Order not found in ShipStation: ${orderNumber}`);
       }
 
-      const order = eligibility.order;
+      if (shipment.shipment_status === ShipStationShipmentStatus.CANCELLED) {
+        throw new BadRequestException('Shipment is already cancelled');
+      }
+
+      const labels = await this.getShipmentLabels(userId, shipment.shipment_id);
+      const activeLabels = labels.filter((label) => !label.voided);
+
       let voidedLabels = 0;
-
-      // Void any active shipment labels first
-      if (order.shipments && order.shipments.length > 0) {
-        for (const shipment of order.shipments) {
-          if (!shipment.voided && shipment.shipmentId) {
-            try {
-              await this.voidShipmentLabel(shipment.shipmentId);
-              voidedLabels++;
-            } catch (error) {
-              this.logger.warn(`Failed to void shipment label ${shipment.shipmentId}`, {
-                error: error.message,
-              });
-              // Continue with cancellation even if void fails
-            }
-          }
+      for (const label of activeLabels) {
+        const result = await this.voidShipmentLabel(userId, label.label_id);
+        if (!result.approved) {
+          throw new BadRequestException(
+            `Cannot cancel shipment because label ${label.label_id} could not be voided: ${result.message}`,
+          );
         }
+        voidedLabels++;
       }
 
-      // Delete the order
-      const deleteResult = await this.deleteOrder(order.orderId);
+      const cancelResult = await this.deleteOrder(userId, shipment.shipment_id);
 
-      this.logger.log(`ShipStation order cancelled: ${orderNumber}`, {
-        orderId: order.orderId,
+      this.logger.log(`ShipStation shipment cancelled for order number: ${orderNumber}`, {
+        shipmentId: shipment.shipment_id,
         voidedLabels,
       });
 
       return {
-        success: deleteResult.success,
+        success: cancelResult.success,
         message: `Order ${orderNumber} cancelled successfully`,
         voidedLabels,
-        details: deleteResult,
+        details: {
+          shipmentId: shipment.shipment_id,
+          cancellation: cancelResult,
+        },
       };
-    } catch (error) {
+    } catch (error: any) {
       if (error instanceof NotFoundException || error instanceof BadRequestException) {
         throw error;
       }
 
-      this.logger.error(`Unexpected error cancelling ShipStation order: ${error.message}`, {
+      this.logger.error(`Unexpected error cancelling ShipStation shipment: ${error?.message}`, {
+        userId,
         orderNumber,
-        error,
       });
       throw new BadRequestException('Failed to cancel order in ShipStation');
     }
+  }
+
+  /**
+   * Cancel a ShipStation order using the WooCommerce order ID.
+   */
+  async cancelOrderByWooCommerceOrderId(userId: string, wooCommerceOrderId: string) {
+    return this.cancelOrder(userId, wooCommerceOrderId);
+  }
+
+  async verifyCredentials(apiKey: string): Promise<void> {
+    try {
+      const axiosInstance = this.createClient(apiKey);
+      // Use a lightweight endpoint for key validation.
+      // The docs mock for /v2/shipments can return non-auth 400s.
+      await axiosInstance.get('/v2/tags');
+    } catch (error: any) {
+      if (error?.response?.status === 401 || error?.response?.status === 403) {
+        throw new BadRequestException('Invalid ShipStation API key');
+      }
+
+      if (error instanceof BadRequestException) {
+        throw error;
+      }
+
+      const apiMessage =
+        error?.response?.data?.errors?.[0]?.message ||
+        error?.response?.data?.message ||
+        error?.message;
+      throw new BadRequestException(apiMessage || 'Unable to verify ShipStation credentials');
+    }
+  }
+
+  private async getShipmentLabels(userId: string, shipmentId: string): Promise<ShipStationLabel[]> {
+    try {
+      const axiosInstance = await this.getClientForUser(userId);
+      const response = await axiosInstance.get<ShipStationLabelsResponse>('/v2/labels', {
+        params: {
+          shipment_id: shipmentId,
+          page: 1,
+          page_size: 500,
+        },
+      });
+
+      return response.data.labels ?? [];
+    } catch (error: any) {
+      this.logger.error(`Error listing ShipStation labels for shipment: ${error?.message}`, {
+        userId,
+        shipmentId,
+        status: error?.response?.status,
+        data: error?.response?.data,
+      });
+      this.throwShipStationApiError(error, 'Failed to fetch shipment labels');
+    }
+  }
+
+  private throwShipStationApiError(error: any, fallbackMessage: string): never {
+    const status = error?.response?.status;
+    const apiMessage = error?.response?.data?.message || error?.message;
+
+    if (status === 401 || status === 403) {
+      throw new BadRequestException('ShipStation API authentication failed');
+    }
+
+    if (status === 404) {
+      throw new NotFoundException(apiMessage || 'ShipStation resource not found');
+    }
+
+    throw new BadRequestException(apiMessage || fallbackMessage);
+  }
+
+  private createClient(apiKey: string) {
+    return axios.create({
+      baseURL: this.baseUrl,
+      headers: {
+        'api-key': apiKey,
+        'Content-Type': 'application/json',
+      },
+      timeout: 10000,
+    });
+  }
+
+  private async getClientForUser(userId: string) {
+    const settings = await this.systemSettingsRepository.findByUser(userId);
+    const apiKey = settings?.shipstationApiKey;
+
+    if (!apiKey) {
+      throw new BadRequestException(
+        'ShipStation API key is not configured for this user. Please set ShipStation fulfillment first.',
+      );
+    }
+
+    return this.createClient(apiKey);
   }
 }

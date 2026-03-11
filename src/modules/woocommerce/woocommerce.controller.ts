@@ -1,7 +1,7 @@
 import { SessionGuard } from 'src/guards/session.guard';
 import { WooCommerceService } from './woocommerce.service';
 import { CurrentUserId } from 'src/decorators/current-user.decorator';
-import { InitializeWooOAuthDto, ManualConnectWooDto } from './dto/index.dto';
+import { InitializeWooOAuthDto, ManualConnectWooDto, GetOrdersQueryDto } from './dto/index.dto';
 import {
   Body,
   Controller,
@@ -94,9 +94,20 @@ export class WooCommerceController {
 
   @UseGuards(SessionGuard)
   @Get('order')
-  @ApiExcludeEndpoint()
-  getOrders(@CurrentUserId() userId: string, @Query('perPage') perPage: string) {
-    return this.wooCommerceRestApiService.getOrders(userId, Number(perPage));
+  @ApiOperation({
+    summary: 'Fetch orders',
+    description: 'Fetch orders from the connected WooCommerce store. Optionally filter by status and use pagination.',
+  })
+  @ApiCookieAuth('connect.sid')
+  @ApiResponse({ status: 200, description: 'List of orders' })
+  @ApiResponse({ status: 401, description: 'Unauthorized' })
+  @ApiResponse({ status: 404, description: 'WooCommerce connection not found' })
+  getOrders(@CurrentUserId() userId: string, @Query() query: GetOrdersQueryDto) {
+    return this.wooCommerceRestApiService.getOrders(userId, {
+      status: query.status,
+      page: query.page,
+      perPage: query.perPage,
+    });
   }
 
   @UseGuards(SessionGuard)
@@ -107,5 +118,19 @@ export class WooCommerceController {
     @Param('customerEmail') customerEmail: string,
   ) {
     return this.wooCommerceRestApiService.getMostRecentOrderByEmail(userId, customerEmail);
+  }
+
+  @UseGuards(SessionGuard)
+  @Get('order/:orderId')
+  @ApiOperation({
+    summary: 'Get order by ID',
+    description: 'Fetch a single order by its WooCommerce order ID',
+  })
+  @ApiCookieAuth('connect.sid')
+  @ApiResponse({ status: 200, description: 'Order details' })
+  @ApiResponse({ status: 401, description: 'Unauthorized' })
+  @ApiResponse({ status: 404, description: 'Order or WooCommerce connection not found' })
+  getOrderById(@CurrentUserId() userId: string, @Param('orderId') orderId: string) {
+    return this.wooCommerceRestApiService.getOrderById(userId, orderId);
   }
 }

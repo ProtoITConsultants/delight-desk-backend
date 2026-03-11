@@ -118,7 +118,7 @@ export class WooCommerceService {
 
     try {
       while (ordersWithTrackingNumber < totalToCheck) {
-        const orders = await this.wooCommerceRestApiService.getOrders(userId, perPage);
+        const orders = await this.wooCommerceRestApiService.getOrders(userId, { perPage });
 
         if (!orders || orders.length === 0) break;
 

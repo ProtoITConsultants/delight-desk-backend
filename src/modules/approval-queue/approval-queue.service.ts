@@ -7,12 +7,22 @@ import {
 import { ApprovalQueueRepository } from '../../database/repos/approval-queue.repository';
 import { ApprovalQueueActionsRepository } from '../../database/repos/approval-queue-actions.repository';
 import { EscalationsRepository } from '../../database/repos/escalations.repository';
+import { SystemSettingsRepository } from '../../database/repos/system-settings.repository';
+import { EditAndApproveDto, GetApprovalQueueDto, RejectItemDto } from './approval-queue.dto';
 import {
+  ApprovalProgressStage,
+  ApprovalProgressStageStatus,
+  ApprovalQueueActionProgressResponse,
   ApprovalQueueStatsResponse,
-  EditAndApproveDto,
-  GetApprovalQueueDto,
-  RejectItemDto,
-} from './approval-queue.dto';
+  ProgressFulfillmentMethod,
+  QueueAction,
+  QueueSummary,
+  StageBlueprint,
+} from './approval-queue.types';
+import {
+  CUSTOM_WAREHOUSE_STAGES,
+  SELF_FULFILLMENT_STAGES,
+} from './approval-queue-progress.constants';
 import { HumanDecision } from '../temporal/workflows/types';
 import { InfraService } from '../temporal/infra.service';
 
@@ -22,6 +32,7 @@ export class ApprovalQueueService {
     private readonly approvalQueueRepository: ApprovalQueueRepository,
     private readonly approvalQueueActionsRepository: ApprovalQueueActionsRepository,
     private readonly escalationsRepository: EscalationsRepository,
+    private readonly systemSettingsRepository: SystemSettingsRepository,
     private readonly infraService: InfraService,
   ) {}
 
@@ -59,6 +70,12 @@ export class ApprovalQueueService {
 
     const ids = items.map((item) => item.approval.id);
     const allActions = await this.approvalQueueActionsRepository.getActionsForApprovalQueueIds(ids);
+    const hasOrderCancellationItems = items.some(
+      (item) => item.approval.category === 'order_cancellation',
+    );
+    const userSettings = hasOrderCancellationItems
+      ? await this.systemSettingsRepository.findByUser(userId)
+      : null;
     const escalationIds = allActions
       .map((action) => action.escalationId)
       .filter((id): id is string => Boolean(id));
@@ -84,6 +101,19 @@ export class ApprovalQueueService {
 
     const data = items.map((item) => {
       const actions = actionsByApprovalId[item.approval.id] ?? [];
+      const actionProgress =
+        item.approval.category === 'order_cancellation'
+          ? this.buildOrderCancellationProgress(
+              {
+                id: item.approval.id,
+                workflowId: item.approval.workflowId,
+                category: item.approval.category,
+                status: item.approval.status,
+              },
+              actions,
+              userSettings?.fulfillmentMethod,
+            )
+          : null;
       return {
         id: item.approval.id,
         workflowId: item.approval.workflowId,
@@ -107,6 +137,7 @@ export class ApprovalQueueService {
           escalationReason:
             action.escalationReason ?? escalationReasonById.get(action.escalationId ?? '') ?? null,
         })),
+        actionProgress,
       };
     });
 
@@ -272,5 +303,119 @@ export class ApprovalQueueService {
 
   async getStats(userId: string): Promise<ApprovalQueueStatsResponse> {
     return await this.approvalQueueRepository.getStats(userId);
+  }
+
+  private buildOrderCancellationProgress(
+    queue: QueueSummary,
+    actions: QueueAction[],
+    configuredMethod: string | null | undefined,
+  ): ApprovalQueueActionProgressResponse {
+    const fulfillmentMethod = this.resolveFulfillmentMethod(configuredMethod, actions);
+    const stages = this.buildStagesForMethod(fulfillmentMethod);
+    const timeline = stages.map((stage) => this.buildStageProgress(stage, actions, queue.status));
+
+    const currentStep =
+      timeline.find((stage) => stage.status === 'blocked') ||
+      timeline.find((stage) => stage.status === 'in_progress') ||
+      timeline.find((stage) => stage.status === 'pending') ||
+      null;
+    const nextSteps = currentStep
+      ? timeline
+          .filter((stage) => stage.order > currentStep.order && stage.status === 'pending')
+          .slice(0, 2)
+      : [];
+
+    return {
+      approvalQueueId: queue.id,
+      workflowId: queue.workflowId,
+      category: queue.category,
+      workflowStatus: queue.status,
+      fulfillmentMethod,
+      currentStep,
+      nextSteps,
+      timeline,
+    };
+  }
+
+  private resolveFulfillmentMethod(
+    configuredMethod: string | null | undefined,
+    actions: QueueAction[],
+  ): ProgressFulfillmentMethod {
+    const actionTypes = new Set(
+      actions.map((action) => this.normalizeActionType(action.actionType)),
+    );
+    if (
+      actionTypes.has('contact_warehouse') ||
+      actionTypes.has('wait_for_warehouse_reply') ||
+      actionTypes.has('validate_customer_email')
+    ) {
+      return 'custom_warehouse';
+    }
+
+    if (
+      configuredMethod === 'self' ||
+      configuredMethod === 'custom_warehouse' ||
+      configuredMethod === 'shipstation' ||
+      configuredMethod === 'shipbob'
+    ) {
+      return configuredMethod;
+    }
+
+    if (actionTypes.has('process_cancellation') || actionTypes.has('process_refund')) {
+      return 'self';
+    }
+
+    return 'unknown';
+  }
+
+  private buildStagesForMethod(fulfillmentMethod: ProgressFulfillmentMethod): StageBlueprint[] {
+    if (fulfillmentMethod === 'custom_warehouse') {
+      return CUSTOM_WAREHOUSE_STAGES;
+    }
+
+    // Default order-cancellation map for self + unknown, so UI always has a stable timeline.
+    return SELF_FULFILLMENT_STAGES;
+  }
+
+  private buildStageProgress(
+    stage: StageBlueprint,
+    actions: QueueAction[],
+    workflowStatus: string,
+  ): ApprovalProgressStage {
+    const stageActionTypeSet = new Set(
+      stage.actionTypes.map((actionType) => this.normalizeActionType(actionType)),
+    );
+    const stageActions = actions.filter((action) =>
+      stageActionTypeSet.has(this.normalizeActionType(action.actionType)),
+    );
+    const actionStatuses = stageActions.map((action) => action.actionStatus);
+    const blockedStatuses = new Set(['failed', 'escalated', 'rejected']);
+    const inProgressStatuses = new Set(['pending_approval', 'approved', 'executing']);
+
+    let status: ApprovalProgressStageStatus = 'pending';
+    if (actionStatuses.some((actionStatus) => blockedStatuses.has(actionStatus))) {
+      status = 'blocked';
+    } else if (actionStatuses.some((actionStatus) => inProgressStatuses.has(actionStatus))) {
+      status = 'in_progress';
+    } else if (actionStatuses.some((actionStatus) => actionStatus === 'executed')) {
+      status = 'completed';
+    }
+
+    if (status === 'pending' && workflowStatus === 'cancelled') {
+      status = 'cancelled';
+    }
+
+    return {
+      key: stage.key,
+      label: stage.label,
+      order: stage.order,
+      status,
+      actionTypes: stage.actionTypes,
+      actionSteps: stageActions.map((action) => action.actionStep),
+    };
+  }
+
+  private normalizeActionType(actionType: string): string {
+    return actionType.replace(/^oc_/, '');
   }
 }

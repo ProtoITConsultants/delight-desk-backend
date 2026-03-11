@@ -88,12 +88,3 @@ export class EditAndApproveDto {
   @IsString()
   editedResponse: string;
 }
-
-export interface ApprovalQueueStatsResponse {
-  total: number;
-  pending: number;
-  inProgress: number;
-  escalated: number;
-  cancelled: number;
-  completed: number;
-}

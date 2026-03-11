@@ -5,9 +5,9 @@
 
 import { log, proxyActivities, sleep } from '@temporalio/workflow';
 import type { EmailActivities } from '../../../../activities/shared/email.activities';
-import type { WismoOrderActivities } from '../../../../activities/agents/wismo/wismo-order.activities';
+import type { OrderActivities } from '../../../../activities/shared/order.activities';
 import type { WismoTrackingActivities } from '../../../../activities/agents/wismo/wismo-tracking.activities';
-import type { WismoMessageActivities } from '../../../../activities/agents/wismo/wismo-messages.activities';
+import type { CustomerMessageActivities } from '../../../../activities/shared/customer-message.activities';
 import type { AiIdentityActivities } from '../../../../activities/shared/ai-identity.activities';
 import {
   ActionExecutionContext,
@@ -28,13 +28,13 @@ import { buildWismoFailureResult } from './wismo-subworkflow.helpers';
 
 // Proxy activities
 const emailActivities = proxyActivities<typeof EmailActivities.prototype>(ACTIVITY_TIMEOUTS.EMAIL);
-const wismoOrderActivities = proxyActivities<typeof WismoOrderActivities.prototype>(
+const wismoOrderActivities = proxyActivities<typeof OrderActivities.prototype>(
   ACTIVITY_TIMEOUTS.WISMO_ORDER,
 );
 const wismoTrackingActivities = proxyActivities<typeof WismoTrackingActivities.prototype>(
   ACTIVITY_TIMEOUTS.WISMO_TRACKING,
 );
-const wismoMessageActivities = proxyActivities<typeof WismoMessageActivities.prototype>(
+const wismoMessageActivities = proxyActivities<typeof CustomerMessageActivities.prototype>(
   ACTIVITY_TIMEOUTS.WISMO_MESSAGE,
 );
 const aiIdentityActivities = proxyActivities<typeof AiIdentityActivities.prototype>(

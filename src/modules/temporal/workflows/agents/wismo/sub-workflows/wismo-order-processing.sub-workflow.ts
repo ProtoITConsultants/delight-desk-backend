@@ -5,8 +5,8 @@
 
 import { log, proxyActivities } from '@temporalio/workflow';
 import type { EmailActivities } from '../../../../activities/shared/email.activities';
-import type { WismoOrderActivities } from '../../../../activities/agents/wismo/wismo-order.activities';
-import type { WismoMessageActivities } from '../../../../activities/agents/wismo/wismo-messages.activities';
+import type { OrderActivities } from '../../../../activities/shared/order.activities';
+import type { CustomerMessageActivities } from '../../../../activities/shared/customer-message.activities';
 import type { AiIdentityActivities } from '../../../../activities/shared/ai-identity.activities';
 import {
   ActionExecutionContext,
@@ -22,10 +22,10 @@ import { buildWismoFailureResult } from './wismo-subworkflow.helpers';
 
 // Proxy activities
 const emailActivities = proxyActivities<typeof EmailActivities.prototype>(ACTIVITY_TIMEOUTS.EMAIL);
-const wismoOrderActivities = proxyActivities<typeof WismoOrderActivities.prototype>(
+const wismoOrderActivities = proxyActivities<typeof OrderActivities.prototype>(
   ACTIVITY_TIMEOUTS.WISMO_ORDER,
 );
-const wismoMessageActivities = proxyActivities<typeof WismoMessageActivities.prototype>(
+const wismoMessageActivities = proxyActivities<typeof CustomerMessageActivities.prototype>(
   ACTIVITY_TIMEOUTS.WISMO_MESSAGE,
 );
 const aiIdentityActivities = proxyActivities<typeof AiIdentityActivities.prototype>(
@@ -34,21 +34,9 @@ const aiIdentityActivities = proxyActivities<typeof AiIdentityActivities.prototy
 
 const { sendCustomerNotificationViaThread } = emailActivities;
 const { getWooCommerceOrderById } = wismoOrderActivities;
-const { generateAcknowledgementMessage } = wismoMessageActivities;
+const { generateAcknowledgementMessage, generateProblematicOrderStatusMessage } = wismoMessageActivities;
 const { getAiIdentity } = aiIdentityActivities;
 const PROBLEMATIC_ORDER_STATUSES = new Set(['cancelled', 'refunded', 'failed']);
-
-function buildProblematicStatusMessage(
-  orderNumber: string | undefined,
-  orderStatus: string,
-  signature: string,
-) {
-  return `Thank you for contacting us regarding order #${orderNumber}.
-
-We've checked your order and found that it is currently marked as "${orderStatus}". Due to this status, we cannot provide tracking information at this time.
-
-${signature}`;
-}
 
 /**
  * Handle order processing phase: fetch order details and send acknowledgement
@@ -138,12 +126,14 @@ export async function handleWismoOrderProcessing(
     if (orderStatus && PROBLEMATIC_ORDER_STATUSES.has(orderStatus)) {
       // Get AI identity for message personalization
       const aiIdentity = await getCachedAiIdentity();
+      const customerName = extractCustomerName(context.email.fromEmail);
 
-      // Pre-generate the status notification message so it can be shown in the UI
-      const statusMessage = buildProblematicStatusMessage(
-        context.state.orderNumber,
+      // Generate the status notification with AI so it can be shown in the UI.
+      const statusMessage = await generateProblematicOrderStatusMessage(
+        context.state.orderNumber as string,
         orderStatus,
-        aiIdentity?.signature || 'Best regards,\nCustomer Support Team',
+        customerName,
+        aiIdentity,
       );
 
       const statusValidationResult = await executeWorkflowAction(

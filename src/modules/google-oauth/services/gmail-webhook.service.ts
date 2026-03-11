@@ -14,6 +14,7 @@ import { InfraService } from '../../temporal/infra.service';
 @Injectable()
 export class GmailWebhookService {
   private readonly logger = new Logger(GmailWebhookService.name);
+  private static readonly WAREHOUSE_WORKFLOW_MARKER_REGEX = /\[DD-OC-WF:([^\]]+)\]/i;
 
   constructor(
     private readonly repo: GoogleOauthRepository,
@@ -120,9 +121,11 @@ export class GmailWebhookService {
 
     const rawBody = text || html || snippet;
     const body = this.contentExtractor.extractNewContent(rawBody);
+    const subject = headers?.['subject'] || null;
+    const hasWarehouseWorkflowMarker = this.hasWarehouseWorkflowMarker(subject, body);
 
-    // Filter out non-customer emails
-    if (!this.emailClassifier.isLikelyCustomerEmail(body)) {
+    // Filter out non-customer emails unless this is an explicit warehouse-routing reply.
+    if (!hasWarehouseWorkflowMarker && !this.emailClassifier.isLikelyCustomerEmail(body)) {
       console.log('Skipping - not likely customer email:', msg.id);
       console.log('Skipped Email body:', body);
       return;
@@ -134,7 +137,6 @@ export class GmailWebhookService {
     const from = this.contentExtractor.extractEmailAddress(headers?.['from']) || null;
     const to = this.contentExtractor.extractEmailAddress(headers?.['to']) || null;
     const cc = this.contentExtractor.extractEmailAddress(headers?.['cc']) || null;
-    const subject = headers?.['subject'] || null;
     const internalDate = msg.internalDate ? new Date(Number(msg.internalDate)) : null;
 
     // Determine if email is incoming or outgoing
@@ -172,12 +174,20 @@ export class GmailWebhookService {
     // Replies to threads the owner started manually are intentional direct conversations
     // and must not be handled by the AI agent.
     const isOwnerInitiated = thread.initiatedBy === 'owner';
-    if (inserted && insertedEmail && isIncomingEmail && !isOwnerInitiated) {
+    const shouldBypassOwnerInitiatedGuard = hasWarehouseWorkflowMarker;
+    if (
+      inserted &&
+      insertedEmail &&
+      isIncomingEmail &&
+      (!isOwnerInitiated || shouldBypassOwnerInitiatedGuard)
+    ) {
       console.log('Triggering email pipeline for:', insertedEmail.id);
       await this.triggerEmailPipeline(insertedEmail);
     } else {
       const reason = !isIncomingEmail
         ? 'outgoing'
+        : shouldBypassOwnerInitiatedGuard
+          ? 'warehouse-marker-reply'
         : isOwnerInitiated
           ? 'owner-initiated thread'
           : 'already exists';
@@ -190,6 +200,14 @@ export class GmailWebhookService {
    */
   private hasIrrelevantLabel(labels: string[]): boolean {
     return labels.some((label) => IRRELEVANT_GMAIL_LABELS.includes(label as any));
+  }
+
+  private hasWarehouseWorkflowMarker(
+    subject: string | null | undefined,
+    body: string | null | undefined,
+  ): boolean {
+    const searchable = `${subject || ''}\n${body || ''}`;
+    return GmailWebhookService.WAREHOUSE_WORKFLOW_MARKER_REGEX.test(searchable);
   }
 
   /**

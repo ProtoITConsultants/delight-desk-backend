@@ -13,6 +13,7 @@ import { MicrosoftOauthService } from '../microsoft-oauth.service';
 @Injectable()
 export class OutlookWebhookService {
   private readonly logger = new Logger(OutlookWebhookService.name);
+  private static readonly WAREHOUSE_WORKFLOW_MARKER_REGEX = /\[DD-OC-WF:([^\]]+)\]/i;
 
   constructor(
     private readonly microsoftRepo: MicrosoftOauthRepository,
@@ -106,9 +107,10 @@ export class OutlookWebhookService {
         : this.contentExtractor.stripHtmlTags(message.body?.content || '');
 
     const body = this.contentExtractor.extractNewContent(rawBody) || rawBody || '';
+    const hasWarehouseWorkflowMarker = this.hasWarehouseWorkflowMarker(subject, body);
 
-    // Filter out non-customer emails
-    if (!this.emailClassifier.isLikelyCustomerEmail(body)) {
+    // Filter out non-customer emails unless this is an explicit warehouse-routing reply.
+    if (!hasWarehouseWorkflowMarker && !this.emailClassifier.isLikelyCustomerEmail(body)) {
       this.logger.log(`Skipping Outlook message ${messageId} — not a customer email`);
       return;
     }
@@ -123,7 +125,7 @@ export class OutlookWebhookService {
 
     // Skip pipeline for threads the owner started manually — these are direct
     // conversations the agent should not interfere with.
-    if (thread.initiatedBy === 'owner') {
+    if (thread.initiatedBy === 'owner' && !hasWarehouseWorkflowMarker) {
       this.logger.log(
         `Skipping pipeline for Outlook message ${messageId} — owner-initiated thread`,
       );
@@ -164,5 +166,13 @@ export class OutlookWebhookService {
         this.logger.error(`Pipeline failed for Outlook email ${email.id}:`, error);
       }
     });
+  }
+
+  private hasWarehouseWorkflowMarker(
+    subject: string | null | undefined,
+    body: string | null | undefined,
+  ): boolean {
+    const searchable = `${subject || ''}\n${body || ''}`;
+    return OutlookWebhookService.WAREHOUSE_WORKFLOW_MARKER_REGEX.test(searchable);
   }
 }

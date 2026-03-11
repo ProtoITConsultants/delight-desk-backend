@@ -1,4 +1,4 @@
-import { condition, log, proxyActivities } from '@temporalio/workflow';
+import { condition, log, patched, proxyActivities } from '@temporalio/workflow';
 
 import type { ApprovalQueueActivities } from '../activities/shared/approval-queue.activities';
 import type { EscalationActivities } from '../activities/shared/escalation.activities';
@@ -350,7 +350,11 @@ export async function executeWorkflowAction<T>(
     const result = await actionExecutor(humanActionResponse, runtimeControl);
 
     // 7. Mark action as successfully executed
-    await markActionAsExecuted(action.id);
+    // Guard with Temporal patching to keep replay deterministic for
+    // workflow histories started before this activity call existed.
+    if (patched('mark-action-as-executed-v1')) {
+      await markActionAsExecuted(action.id);
+    }
 
     log.info('Action executed successfully', {
       actionId: action.id,

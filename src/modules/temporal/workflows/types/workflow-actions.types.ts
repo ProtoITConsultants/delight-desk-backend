@@ -24,23 +24,25 @@ export enum WismoActionType {
  * Enum defining all possible action types in the Order Cancellation workflow
  */
 export enum OrderCancellationActionType {
-  MARK_EMAIL_READ = 'oc_mark_email_read',
-  VERIFY_AI_CONFIDENCE = 'oc_verify_ai_confidence',
-  EXTRACT_ORDER_NUMBER = 'oc_extract_order_number',
-  REQUEST_ORDER_INFO = 'oc_request_order_info',
-  FETCH_ORDER_DETAILS = 'oc_fetch_order_details',
-  VALIDATE_ORDER_STATUS = 'oc_validate_order_status',
-  CHECK_DUPLICATE = 'oc_check_duplicate',
-  CHECK_RATE_LIMIT = 'oc_check_rate_limit',
-  RECORD_REQUEST = 'oc_record_request',
-  CHECK_TIME_ELIGIBILITY = 'oc_check_time_eligibility',
-  VALIDATE_CUSTOMER_EMAIL = 'oc_validate_customer_email',
-  SEND_ACKNOWLEDGEMENT = 'oc_send_acknowledgement',
-  PROCESS_CANCELLATION = 'oc_process_cancellation',
-  PROCESS_REFUND = 'oc_process_refund',
-  SEND_FINAL_NOTIFICATION = 'oc_send_final_notification',
-  CONTACT_WAREHOUSE = 'oc_contact_warehouse',
-  WAIT_FOR_WAREHOUSE_REPLY = 'oc_wait_for_warehouse_reply',
+  MARK_EMAIL_READ = 'mark_email_read',
+  VERIFY_AI_CONFIDENCE = 'verify_ai_confidence',
+  DETECT_CUSTOMER_DISTRESS = 'detect_customer_distress',
+  DETECT_FULFILLMENT_METHOD = 'detect_fulfillment_method',
+  EXTRACT_ORDER_NUMBER = 'extract_order_number',
+  REQUEST_ORDER_INFO = 'request_order_info',
+  FETCH_ORDER_DETAILS = 'fetch_order_details',
+  VALIDATE_ORDER_STATUS = 'validate_order_status',
+  CHECK_DUPLICATE = 'check_duplicate',
+  CHECK_RATE_LIMIT = 'check_rate_limit',
+  RECORD_REQUEST = 'record_request',
+  CHECK_TIME_ELIGIBILITY = 'check_time_eligibility',
+  VALIDATE_CUSTOMER_EMAIL = 'validate_customer_email',
+  SEND_ACKNOWLEDGEMENT = 'send_acknowledgement',
+  PROCESS_CANCELLATION = 'process_cancellation',
+  PROCESS_REFUND = 'process_refund',
+  SEND_FINAL_NOTIFICATION = 'send_final_notification',
+  CONTACT_WAREHOUSE = 'contact_warehouse',
+  WAIT_FOR_WAREHOUSE_REPLY = 'wait_for_warehouse_reply',
 }
 
 export type WorkflowActionType = WismoActionType | OrderCancellationActionType;
@@ -104,7 +106,10 @@ export interface ActionExecutionResult<T = any> {
  * Allows long-running executors to reflect intermediate states in UI.
  */
 export interface ActionRuntimeControl {
-  setStatus: (status: ActionStatus, additionalData?: Omit<UpdateActionData, 'actionStatus'>) => Promise<void>;
+  setStatus: (
+    status: ActionStatus,
+    additionalData?: Omit<UpdateActionData, 'actionStatus'>,
+  ) => Promise<void>;
 }
 
 /**

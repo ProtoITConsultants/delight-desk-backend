@@ -6,5 +6,6 @@ export const WORKFLOW_SIGNAL_NAMES = {
   THREAD_MESSAGE: 'threadMessage',
   HUMAN_RESPONSE: 'humanResponse',
   CUSTOMER_REPLY: 'customerReply',
+  WAREHOUSE_REPLY: 'warehouseReply',
 } as const;
 

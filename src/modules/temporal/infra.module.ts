@@ -9,11 +9,12 @@ import { EmailProviderAdapter } from './activities/shared/email-provider.adapter
 import { ApprovalQueueActivities } from './activities/shared/approval-queue.activities';
 import { EscalationActivities } from './activities/shared/escalation.activities';
 import { AiIdentityActivities } from './activities/shared/ai-identity.activities';
+import { OrderActivities } from './activities/shared/order.activities';
+import { CustomerMessageActivities } from './activities/shared/customer-message.activities';
 import { MessageFormattingHelper } from './activities/shared/message-formatting.helper';
 
-import { WismoOrderActivities } from './activities/agents/wismo/wismo-order.activities';
 import { WismoTrackingActivities } from './activities/agents/wismo/wismo-tracking.activities';
-import { WismoMessageActivities } from './activities/agents/wismo/wismo-messages.activities';
+import { OrderCancellationActivities } from './activities/agents/order-cancellation/order-cancellation.activities';
 
 import { RepositoriesModule } from '../../database/repositories.module';
 import { WooCommerceModule } from '../woocommerce/woocommerce.module';
@@ -73,9 +74,10 @@ import { InfraService } from './infra.service';
               ApprovalQueueActivities,
               EscalationActivities,
               AiIdentityActivities,
-              WismoOrderActivities,
+              OrderActivities,
               WismoTrackingActivities,
-              WismoMessageActivities,
+              CustomerMessageActivities,
+              OrderCancellationActivities,
             ],
             autoStart: true,
           },
@@ -91,9 +93,10 @@ import { InfraService } from './infra.service';
     ApprovalQueueActivities,
     EscalationActivities,
     AiIdentityActivities,
-    WismoOrderActivities,
+    OrderActivities,
     WismoTrackingActivities,
-    WismoMessageActivities,
+    CustomerMessageActivities,
+    OrderCancellationActivities,
     InfraService,
   ],
   exports: [TemporalModule, HttpModule, DatabaseModule, InfraService],

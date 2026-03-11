@@ -1,5 +1,6 @@
 import * as wf from '@temporalio/workflow';
 import { handleWismo } from './agents/wismo';
+import { handleOrderCancellation } from './agents/order-cancellation';
 import { WorkFlowInput } from './types';
 import { WORKFLOW_SIGNAL_NAMES } from '../workflow-signals.constants';
 
@@ -42,11 +43,9 @@ class EmailWorkflowOrchestrator {
       case 'wismo':
         return await handleWismo(input);
 
-      // Future agents: add a case and import the handler function
-      // case 'order_cancellation':
-      //   return await handleOrderCancellation(input);
-
       case 'order_cancellation':
+        return await handleOrderCancellation(input);
+
       case 'subscription':
       case 'product':
       case 'returns':

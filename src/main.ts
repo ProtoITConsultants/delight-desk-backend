@@ -59,7 +59,7 @@ async function bootstrap() {
     }),
   );
 
-  app.use(morgan(isProd ? 'combined' : 'dev'));
+  app.use(morgan('dev'));
 
   const config = new DocumentBuilder()
     .setTitle('DelightDesk API')

@@ -37,7 +37,7 @@ async function bootstrap() {
       store: new PgSession({
         pool: new Pool({
           connectionString: configService.get<string>('DATABASE_URL'),
-          ssl: isProd ? { rejectUnauthorized: true } : { rejectUnauthorized: false },
+          ssl: false,
         }),
         tableName: 'user_sessions',
       }),

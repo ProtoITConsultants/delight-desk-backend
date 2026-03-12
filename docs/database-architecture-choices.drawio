@@ -1,0 +1,81 @@
+<mxfile host="app.diagrams.net" agent="Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/145.0.0.0 Safari/537.36" version="29.6.1">
+  <diagram name="Database Architecture Comparison" id="db-arch-comparison">
+    <mxGraphModel dx="1601" dy="679" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1400" pageHeight="900" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+        <mxCell id="title" parent="1" style="text;html=1;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;whiteSpace=wrap;rounded=0;fontSize=20;fontStyle=1" value="Database Architecture: Current vs Suggested" vertex="1">
+          <mxGeometry height="40" width="500" x="450" y="20" as="geometry" />
+        </mxCell>
+        <mxCell id="current-label" parent="1" style="text;html=1;strokeColor=none;fillColor=#f8cecc;align=center;verticalAlign=middle;whiteSpace=wrap;rounded=1;fontSize=14;fontStyle=1" value="CURRENT ARCHITECTURE (Neon - External DB)" vertex="1">
+          <mxGeometry height="35" width="380" x="80" y="80" as="geometry" />
+        </mxCell>
+        <mxCell id="client-current" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontStyle=1" value="Client&#xa;(Browser / App)" vertex="1">
+          <mxGeometry height="50" width="120" x="180" y="140" as="geometry" />
+        </mxCell>
+        <mxCell id="arrow-client-ec2" edge="1" parent="1" source="client-current" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;fontStyle=1" target="ec2-current" value="HTTP Request">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="ec2-current" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontStyle=1" value="EC2 Server&#xa;(NestJS Backend)" vertex="1">
+          <mxGeometry height="60" width="160" x="160" y="240" as="geometry" />
+        </mxCell>
+        <mxCell id="arrow-ec2-neon" edge="1" parent="1" source="ec2-current" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;fontStyle=1;strokeColor=#b85450;strokeWidth=2" target="neon-db" value="DB Query&#xa;(External Network)">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="neon-db" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;fontStyle=1" value="Neon PostgreSQL&#xa;(External / Cloud)" vertex="1">
+          <mxGeometry height="60" width="200" x="140" y="380" as="geometry" />
+        </mxCell>
+        <mxCell id="latency-current" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffe6cc;strokeColor=#d79b00;align=left;spacingLeft=8;fontStyle=2" value="⚠️ Extra round trip&#xa;Higher latency&#xa;Network hop to external DB" vertex="1">
+          <mxGeometry height="70" width="180" x="380" y="260" as="geometry" />
+        </mxCell>
+        <mxCell id="suggested-label" parent="1" style="text;html=1;strokeColor=none;fillColor=#d5e8d4;align=center;verticalAlign=middle;whiteSpace=wrap;rounded=1;fontSize=14;fontStyle=1" value="SUGGESTED ARCHITECTURE (Local PostgreSQL)" vertex="1">
+          <mxGeometry height="35" width="380" x="620" y="80" as="geometry" />
+        </mxCell>
+        <mxCell id="client-suggested" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontStyle=1" value="Client&#xa;(Browser / App)" vertex="1">
+          <mxGeometry height="50" width="120" x="720" y="140" as="geometry" />
+        </mxCell>
+        <mxCell id="arrow-client-ec2-s" edge="1" parent="1" source="client-suggested" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;fontStyle=1" target="ec2-suggested" value="HTTP Request">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="ec2-container" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f5f5f5;strokeColor=#666666;strokeWidth=2;dashed=1" value="" vertex="1">
+          <mxGeometry height="240" width="420" x="600" y="220" as="geometry" />
+        </mxCell>
+        <mxCell id="ec2-container-label" parent="1" style="text;html=1;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;whiteSpace=wrap;rounded=0;fontSize=11;fontStyle=2" value="EC2 Instance" vertex="1">
+          <mxGeometry height="20" width="80" x="600" y="225" as="geometry" />
+        </mxCell>
+        <mxCell id="ec2-suggested" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontStyle=1" value="NestJS Backend" vertex="1">
+          <mxGeometry height="50" width="120" x="700" y="260" as="geometry" />
+        </mxCell>
+        <mxCell id="arrow-ec2-local" edge="1" parent="1" source="ec2-suggested" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;fontStyle=1;strokeColor=#82b366;strokeWidth=2" target="local-db" value="localhost / Unix socket&#xa;(No network hop)">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="local-db" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontStyle=1" value="PostgreSQL&#xa;(Local on EC2)" vertex="1">
+          <mxGeometry height="50" width="120" x="700" y="360" as="geometry" />
+        </mxCell>
+        <mxCell id="benefits-suggested" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;align=left;spacingLeft=8;fontStyle=2" value="✓ Lower latency&#xa;✓ Faster response time&#xa;✓ No external network hop&#xa;✓ Reduced round trips" vertex="1">
+          <mxGeometry height="90" width="140" x="860" y="260" as="geometry" />
+        </mxCell>
+        <mxCell id="rds-label" parent="1" style="text;html=1;strokeColor=none;fillColor=#dae8fc;align=center;verticalAlign=middle;whiteSpace=wrap;rounded=1;fontSize=14;fontStyle=1" value="FUTURE: AWS RDS (when &gt; 1000 users)" vertex="1">
+          <mxGeometry height="35" width="400" x="1040" y="80" as="geometry" />
+        </mxCell>
+        <mxCell id="arrow-to-rds" edge="1" parent="1" source="ec2-container" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;fontStyle=2;strokeColor=#6c8ebf;strokeWidth=2;dashed=1" target="rds-box" value="When &gt; 1000 users">
+          <mxGeometry relative="1" x="1" y="132" as="geometry">
+            <mxPoint x="2" y="-20" as="offset" />
+            <Array as="points">
+              <mxPoint x="1250" y="450" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="rds-box" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontStyle=1" value="AWS RDS&#xa;(PostgreSQL)" vertex="1">
+          <mxGeometry height="50" width="140" x="1190" y="140" as="geometry" />
+        </mxCell>
+        <mxCell id="rds-benefits" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;align=left;spacingLeft=8;fontStyle=2" value="✓ Managed service (no DB ops)&#xa;✓ Automated backups &amp; HA&#xa;✓ Easy scaling (storage, compute)&#xa;✓ Multi-AZ for high availability&#xa;✓ Better for 1000+ users" vertex="1">
+          <mxGeometry height="90" width="220" x="1140" y="230" as="geometry" />
+        </mxCell>
+        <mxCell id="summary-box" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;align=left;spacingLeft=12;spacingRight=12;fontSize=11" value="Summary: (1) Move from Neon to local PostgreSQL on EC2 for lower latency now. (2) When user base grows beyond 1000, migrate to AWS RDS for managed operations, automated backups, easy scaling, and high availability." vertex="1">
+          <mxGeometry height="50" width="920" x="270" y="530" as="geometry" />
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>

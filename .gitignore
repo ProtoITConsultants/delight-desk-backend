@@ -3,11 +3,6 @@
 /node_modules
 /build
 
-.claude/
-.cursor/
-claude.md
-/docs
-
 # Logs
 logs
 *.log
@@ -16,13 +11,6 @@ pnpm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 lerna-debug.log*
-
-# Testing Files
-orders.json
-
-# Migration data files (contain sensitive data)
-migration-*.json
-**/migration-data*.json
 
 # OS
 .DS_Store
@@ -39,6 +27,7 @@ migration-*.json
 *.launch
 .settings/
 *.sublime-workspace
+.cursor/
 
 # IDE - VSCode
 .vscode/*

@@ -28,22 +28,43 @@ export interface ApprovalProgressStage {
   label: string;
   order: number;
   status: ApprovalProgressStageStatus;
-  actionTypes: string[];
-  actionSteps: string[];
 }
 
 export interface ApprovalQueueActionProgressResponse {
-  approvalQueueId: string;
-  workflowId: string;
-  category: string | null;
-  workflowStatus: string;
   fulfillmentMethod: ProgressFulfillmentMethod;
   currentStep: ApprovalProgressStage | null;
-  nextSteps: ApprovalProgressStage[];
   timeline: ApprovalProgressStage[];
 }
 
-export type StageBlueprint = Omit<ApprovalProgressStage, 'status' | 'actionSteps'>;
+export interface WorkflowProgressListItem {
+  id: string;
+  status: string;
+  category: string | null;
+  customerEmail: string;
+  customerName: string | null;
+  orderNumber: string | null;
+  createdAt: Date;
+  actionProgress: ApprovalQueueActionProgressResponse | null;
+}
+
+export interface PaginatedWorkflowProgressResponse {
+  data: WorkflowProgressListItem[];
+  pagination: {
+    currentPage: number;
+    totalPages: number;
+    totalItems: number;
+    itemsPerPage: number;
+    hasNextPage: boolean;
+    hasPreviousPage: boolean;
+  };
+}
+
+export type StageBlueprint = {
+  key: string;
+  label: string;
+  order: number;
+  actionTypes: string[];
+};
 
 export type QueueAction = ApprovalQueueActionEntity;
 

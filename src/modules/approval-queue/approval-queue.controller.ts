@@ -23,6 +23,7 @@ import {
   CancelWorkflowDto,
   EditAndApproveDto,
   GetApprovalQueueDto,
+  GetWorkflowProgressItemsDto,
   RejectItemDto,
 } from './approval-queue.dto';
 import { SessionGuard } from '../../guards/session.guard';
@@ -77,6 +78,47 @@ export class ApprovalQueueController {
   @ApiResponse({ status: 500, description: 'Internal server error' })
   async getApprovalQueueItems(@CurrentUserId() userId: string, @Query() dto: GetApprovalQueueDto) {
     return this.approvalQueueService.getApprovalQueueItems(userId, dto);
+  }
+
+  @Get('workflows')
+  @ApiOperation({
+    summary: 'Get workflow progress items',
+    description:
+      'Retrieve lightweight paginated workflow cards for agent UI, including current progress/timeline. Supports category filtering (default: order_cancellation).',
+  })
+  @ApiQuery({
+    name: 'category',
+    required: false,
+    type: String,
+    description: 'Workflow category filter (default: order_cancellation)',
+  })
+  @ApiQuery({
+    name: 'status',
+    required: false,
+    enum: ['pending', 'in_progress', 'cancelled', 'escalated', 'completed'],
+    description: 'Filter by workflow status',
+  })
+  @ApiQuery({
+    name: 'page',
+    required: false,
+    type: Number,
+    description: 'Page number (default: 1)',
+  })
+  @ApiQuery({
+    name: 'limit',
+    required: false,
+    type: Number,
+    description: 'Items per page (default: 20)',
+  })
+  @ApiResponse({ status: 200, description: 'Workflow progress items retrieved successfully' })
+  @ApiResponse({ status: 400, description: 'Bad request - Invalid query parameters' })
+  @ApiResponse({ status: 401, description: 'Unauthorized - User not authenticated' })
+  @ApiResponse({ status: 500, description: 'Internal server error' })
+  async getWorkflowProgressItems(
+    @CurrentUserId() userId: string,
+    @Query() dto: GetWorkflowProgressItemsDto,
+  ) {
+    return this.approvalQueueService.getWorkflowProgressItems(userId, dto);
   }
 
   @Get('stats')

@@ -51,6 +51,49 @@ export class GetApprovalQueueDto {
   limit?: number = 20;
 }
 
+export class GetWorkflowProgressItemsDto {
+  @ApiPropertyOptional({
+    description:
+      'Filter by workflow category. Defaults to order_cancellation for Order Cancellation agent UI.',
+    example: 'order_cancellation',
+    default: 'order_cancellation',
+  })
+  @IsOptional()
+  @IsString()
+  category?: string = 'order_cancellation';
+
+  @ApiPropertyOptional({
+    description: 'Filter by workflow status',
+    enum: ['pending', 'in_progress', 'cancelled', 'escalated', 'completed'],
+    example: 'in_progress',
+  })
+  @IsOptional()
+  @IsEnum(['pending', 'in_progress', 'cancelled', 'escalated', 'completed'], { each: true })
+  status?: string;
+
+  @ApiPropertyOptional({
+    description: 'Page number for pagination',
+    example: 1,
+    minimum: 1,
+    default: 1,
+  })
+  @IsOptional()
+  @Type(() => Number)
+  @Min(1)
+  page?: number = 1;
+
+  @ApiPropertyOptional({
+    description: 'Number of items per page',
+    example: 10,
+    minimum: 1,
+    default: 10,
+  })
+  @IsOptional()
+  @Type(() => Number)
+  @Min(1)
+  limit?: number = 20;
+}
+
 export class RejectItemDto {
   @ApiProperty({
     description: 'Reason for rejection',

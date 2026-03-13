@@ -8,16 +8,22 @@ import { ApprovalQueueRepository } from '../../database/repos/approval-queue.rep
 import { ApprovalQueueActionsRepository } from '../../database/repos/approval-queue-actions.repository';
 import { EscalationsRepository } from '../../database/repos/escalations.repository';
 import { SystemSettingsRepository } from '../../database/repos/system-settings.repository';
-import { EditAndApproveDto, GetApprovalQueueDto, RejectItemDto } from './approval-queue.dto';
+import {
+  EditAndApproveDto,
+  GetApprovalQueueDto,
+  GetWorkflowProgressItemsDto,
+  RejectItemDto,
+} from './approval-queue.dto';
 import {
   ApprovalProgressStage,
   ApprovalProgressStageStatus,
   ApprovalQueueActionProgressResponse,
   ApprovalQueueStatsResponse,
+  PaginatedWorkflowProgressResponse,
   ProgressFulfillmentMethod,
   QueueAction,
-  QueueSummary,
   StageBlueprint,
+  WorkflowProgressListItem,
 } from './approval-queue.types';
 import {
   CUSTOM_WAREHOUSE_STAGES,
@@ -70,12 +76,7 @@ export class ApprovalQueueService {
 
     const ids = items.map((item) => item.approval.id);
     const allActions = await this.approvalQueueActionsRepository.getActionsForApprovalQueueIds(ids);
-    const hasOrderCancellationItems = items.some(
-      (item) => item.approval.category === 'order_cancellation',
-    );
-    const userSettings = hasOrderCancellationItems
-      ? await this.systemSettingsRepository.findByUser(userId)
-      : null;
+
     const escalationIds = allActions
       .map((action) => action.escalationId)
       .filter((id): id is string => Boolean(id));
@@ -101,19 +102,7 @@ export class ApprovalQueueService {
 
     const data = items.map((item) => {
       const actions = actionsByApprovalId[item.approval.id] ?? [];
-      const actionProgress =
-        item.approval.category === 'order_cancellation'
-          ? this.buildOrderCancellationProgress(
-              {
-                id: item.approval.id,
-                workflowId: item.approval.workflowId,
-                category: item.approval.category,
-                status: item.approval.status,
-              },
-              actions,
-              userSettings?.fulfillmentMethod,
-            )
-          : null;
+
       return {
         id: item.approval.id,
         workflowId: item.approval.workflowId,
@@ -137,6 +126,85 @@ export class ApprovalQueueService {
           escalationReason:
             action.escalationReason ?? escalationReasonById.get(action.escalationId ?? '') ?? null,
         })),
+      };
+    });
+
+    return {
+      data,
+      pagination: {
+        currentPage: page,
+        totalPages,
+        totalItems,
+        itemsPerPage: limit,
+        hasNextPage: page < totalPages,
+        hasPreviousPage: page > 1,
+      },
+    };
+  }
+
+  async getWorkflowProgressItems(
+    userId: string,
+    dto: GetWorkflowProgressItemsDto,
+  ): Promise<PaginatedWorkflowProgressResponse> {
+    const { page = 1, limit = 20, status, category } = dto;
+    const offset = (page - 1) * limit;
+
+    const filters = {
+      userId,
+      status,
+      category,
+      priority: undefined,
+      limit,
+      offset,
+    };
+
+    const items = await this.approvalQueueRepository.getApprovalQueueWithFilters(filters);
+    const totalItems = items.length > 0 ? items[0].totalItems : 0;
+    const totalPages = totalItems > 0 ? Math.ceil(totalItems / limit) : 0;
+
+    if (items.length === 0) {
+      return {
+        data: [],
+        pagination: {
+          currentPage: page,
+          totalPages,
+          totalItems,
+          itemsPerPage: limit,
+          hasNextPage: false,
+          hasPreviousPage: page > 1,
+        },
+      };
+    }
+
+    const ids = items.map((item) => item.approval.id);
+    const allActions = await this.approvalQueueActionsRepository.getActionsForApprovalQueueIds(ids);
+    const userSettings = await this.systemSettingsRepository.findByUser(userId);
+    const actionsByApprovalId = allActions.reduce<Record<string, QueueAction[]>>((acc, action) => {
+      const key = action.approvalQueueId;
+      if (!acc[key]) acc[key] = [];
+      acc[key].push(action);
+      return acc;
+    }, {});
+
+    const data: WorkflowProgressListItem[] = items.map((item) => {
+      const actions = actionsByApprovalId[item.approval.id] ?? [];
+      const actionProgress =
+        item.approval.category === 'order_cancellation'
+          ? this.buildOrderCancellationProgress(
+              item.approval.status,
+              actions,
+              userSettings?.fulfillmentMethod,
+            )
+          : null;
+
+      return {
+        id: item.approval.id,
+        status: item.approval.status,
+        category: item.approval.category,
+        customerEmail: item.approval.customerEmail,
+        customerName: item.approval.customerName,
+        orderNumber: this.extractOrderNumber(actions),
+        createdAt: item.approval.createdAt,
         actionProgress,
       };
     });
@@ -306,33 +374,23 @@ export class ApprovalQueueService {
   }
 
   private buildOrderCancellationProgress(
-    queue: QueueSummary,
+    workflowStatus: string,
     actions: QueueAction[],
     configuredMethod: string | null | undefined,
   ): ApprovalQueueActionProgressResponse {
     const fulfillmentMethod = this.resolveFulfillmentMethod(configuredMethod, actions);
     const stages = this.buildStagesForMethod(fulfillmentMethod);
-    const timeline = stages.map((stage) => this.buildStageProgress(stage, actions, queue.status));
+    const timeline = stages.map((stage) => this.buildStageProgress(stage, actions, workflowStatus));
 
     const currentStep =
       timeline.find((stage) => stage.status === 'blocked') ||
       timeline.find((stage) => stage.status === 'in_progress') ||
       timeline.find((stage) => stage.status === 'pending') ||
       null;
-    const nextSteps = currentStep
-      ? timeline
-          .filter((stage) => stage.order > currentStep.order && stage.status === 'pending')
-          .slice(0, 2)
-      : [];
 
     return {
-      approvalQueueId: queue.id,
-      workflowId: queue.workflowId,
-      category: queue.category,
-      workflowStatus: queue.status,
       fulfillmentMethod,
       currentStep,
-      nextSteps,
       timeline,
     };
   }
@@ -410,12 +468,27 @@ export class ApprovalQueueService {
       label: stage.label,
       order: stage.order,
       status,
-      actionTypes: stage.actionTypes,
-      actionSteps: stageActions.map((action) => action.actionStep),
     };
   }
 
   private normalizeActionType(actionType: string): string {
     return actionType.replace(/^oc_/, '');
+  }
+
+  private extractOrderNumber(actions: QueueAction[]): string | null {
+    const regex = /order\s*#?(\d+)/i;
+
+    for (const action of actions) {
+      const sources = [action.description, action.actionDetails];
+      for (const text of sources) {
+        if (!text) continue;
+        const match = text.match(regex);
+        if (match?.[1]) {
+          return match[1];
+        }
+      }
+    }
+
+    return null;
   }
 }

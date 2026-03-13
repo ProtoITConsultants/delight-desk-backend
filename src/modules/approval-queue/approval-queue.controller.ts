@@ -72,7 +72,27 @@ export class ApprovalQueueController {
     type: Number,
     description: 'Items per page (default: 20)',
   })
-  @ApiResponse({ status: 200, description: 'Approval queue items retrieved successfully' })
+  @ApiResponse({
+    status: 200,
+    description: 'Approval queue items retrieved successfully',
+    schema: {
+      type: 'object',
+      properties: {
+        data: { type: 'array', items: { type: 'object' } },
+        pagination: {
+          type: 'object',
+          properties: {
+            currentPage: { type: 'number' },
+            totalPages: { type: 'number' },
+            totalItems: { type: 'number' },
+            itemsPerPage: { type: 'number' },
+            hasNextPage: { type: 'boolean' },
+            hasPreviousPage: { type: 'boolean' },
+          },
+        },
+      },
+    },
+  })
   @ApiResponse({ status: 400, description: 'Bad request - Invalid query parameters' })
   @ApiResponse({ status: 401, description: 'Unauthorized - User not authenticated' })
   @ApiResponse({ status: 500, description: 'Internal server error' })
@@ -110,7 +130,27 @@ export class ApprovalQueueController {
     type: Number,
     description: 'Items per page (default: 20)',
   })
-  @ApiResponse({ status: 200, description: 'Workflow progress items retrieved successfully' })
+  @ApiResponse({
+    status: 200,
+    description: 'Workflow progress items retrieved successfully',
+    schema: {
+      type: 'object',
+      properties: {
+        data: { type: 'array', items: { type: 'object' } },
+        pagination: {
+          type: 'object',
+          properties: {
+            currentPage: { type: 'number' },
+            totalPages: { type: 'number' },
+            totalItems: { type: 'number' },
+            itemsPerPage: { type: 'number' },
+            hasNextPage: { type: 'boolean' },
+            hasPreviousPage: { type: 'boolean' },
+          },
+        },
+      },
+    },
+  })
   @ApiResponse({ status: 400, description: 'Bad request - Invalid query parameters' })
   @ApiResponse({ status: 401, description: 'Unauthorized - User not authenticated' })
   @ApiResponse({ status: 500, description: 'Internal server error' })
@@ -127,7 +167,21 @@ export class ApprovalQueueController {
     description:
       'Retrieve statistics showing total, pending, approved, rejected, and executed items count',
   })
-  @ApiResponse({ status: 200, description: 'Statistics retrieved successfully' })
+  @ApiResponse({
+    status: 200,
+    description: 'Statistics retrieved successfully',
+    schema: {
+      type: 'object',
+      properties: {
+        total: { type: 'number' },
+        pending: { type: 'number' },
+        inProgress: { type: 'number' },
+        escalated: { type: 'number' },
+        cancelled: { type: 'number' },
+        completed: { type: 'number' },
+      },
+    },
+  })
   @ApiResponse({ status: 401, description: 'Unauthorized - User not authenticated' })
   @ApiResponse({ status: 500, description: 'Internal server error' })
   async getStats(@CurrentUserId() userId: string) {
@@ -141,7 +195,14 @@ export class ApprovalQueueController {
       'Cancel a running approval queue workflow by its Temporal workflow ID. Marks all pending actions as rejected and updates the workflow status to cancelled.',
   })
   @ApiBody({ type: CancelWorkflowDto })
-  @ApiResponse({ status: 200, description: 'Workflow cancelled successfully' })
+  @ApiResponse({
+    status: 200,
+    description: 'Workflow cancelled successfully',
+    schema: {
+      type: 'object',
+      properties: { message: { type: 'string', example: 'Workflow cancelled successfully' } },
+    },
+  })
   @ApiResponse({
     status: 400,
     description: 'Bad request - Workflow already completed, escalated, or cancelled',
@@ -159,7 +220,14 @@ export class ApprovalQueueController {
     description: 'Approve a pending action in the approval queue and execute it',
   })
   @ApiParam({ name: 'id', type: String, description: 'Action ID' })
-  @ApiResponse({ status: 200, description: 'Action approved successfully' })
+  @ApiResponse({
+    status: 200,
+    description: 'Action approved successfully',
+    schema: {
+      type: 'object',
+      properties: { message: { type: 'string', example: 'Action approved successfully' } },
+    },
+  })
   @ApiResponse({ status: 400, description: 'Bad request - Invalid input data' })
   @ApiResponse({ status: 401, description: 'Unauthorized - User not authenticated' })
   @ApiResponse({ status: 404, description: 'Action not found' })
@@ -176,7 +244,14 @@ export class ApprovalQueueController {
   })
   @ApiParam({ name: 'id', type: String, description: 'Action ID' })
   @ApiBody({ type: RejectItemDto })
-  @ApiResponse({ status: 200, description: 'Action rejected successfully' })
+  @ApiResponse({
+    status: 200,
+    description: 'Action rejected successfully',
+    schema: {
+      type: 'object',
+      properties: { message: { type: 'string', example: 'Action rejected successfully' } },
+    },
+  })
   @ApiResponse({ status: 400, description: 'Bad request - Invalid input data' })
   @ApiResponse({ status: 401, description: 'Unauthorized - User not authenticated' })
   @ApiResponse({ status: 404, description: 'Action not found' })
@@ -197,7 +272,14 @@ export class ApprovalQueueController {
   })
   @ApiParam({ name: 'id', type: String, description: 'Action ID' })
   @ApiBody({ type: EditAndApproveDto })
-  @ApiResponse({ status: 200, description: 'Action edited and approved successfully' })
+  @ApiResponse({
+    status: 200,
+    description: 'Action edited and approved successfully',
+    schema: {
+      type: 'object',
+      properties: { message: { type: 'string', example: 'Action edited and approved successfully' } },
+    },
+  })
   @ApiResponse({ status: 400, description: 'Bad request - Invalid input data' })
   @ApiResponse({ status: 401, description: 'Unauthorized - User not authenticated' })
   @ApiResponse({ status: 404, description: 'Action not found' })

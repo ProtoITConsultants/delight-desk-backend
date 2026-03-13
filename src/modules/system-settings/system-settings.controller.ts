@@ -18,7 +18,19 @@ export class SystemSettingsController {
     description: 'Retrieve the current fulfillment method and its configuration',
   })
   @ApiCookieAuth('connect.sid')
-  @ApiResponse({ status: 200, description: 'Fulfillment method retrieved successfully' })
+  @ApiResponse({
+    status: 200,
+    description: 'Fulfillment method retrieved successfully',
+    schema: {
+      type: 'object',
+      properties: {
+        method: { type: 'string', enum: ['self', 'custom_warehouse', 'shipbob', 'shipstation'] },
+        warehouseEmail: { type: 'string', nullable: true },
+        shipbobPersonalAccessToken: { type: 'string', nullable: true },
+        shipstationApiKey: { type: 'string', nullable: true },
+      },
+    },
+  })
   @ApiResponse({ status: 401, description: 'Unauthorized - User not authenticated' })
   getFulfillmentMethod(@CurrentUserId() userId: string): Promise<FulfillmentMethodResponse> {
     return this.systemSettingsService.getFulfillmentMethod(userId);
@@ -32,7 +44,14 @@ export class SystemSettingsController {
   })
   @ApiCookieAuth('connect.sid')
   @ApiBody({ type: SetFulfillmentMethodDto })
-  @ApiResponse({ status: 200, description: 'Fulfillment method updated successfully' })
+  @ApiResponse({
+    status: 200,
+    description: 'Fulfillment method updated successfully',
+    schema: {
+      type: 'object',
+      properties: { message: { type: 'string' } },
+    },
+  })
   @ApiResponse({
     status: 400,
     description: 'Bad request - Invalid credentials or missing required fields',

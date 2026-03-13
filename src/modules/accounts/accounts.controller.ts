@@ -17,7 +17,40 @@ export class AccountsController {
     description: 'Retrieve the current user account profile information'
   })
   @ApiCookieAuth('connect.sid')
-  @ApiResponse({ status: 200, description: 'Profile retrieved successfully' })
+  @ApiResponse({
+    status: 200,
+    description: 'Profile retrieved successfully',
+    schema: {
+      type: 'object',
+      properties: {
+        user: {
+          type: 'object',
+          properties: {
+            id: { type: 'string' },
+            email: { type: 'string' },
+            firstName: { type: 'string' },
+            lastName: { type: 'string' },
+            company: { type: 'string' },
+            phone: { type: 'string', nullable: true },
+            isActive: { type: 'boolean' },
+            lastLoginAt: { type: 'string', nullable: true },
+            signatureName: { type: 'string', nullable: true },
+            signatureTitle: { type: 'string', nullable: true },
+            signatureCompany: { type: 'string', nullable: true },
+            signatureCompanyUrl: { type: 'string', nullable: true },
+            signaturePhone: { type: 'string', nullable: true },
+            signatureEmail: { type: 'string', nullable: true },
+            signatureLogoUrl: { type: 'string', nullable: true },
+            signaturePhotoUrl: { type: 'string', nullable: true },
+            createdAt: { type: 'string' },
+            updatedAt: { type: 'string' },
+          },
+        },
+        billing: { type: 'object', nullable: true },
+        plan: { type: 'object', nullable: true },
+      },
+    },
+  })
   @ApiResponse({ status: 401, description: 'Unauthorized - User not authenticated' })
   @ApiResponse({ status: 404, description: 'User profile not found' })
   @ApiResponse({ status: 500, description: 'Internal server error' })
@@ -33,7 +66,38 @@ export class AccountsController {
   })
   @ApiCookieAuth('connect.sid')
   @ApiBody({ type: UpdateProfileDto })
-  @ApiResponse({ status: 200, description: 'Profile updated successfully' })
+  @ApiResponse({
+    status: 200,
+    description: 'Profile updated successfully',
+    schema: {
+      type: 'object',
+      properties: {
+        user: {
+          type: 'object',
+          properties: {
+            id: { type: 'string' },
+            email: { type: 'string' },
+            firstName: { type: 'string' },
+            lastName: { type: 'string' },
+            company: { type: 'string' },
+            phone: { type: 'string', nullable: true },
+            isActive: { type: 'boolean' },
+            lastLoginAt: { type: 'string', nullable: true },
+            signatureName: { type: 'string', nullable: true },
+            signatureTitle: { type: 'string', nullable: true },
+            signatureCompany: { type: 'string', nullable: true },
+            signatureCompanyUrl: { type: 'string', nullable: true },
+            signaturePhone: { type: 'string', nullable: true },
+            signatureEmail: { type: 'string', nullable: true },
+            signatureLogoUrl: { type: 'string', nullable: true },
+            signaturePhotoUrl: { type: 'string', nullable: true },
+            createdAt: { type: 'string' },
+            updatedAt: { type: 'string' },
+          },
+        },
+      },
+    },
+  })
   @ApiResponse({ status: 400, description: 'Bad request - Invalid input data' })
   @ApiResponse({ status: 401, description: 'Unauthorized - User not authenticated' })
   @ApiResponse({ status: 404, description: 'User not found' })
@@ -50,7 +114,14 @@ export class AccountsController {
   })
   @ApiCookieAuth('connect.sid')
   @ApiBody({ type: ChangePasswordDto })
-  @ApiResponse({ status: 200, description: 'Password changed successfully' })
+  @ApiResponse({
+    status: 200,
+    description: 'Password changed successfully',
+    schema: {
+      type: 'object',
+      properties: { message: { type: 'string', example: 'Password changed successfully' } },
+    },
+  })
   @ApiResponse({ status: 400, description: 'Bad request - Invalid password or passwords do not match' })
   @ApiResponse({ status: 401, description: 'Unauthorized - User not authenticated or current password incorrect' })
   @ApiResponse({ status: 500, description: 'Internal server error' })
@@ -65,7 +136,14 @@ export class AccountsController {
     description: 'Permanently delete the current user account and all associated data'
   })
   @ApiCookieAuth('connect.sid')
-  @ApiResponse({ status: 200, description: 'Account deleted successfully' })
+  @ApiResponse({
+    status: 200,
+    description: 'Account deleted successfully',
+    schema: {
+      type: 'object',
+      properties: { message: { type: 'string', example: 'Account deleted successfully' } },
+    },
+  })
   @ApiResponse({ status: 401, description: 'Unauthorized - User not authenticated' })
   @ApiResponse({ status: 500, description: 'Internal server error' })
   deleteAccount(@CurrentUserId() userId: string, @Session() session: Record<string, any>) {

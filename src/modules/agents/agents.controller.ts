@@ -62,7 +62,14 @@ export class AgentsController {
     description: 'Update system-wide agent settings such as tracking plugin configuration',
   })
   @ApiBody({ type: UpdateSystemSettingsDto })
-  @ApiResponse({ status: 200, description: 'System settings updated successfully' })
+  @ApiResponse({
+    status: 200,
+    description: 'System settings updated successfully',
+    schema: {
+      type: 'object',
+      properties: { message: { type: 'string', example: 'System settings updated successfully' } },
+    },
+  })
   @ApiResponse({ status: 400, description: 'Bad request - Invalid input data' })
   @ApiResponse({ status: 401, description: 'Unauthorized - User not authenticated' })
   @ApiResponse({ status: 500, description: 'Internal server error' })

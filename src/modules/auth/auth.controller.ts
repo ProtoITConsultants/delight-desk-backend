@@ -106,7 +106,7 @@ export class AuthController {
     schema: {
       type: 'object',
       properties: {
-        message: { type: 'string', example: 'Logout successful' },
+        message: { type: 'string', example: 'Logged out successfully' },
       },
     },
   })

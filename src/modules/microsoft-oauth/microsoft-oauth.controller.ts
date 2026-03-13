@@ -93,7 +93,14 @@ export class MicrosoftOauthController {
     description: 'Disconnect the linked Microsoft account from the user profile',
   })
   @ApiCookieAuth('connect.sid')
-  @ApiResponse({ status: 200, description: 'Account disconnected successfully' })
+  @ApiResponse({
+    status: 200,
+    description: 'Account disconnected successfully',
+    schema: {
+      type: 'object',
+      properties: { message: { type: 'string', example: 'Account disconnected successfully' } },
+    },
+  })
   @ApiResponse({ status: 401, description: 'Unauthorized - User not authenticated' })
   @ApiResponse({ status: 404, description: 'Microsoft account not found' })
   @ApiResponse({ status: 500, description: 'Internal server error' })

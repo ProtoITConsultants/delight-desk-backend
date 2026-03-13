@@ -14,7 +14,14 @@ export class ContactUsController {
     description: 'Submit a contact us inquiry or support request',
   })
   @ApiBody({ type: ContactUsDto })
-  @ApiResponse({ status: 201, description: 'Inquiry submitted successfully' })
+  @ApiResponse({
+    status: 201,
+    description: 'Inquiry submitted successfully',
+    schema: {
+      type: 'object',
+      properties: { message: { type: 'string', example: 'Inquiry received successfully' } },
+    },
+  })
   @ApiResponse({ status: 400, description: 'Bad request - Invalid input data' })
   @ApiResponse({ status: 500, description: 'Internal server error' })
   async create(@Body() dto: ContactUsDto) {

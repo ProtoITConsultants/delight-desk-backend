@@ -94,6 +94,8 @@ async function bootstrap() {
     .addTag('Microsoft OAuth', 'Outlook OAuth integration')
     .addTag('WooCommerce', 'E-commerce store integration')
     .addTag('Contact', 'Contact form submissions')
+    .addTag('System Settings', 'Fulfillment method and system configuration')
+    .addTag('Billing', 'Plans and subscription management')
     .build();
 
   const document = SwaggerModule.createDocument(app, config);

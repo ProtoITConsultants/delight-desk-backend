@@ -40,7 +40,14 @@ export class WooCommerceController {
   })
   @ApiCookieAuth('connect.sid')
   @ApiBody({ type: InitializeWooOAuthDto })
-  @ApiResponse({ status: 201, description: 'OAuth flow initiated successfully' })
+  @ApiResponse({
+    status: 201,
+    description: 'OAuth flow initiated successfully',
+    schema: {
+      type: 'object',
+      properties: { redirectUrl: { type: 'string', description: 'URL to redirect user to for OAuth authorization' } },
+    },
+  })
   @ApiResponse({ status: 400, description: 'Bad request - Invalid store URL' })
   @ApiResponse({ status: 401, description: 'Unauthorized - User not authenticated' })
   @ApiResponse({ status: 500, description: 'Internal server error' })
@@ -69,7 +76,14 @@ export class WooCommerceController {
   })
   @ApiCookieAuth('connect.sid')
   @ApiBody({ type: ManualConnectWooDto })
-  @ApiResponse({ status: 201, description: 'Store connected successfully' })
+  @ApiResponse({
+    status: 201,
+    description: 'Store connected successfully',
+    schema: {
+      type: 'object',
+      properties: { message: { type: 'string', example: 'WooCommerce store connected successfully' } },
+    },
+  })
   @ApiResponse({ status: 400, description: 'Bad request - Invalid credentials or store URL' })
   @ApiResponse({ status: 401, description: 'Unauthorized - User not authenticated' })
   @ApiResponse({ status: 500, description: 'Internal server error' })
@@ -84,7 +98,14 @@ export class WooCommerceController {
     description: 'Disconnect the linked WooCommerce store from the user account',
   })
   @ApiCookieAuth('connect.sid')
-  @ApiResponse({ status: 200, description: 'Store disconnected successfully' })
+  @ApiResponse({
+    status: 200,
+    description: 'Store disconnected successfully',
+    schema: {
+      type: 'object',
+      properties: { message: { type: 'string', example: 'WooCommerce Auth connection deleted successfully' } },
+    },
+  })
   @ApiResponse({ status: 401, description: 'Unauthorized - User not authenticated' })
   @ApiResponse({ status: 404, description: 'WooCommerce connection not found' })
   @ApiResponse({ status: 500, description: 'Internal server error' })

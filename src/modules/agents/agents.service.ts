@@ -77,6 +77,7 @@ export class AgentsService {
     const settings = await this.systemSettingsRepo.findByUser(userId);
     if (!settings) throw new NotFoundException('Settings not found');
     await this.systemSettingsRepo.update(userId, dto);
+    return { message: 'System settings updated successfully' };
   }
 
   async getAgentSettings(agentType: AgentType, email: EmailEntity) {

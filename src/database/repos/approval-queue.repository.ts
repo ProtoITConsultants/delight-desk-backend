@@ -1,5 +1,5 @@
 import { Inject, Injectable } from '@nestjs/common';
-import { and, desc, eq, inArray, sql } from 'drizzle-orm';
+import { and, desc, eq, sql } from 'drizzle-orm';
 import { NodePgDatabase } from 'drizzle-orm/node-postgres';
 import { DATABASE_CONNECTION } from '../database.module';
 import { approvalQueue, approvalQueueActions } from '../schema';
@@ -59,7 +59,6 @@ export class ApprovalQueueRepository {
     userId: string;
     status: string | undefined;
     category: string | undefined;
-    priority: string[] | undefined;
     limit: number;
     offset: number;
   }) {
@@ -71,10 +70,6 @@ export class ApprovalQueueRepository {
 
     if (filters.category) {
       conditions.push(eq(approvalQueue.category, filters.category));
-    }
-
-    if (filters.priority && filters.priority.length > 0) {
-      conditions.push(inArray(approvalQueue.priority, filters.priority));
     }
 
     const items = await this.db
@@ -95,7 +90,6 @@ export class ApprovalQueueRepository {
     userId: string;
     status: string | undefined;
     category: string | undefined;
-    priority: string[] | undefined;
     limit: number;
     offset: number;
   }): Promise<number> {
@@ -107,10 +101,6 @@ export class ApprovalQueueRepository {
 
     if (filters.category) {
       conditions.push(eq(approvalQueue.category, filters.category));
-    }
-
-    if (filters.priority && filters.priority.length > 0) {
-      conditions.push(inArray(approvalQueue.priority, filters.priority));
     }
 
     const [result] = await this.db

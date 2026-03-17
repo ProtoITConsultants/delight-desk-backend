@@ -40,7 +40,7 @@ export class ApprovalQueueController {
   @ApiOperation({
     summary: 'Get approval queue items',
     description:
-      'Retrieve paginated list of items in the approval queue with filtering options by status, agent type, and priority. Each item includes originalCustomerEmailBody and workflowActions.',
+      'Retrieve paginated list of items in the approval queue with filtering options by status and agent type. Each item includes originalCustomerEmailBody and workflowActions.',
   })
   @ApiQuery({
     name: 'status',
@@ -53,12 +53,6 @@ export class ApprovalQueueController {
     required: false,
     type: String,
     description: 'Filter by agent category',
-  })
-  @ApiQuery({
-    name: 'priority',
-    required: false,
-    type: [String],
-    description: 'Filter by priority levels',
   })
   @ApiQuery({
     name: 'page',

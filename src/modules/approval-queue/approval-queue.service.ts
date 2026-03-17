@@ -43,7 +43,7 @@ export class ApprovalQueueService {
   ) {}
 
   async getApprovalQueueItems(userId: string, dto: GetApprovalQueueDto): Promise<any> {
-    const { page = 1, limit = 20, status, category, priority } = dto;
+    const { page = 1, limit = 20, status, category } = dto;
 
     const offset = (page - 1) * limit;
 
@@ -51,7 +51,6 @@ export class ApprovalQueueService {
       userId,
       status,
       category,
-      priority,
       limit: limit,
       offset,
     };
@@ -153,7 +152,6 @@ export class ApprovalQueueService {
       userId,
       status,
       category,
-      priority: undefined,
       limit,
       offset,
     };

@@ -1,4 +1,4 @@
-import { IsArray, IsEnum, IsIn, IsNotEmpty, IsOptional, IsString, Min } from 'class-validator';
+import { IsEnum, IsNotEmpty, IsOptional, IsString, Min } from 'class-validator';
 import { Type } from 'class-transformer';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 
@@ -16,17 +16,6 @@ export class GetApprovalQueueDto {
   @IsOptional()
   @IsString()
   category?: string;
-
-  @ApiPropertyOptional({
-    description: 'Filter by priority levels',
-    type: [String],
-    enum: ['low', 'medium', 'high', 'urgent'],
-    example: ['high', 'urgent'],
-  })
-  @IsOptional()
-  @IsArray()
-  @IsIn(['low', 'medium', 'high', 'urgent'], { each: true })
-  priority?: string[];
 
   @ApiPropertyOptional({
     description: 'Page number for pagination',

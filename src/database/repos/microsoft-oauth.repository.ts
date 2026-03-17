@@ -12,7 +12,7 @@ export class MicrosoftOauthRepository {
   async removeExistingAccount(userId: string) {
     const result = await this.db
       .delete(userOAuthAccounts)
-      .where(and(eq(userOAuthAccounts.userId, userId)))
+      .where(and(eq(userOAuthAccounts.userId, userId), eq(userOAuthAccounts.provider, 'microsoft')))
       .returning({ id: userOAuthAccounts.id });
 
     return result.length > 0;

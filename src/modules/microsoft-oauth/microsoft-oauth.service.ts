@@ -1,5 +1,5 @@
 import axios from 'axios';
-import { Injectable, Logger } from '@nestjs/common';
+import { BadRequestException, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { ConfigService } from '@nestjs/config';
 import { Client } from '@microsoft/microsoft-graph-client';
@@ -39,7 +39,16 @@ export class MicrosoftOauthService {
     }
   }
 
-  async disconnectMicrosoftAccount(userId: string) {
+  async disconnectMicrosoftAccount(userId: string): Promise<void> {
+    const account = await this.repo.getMicrosoftAccount(userId);
+    if (!account) {
+      throw new NotFoundException('No Microsoft account connected for this user');
+    }
+
+    if (account.status === 'disconnected') {
+      throw new BadRequestException('Microsoft account is already disconnected');
+    }
+
     // Best-effort: delete ALL active Graph subscriptions so Microsoft stops
     // sending webhooks immediately.  We list them from the API rather than
     // relying solely on the DB-stored ID, because previous sessions may have
@@ -56,7 +65,10 @@ export class MicrosoftOauthService {
       });
     }
 
-    return await this.repo.removeExistingAccount(userId);
+    const removed = await this.repo.removeExistingAccount(userId);
+    if (!removed) {
+      throw new NotFoundException('No Microsoft account connected for this user');
+    }
   }
 
   /**

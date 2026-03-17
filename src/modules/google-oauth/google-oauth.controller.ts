@@ -104,16 +104,17 @@ export class GoogleOauthController {
     description: 'Account disconnected successfully',
     schema: {
       type: 'object',
-      properties: { message: { type: 'string', example: 'Account disconnected successfully' } },
+      properties: { message: { type: 'string', example: 'Google account disconnected successfully' } },
     },
   })
   @ApiResponse({ status: 401, description: 'Unauthorized - User not authenticated' })
+  @ApiResponse({ status: 400, description: 'Google account already disconnected' })
   @ApiResponse({ status: 404, description: 'Google account not found' })
   @ApiResponse({ status: 500, description: 'Internal server error' })
   @UseGuards(SessionGuard)
   async disconnect(@CurrentUserId() userId: string) {
     await this.googleService.disconnectGoogleAccount(userId);
-    return { message: 'Account disconnected successfully' };
+    return { message: 'Google account disconnected successfully' };
   }
 
   @Post('gmail/webhook')

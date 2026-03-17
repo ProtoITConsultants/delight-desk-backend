@@ -98,16 +98,19 @@ export class MicrosoftOauthController {
     description: 'Account disconnected successfully',
     schema: {
       type: 'object',
-      properties: { message: { type: 'string', example: 'Account disconnected successfully' } },
+      properties: {
+        message: { type: 'string', example: 'Microsoft account disconnected successfully' },
+      },
     },
   })
   @ApiResponse({ status: 401, description: 'Unauthorized - User not authenticated' })
+  @ApiResponse({ status: 400, description: 'Microsoft account already disconnected' })
   @ApiResponse({ status: 404, description: 'Microsoft account not found' })
   @ApiResponse({ status: 500, description: 'Internal server error' })
   @UseGuards(SessionGuard)
   async disconnect(@CurrentUserId() userId: string) {
     await this.microsoftService.disconnectMicrosoftAccount(userId);
-    return { message: 'Account disconnected successfully' };
+    return { message: 'Microsoft account disconnected successfully' };
   }
 
   @Get('outlook/webhook')

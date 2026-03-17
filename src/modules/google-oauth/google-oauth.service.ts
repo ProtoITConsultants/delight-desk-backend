@@ -1,5 +1,5 @@
 import { google } from 'googleapis';
-import { Injectable, Logger } from '@nestjs/common';
+import { BadRequestException, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { GoogleAccount } from './types/google-account.interface';
 import { GoogleOauthRepository } from 'src/database/repos/google-oauth.repository';
@@ -52,7 +52,16 @@ export class GoogleOauthService {
    * Disconnect Google account from user profile.
    * Stops Gmail push notifications first so no more webhooks are sent after disconnect.
    */
-  async disconnectGoogleAccount(userId: string): Promise<boolean> {
+  async disconnectGoogleAccount(userId: string): Promise<void> {
+    const account = await this.repo.getGoogleAccount(userId);
+    if (!account) {
+      throw new NotFoundException('No Google account connected for this user');
+    }
+
+    if (account.status === 'disconnected') {
+      throw new BadRequestException('Google account is already disconnected');
+    }
+
     // Best-effort: stop Gmail push notifications before removing the account.
     // If the token is already invalid we still want the DB record gone.
     try {
@@ -68,7 +77,10 @@ export class GoogleOauthService {
       });
     }
 
-    return await this.repo.removeExistingAccount(userId);
+    const removed = await this.repo.removeExistingAccount(userId);
+    if (!removed) {
+      throw new NotFoundException('No Google account connected for this user');
+    }
   }
 
   // ============================================================================

@@ -1,0 +1,55 @@
+sequenceDiagram
+    participant Customer
+    participant EmailProcessor as Email Processing
+    participant Classifier as Ai Classification
+    participant Router as Routing
+    participant Agent as Subscription Agent
+    participant WooCommerce as WooCommerce
+    participant Stripe as Stripe Billing
+    participant AiAssistant as Ai Assistant
+    participant Approver as Approval Queue
+    participant Responder as Response System
+
+    Note over Customer,Responder: Email Processing (Subscription Agent)
+
+    Customer->>EmailProcessor: Send Email (Subscription Modification)
+    EmailProcessor->>EmailProcessor: Receive via Gmail Push/Sync/Manual
+    EmailProcessor->>Classifier: Extract & Normalize Content
+    Classifier->>Classifier: Run GPT-4o Classification (subscription_changes + Confidence)
+    Classifier->>Classifier: Run Amazon Comprehend Sentiment Analysis
+    Classifier->>Router: Classified Email
+    Router->>Agent: Route to Subscription Agent (if confidence >=60%)
+    alt Confidence <60% or Complex Request
+        Router->>AiAssistant: Escalate to Ai Assistant
+    end
+    Agent->>Agent: Extract Subscription ID (AI Pattern Matching)
+    alt No Subscription ID
+        Agent->>WooCommerce: Lookup by Customer Email
+        alt No Active Subscription
+            Agent->>AiAssistant: Escalate to Ai Assistant
+            Agent->>Customer: Notify No Subscription Found
+        end
+    end
+    Agent->>WooCommerce: Validate Subscription (Active, Email Match)
+    alt Invalid Subscription
+        Agent->>AiAssistant: Escalate to Ai Assistant
+    end
+    Agent->>Agent: Determine Action (Pause/Resume/Cancel/Modify)
+    Agent->>WooCommerce: Execute Action (Update Subscription)
+    alt Modify Action
+        Agent->>Stripe: Update Billing Schedule
+    end
+    alt Safety Check Failure (e.g., Payment Method, Product Availability)
+        Agent->>AiAssistant: Escalate to Ai Assistant
+        Agent->>Customer: Notify Issue (e.g., Expired Card, Discontinued Product)
+    end
+    alt Automation Approval Required
+        Agent->>Approver: Queue for Review (Action Details, Customer Context, Metadata)
+        Approver->>Responder: Approve & Proceed
+    end
+    Responder->>Customer: Send Response (Confirmation: Pause/Resume/Cancel)
+    Note over Agent,Responder: Log Steps, Maintain Audit Trail
+    alt Errors (API Failure, System Error)
+        Agent->>AiAssistant: Escalate with Priority
+        Agent->>Customer: Notify Error/Service Unavailable
+    end

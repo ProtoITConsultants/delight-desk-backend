@@ -1,0 +1,41 @@
+sequenceDiagram
+    participant Customer
+    participant EmailProcessor as Email Processing
+    participant Classifier as Ai Classification
+    participant Router as Routing
+    participant Agent as Product Agent
+    participant KnowledgeBase as Knowledge Base (RAG)
+    participant AiAssistant as Ai Assistant
+    participant Approver as Approval Queue
+    participant Responder as Response System
+
+    Note over Customer,Responder: Email Processing (Product Agent)
+
+    Customer->>EmailProcessor: Send Email (Product Inquiry)
+    EmailProcessor->>EmailProcessor: Receive via Gmail Push Notification
+    EmailProcessor->>Classifier: Extract & Normalize Content
+    Classifier->>Classifier: Run GPT-4o Classification (product + Confidence)
+    Classifier->>Classifier: Run Amazon Comprehend Sentiment Analysis
+    Classifier->>Router: Classified Email (e.g., product)
+    Router->>Agent: Route to Product Agent (if confidence >=60%)
+    alt Confidence <60% or Escalation Needed
+        Router->>AiAssistant: Escalate to AiAssistant
+    end
+    Agent->>KnowledgeBase: Vector Similarity Search (OpenAI Embeddings, Threshold 0.70)
+    KnowledgeBase->>Agent: Retrieve Relevant Chunks (User-Isolated: Training URLs, Manual Content)
+    alt No Relevant Data or Low Similarity
+        Agent->>AiAssistant: Escalate to AiAssistant
+        Agent->>Customer: Optional: "Don't have enough info" (but suggest escalate instead)
+    else Relevant Data Found
+        Agent->>Agent: Build Context from Chunks
+        Agent->>Agent: Generate Response (Grounded, Source Attributed, Confidence-Based)
+    end
+    alt Automation Approval Required
+        Agent->>Approver: Queue for Review (Planned Response, Confidence Score, Metadata)
+        Approver->>Responder: Approve & Proceed
+    end
+    Responder->>Customer: Send Response (Accurate Product Info)
+    Note over Agent,Responder: Log Steps, Ensure Isolation & Hallucination Prevention
+    alt Errors (No Data, Low Confidence)
+        Agent->>AiAssistant: Escalate with Priority
+    end

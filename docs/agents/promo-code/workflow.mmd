@@ -1,0 +1,59 @@
+sequenceDiagram
+    participant Customer
+    participant EmailProcessor as Email Processing
+    participant Classifier as Ai Classification
+    participant Router as Routing
+    participant Agent as Promo Code Agent
+    participant WooCommerce as WooCommerce
+    participant AiAssistant as Ai Assistant
+    participant Approver as Approval Queue
+    participant Responder as Response System
+
+    Note over Customer,Responder: Email Processing (Promo Code Agent)
+
+    Customer->>EmailProcessor: Send Email (Discount/Promo Inquiry)
+    EmailProcessor->>EmailProcessor: Receive via Gmail Push/Sync/Manual
+    EmailProcessor->>Classifier: Extract & Normalize Content
+    Classifier->>Classifier: Run GPT-4o Classification (discount_inquiries/promo_refund + Confidence)
+    Classifier->>Classifier: Run Amazon Comprehend Sentiment Analysis
+    Classifier->>Classifier: Retrieve Full Thread History
+    Classifier->>Router: Classified Email
+    Router->>Agent: Route to Promo Code Agent (if confidence >=60%)
+    alt Confidence <60% or Escalation Needed
+        Router->>AiAssistant: Escalate to Ai Assistant
+    end
+    Agent->>WooCommerce: Retrieve Customer Order History
+    Agent->>Agent: Classify Customer (First-time/Returning/VIP)
+    Agent->>Agent: Lookup Active Promo Configs (isActive, eligibleForAutomation)
+    alt PromoCodeService (discount_inquiries)
+        Agent->>Agent: Evaluate Eligibility (First-time/General/Loyalty Rules)
+        alt Eligible
+            Agent->>Agent: Select Promo Code (First-time/General/Loyalty)
+        else Not Eligible
+            Agent->>Responder: Decline Email (Suggest Alternatives)
+        end
+    else EnhancedPromoRefundService (promo_refund)
+        Agent->>Agent: AI Code Extraction & Request Classification
+        alt Explicit Discount
+            Agent->>Agent: Provide Available Promo Code
+        else Specific Code Problem
+            Agent->>Agent: Lookup Code & Troubleshoot
+            alt Code Not Found
+                Agent->>AiAssistant: Escalate to Ai Assistant
+            end
+        else Vague Issue
+            Agent->>Responder: Clarification Email
+        else Unknown
+            Agent->>AiAssistant: Escalate to Ai Assistant
+        end
+    end
+    alt Automation Approval Required
+        Agent->>Approver: Queue for Review (Customer Context, Eligibility, Proposed Code)
+        Approver->>Responder: Approve & Proceed
+    end
+    Responder->>Customer: Send Response (Promo Code/Decline/Clarification)
+    Note over Agent,Responder: Log Steps, Track Metrics
+    alt Errors (Config, No Data, Abuse Detected)
+        Agent->>AiAssistant: Escalate with Priority
+        Agent->>Customer: Notify Error/Service Unavailable
+    end

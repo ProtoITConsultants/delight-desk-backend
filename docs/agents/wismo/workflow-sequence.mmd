@@ -1,0 +1,71 @@
+sequenceDiagram
+    participant Customer
+    participant EmailProcessing as Email Processing
+    participant AIClassifier as AI Classification
+    participant SmartRouter as Routing  
+    participant Agent as WISMO Agent
+    participant WooCommerce
+    participant AfterShip
+    participant AiAssistant as AI Assistant
+    participant ApprovalQueue as Approval Queue
+    participant ResponseSystem as Response System
+
+    Note over Customer,ResponseSystem: Email Processing (WISMO)
+
+    %% Step 1: Email Reception
+    Customer->>EmailProcessing: Send Support Email
+    EmailProcessing->>EmailProcessing: Receive via Gmail/Outlook<br/>(+ 15min polling backup)
+    EmailProcessing->>EmailProcessing: Deduplicate (by Message/Thread ID)
+    EmailProcessing->>AIClassifier: Process New Email
+
+    %% Step 2: Smart Classification  
+    AIClassifier->>AIClassifier: GPT-4o Classification<br/>(category + confidence score + priority)
+    AIClassifier->>AIClassifier: Run Amazon Comprehend Sentiment Analysis
+    AIClassifier->>AIClassifier: Retrieve Full Thread History
+    AIClassifier->>SmartRouter: Classified Email (e.g., wismo)
+
+    %% Step 3: Intelligent Routing
+    SmartRouter->>WooCommerce: Lookup Customer & Order Data
+    alt Confidence >= 60% and Category = WISMO
+        SmartRouter->>Agent: Route to WISMO Agent
+    else Confidence < 60% or Escalation Needed
+        SmartRouter->>AiAssistant: Escalate to AI Assistant
+    end
+
+    %% Step 4: WISMO Agent Processing
+    Agent->>Agent: AI Processing (Retrieve relevant data + generate AI response + response moderation)
+    Agent->>Agent: Extract Order Number (GPT-4o AI)
+    alt Order Number Not Found
+        Agent->>WooCommerce: Search Recent Order by Email
+        alt Order Found
+            Agent->>AfterShip: Fetch Tracking Data
+        else Order Not Found
+            Agent->>AiAssistant: Escalate to AI Assistant
+        end
+    else Order Number Found
+        Agent->>AfterShip: Fetch Tracking Data
+    end
+
+    %% Step 5: Tracking Data Processing
+    alt Tracking Data Available
+        Agent->>Agent: Generate Smart Response (based on tracking status)
+        alt Auto-Send Enabled
+            Agent->>ResponseSystem: Send Immediately
+        else Needs Review
+            Agent->>ApprovalQueue: Queue for Approval
+            ApprovalQueue->>ResponseSystem: Approve & Proceed
+        end
+    else Tracking Data Unavailable or Error
+        Agent->>AiAssistant: Escalate to AI Assistant
+    end
+
+    %% Step 6: Response Delivery
+    ResponseSystem->>ResponseSystem: Validate & Send<br/>(Gmail/Outlook + SendGrid backup)
+    ResponseSystem->>Customer: Deliver Response
+    ResponseSystem->>ResponseSystem: Track Delivery & Update History
+
+    %% Step 7: Error Handling
+    Note over Customer,ResponseSystem: Log Metrics, Steps, & Save to Database Throughout
+    alt Errors (Config, API Fail, Timeout, Outage)
+        Customer->>AiAssistant: Escalate with Priority
+    end

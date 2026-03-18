@@ -120,9 +120,14 @@ export class GmailWebhookService {
     const { text, html, headers } = await this.gmailParser.parseMessageBody(msg);
 
     const rawBody = text || html || snippet;
-    const body = this.contentExtractor.extractNewContent(rawBody);
+    const extractedBody = this.contentExtractor.extractNewContent(rawBody);
     const subject = headers?.['subject'] || null;
-    const hasWarehouseWorkflowMarker = this.hasWarehouseWorkflowMarker(subject, body);
+    const warehouseWorkflowId = this.extractWarehouseWorkflowId(subject, rawBody, extractedBody);
+    const hasWarehouseWorkflowMarker = !!warehouseWorkflowId;
+    const body =
+      warehouseWorkflowId && !this.hasWarehouseWorkflowMarker(extractedBody)
+        ? `${extractedBody || ''}\n\nReference: [DD-OC-WF:${warehouseWorkflowId}]`
+        : extractedBody;
 
     // Filter out non-customer emails unless this is an explicit warehouse-routing reply.
     if (!hasWarehouseWorkflowMarker && !this.emailClassifier.isLikelyCustomerEmail(body)) {
@@ -188,9 +193,9 @@ export class GmailWebhookService {
         ? 'outgoing'
         : shouldBypassOwnerInitiatedGuard
           ? 'warehouse-marker-reply'
-        : isOwnerInitiated
-          ? 'owner-initiated thread'
-          : 'already exists';
+          : isOwnerInitiated
+            ? 'owner-initiated thread'
+            : 'already exists';
       console.log(`Skipping pipeline (${reason}):`, messageId);
     }
   }
@@ -202,12 +207,14 @@ export class GmailWebhookService {
     return labels.some((label) => IRRELEVANT_GMAIL_LABELS.includes(label as any));
   }
 
-  private hasWarehouseWorkflowMarker(
-    subject: string | null | undefined,
-    body: string | null | undefined,
-  ): boolean {
-    const searchable = `${subject || ''}\n${body || ''}`;
-    return GmailWebhookService.WAREHOUSE_WORKFLOW_MARKER_REGEX.test(searchable);
+  private hasWarehouseWorkflowMarker(body: string | null | undefined): boolean {
+    return !!this.extractWarehouseWorkflowId(body);
+  }
+
+  private extractWarehouseWorkflowId(...parts: Array<string | null | undefined>): string | null {
+    const searchable = parts.filter((part): part is string => !!part).join('\n');
+    const match = searchable.match(GmailWebhookService.WAREHOUSE_WORKFLOW_MARKER_REGEX);
+    return match?.[1]?.trim() || null;
   }
 
   /**

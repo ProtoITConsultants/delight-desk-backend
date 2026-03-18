@@ -106,8 +106,13 @@ export class OutlookWebhookService {
         ? message.body?.content
         : this.contentExtractor.stripHtmlTags(message.body?.content || '');
 
-    const body = this.contentExtractor.extractNewContent(rawBody) || rawBody || '';
-    const hasWarehouseWorkflowMarker = this.hasWarehouseWorkflowMarker(subject, body);
+    const extractedBody = this.contentExtractor.extractNewContent(rawBody) || rawBody || '';
+    const warehouseWorkflowId = this.extractWarehouseWorkflowId(subject, rawBody, extractedBody);
+    const hasWarehouseWorkflowMarker = !!warehouseWorkflowId;
+    const body =
+      warehouseWorkflowId && !this.hasWarehouseWorkflowMarker(subject, extractedBody)
+        ? `${extractedBody || ''}\n\nReference: [DD-OC-WF:${warehouseWorkflowId}]`
+        : extractedBody;
 
     // Filter out non-customer emails unless this is an explicit warehouse-routing reply.
     if (!hasWarehouseWorkflowMarker && !this.emailClassifier.isLikelyCustomerEmail(body)) {
@@ -172,7 +177,12 @@ export class OutlookWebhookService {
     subject: string | null | undefined,
     body: string | null | undefined,
   ): boolean {
-    const searchable = `${subject || ''}\n${body || ''}`;
-    return OutlookWebhookService.WAREHOUSE_WORKFLOW_MARKER_REGEX.test(searchable);
+    return !!this.extractWarehouseWorkflowId(subject, body);
+  }
+
+  private extractWarehouseWorkflowId(...parts: Array<string | null | undefined>): string | null {
+    const searchable = parts.filter((part): part is string => !!part).join('\n');
+    const match = searchable.match(OutlookWebhookService.WAREHOUSE_WORKFLOW_MARKER_REGEX);
+    return match?.[1]?.trim() || null;
   }
 }

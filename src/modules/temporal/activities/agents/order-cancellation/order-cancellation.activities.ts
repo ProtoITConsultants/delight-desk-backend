@@ -269,19 +269,81 @@ ${voiceContext}
   async generateCustomWarehouseRequestEmail(
     orderNumber: string,
     workflowId: string,
+    customerBillingEmail?: string | null,
+    aiIdentity?: any,
   ): Promise<{ subject: string; body: string }> {
-    const subject = `URGENT: Cancel Order #${orderNumber} - Customer Request [DD-OC-WF:${workflowId}]`;
-    const body = `Please confirm whether order #${orderNumber} can still be cancelled before shipment.
+    const subject = `URGENT: Cancel Order #${orderNumber} - Customer Request`;
+    const signature = this.messageFormattingHelper.buildSignatureFromAiIdentity(aiIdentity);
+    const body = `Please confirm whether order #${orderNumber} can still be canceled before shipment.
 
-Customer requested cancellation and is awaiting response.
+Customer requested cancellation and is awaiting our update. Please confirm as soon as possible.
 
-Reply with one of:
+Order details:
+- WooCommerce Order ID: #${orderNumber}
+- Customer Billing Email: ${customerBillingEmail || 'Not available'}
+
+Please reply with exactly one value:
 - canceled
-- cannot cancel
+- cannot_cancel
 
-Reference: [DD-OC-WF:${workflowId}]`;
+----------------------------------------
+${signature}
+
+Internal use only:
+Internal Reference Id: [DD-OC-WF:${workflowId}]`;
 
     return { subject, body };
+  }
+
+  @ActivityMethod({ name: 'detectWarehouseReplyIntent' })
+  async detectWarehouseReplyIntent(
+    warehouseReplyBody: string | null | undefined,
+  ): Promise<'canceled' | 'cannot_cancel' | 'unknown'> {
+    const normalizedBody = (warehouseReplyBody || '').trim();
+    if (!normalizedBody) {
+      return 'unknown';
+    }
+
+    const messages = [
+      {
+        role: 'system',
+        content:
+          'You classify warehouse cancellation replies. Return exactly one token: canceled, cannot_cancel, or unknown. ' +
+          'Use canceled when warehouse confirms cancellation was completed/possible. ' +
+          'Use cannot_cancel when warehouse indicates cancellation is no longer possible. ' +
+          'Use unknown if unclear, conditional, or asking for more information.',
+      },
+      {
+        role: 'user',
+        content: `Warehouse reply:\n${normalizedBody}`,
+      },
+    ];
+
+    try {
+      const response = await this.agentsService['openaiService'].createChatCompletion(messages, 0);
+      const rawIntent = (response.choices[0].message.content || '').trim().toLowerCase();
+
+      if (rawIntent.includes('cannot_cancel')) return 'cannot_cancel';
+      if (rawIntent.includes('canceled')) return 'canceled';
+
+      // Fallback normalization for slight model variations.
+      if (rawIntent.includes('cannot cancel')) return 'cannot_cancel';
+      if (rawIntent.includes('cancelled') || rawIntent.includes('canceled')) return 'canceled';
+    } catch {
+      // Fall through to deterministic keyword fallback below.
+    }
+
+    const fallback = normalizedBody.toLowerCase();
+    if (fallback.includes('cannot cancel')) return 'cannot_cancel';
+    if (
+      fallback.includes('cancelled') ||
+      fallback.includes('canceled') ||
+      fallback.includes('cancellation done')
+    ) {
+      return 'canceled';
+    }
+
+    return 'unknown';
   }
 
   @ActivityMethod({ name: 'generateRefundProcessedMessage' })

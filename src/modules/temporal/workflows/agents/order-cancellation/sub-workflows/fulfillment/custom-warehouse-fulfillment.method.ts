@@ -60,21 +60,6 @@ function isWithinWeekendExtension(orderCreatedAt: Date, now: Date): boolean {
   return now.getTime() <= mondayNoon.getTime();
 }
 
-function parseWarehouseResponse(
-  body: string | null | undefined,
-): 'canceled' | 'cannot_cancel' | 'unknown' {
-  const normalized = (body || '').toLowerCase();
-  if (normalized.includes('cannot cancel')) return 'cannot_cancel';
-  if (
-    normalized.includes('cancelled') ||
-    normalized.includes('canceled') ||
-    normalized.includes('cancellation done')
-  ) {
-    return 'canceled';
-  }
-  return 'unknown';
-}
-
 export async function handleCustomWarehouseFulfillmentMethod(
   context: ActionExecutionContext<OrderCancellationWorkflowState>,
   fulfillmentMethod: FulfillmentMethod,
@@ -103,6 +88,7 @@ export async function handleCustomWarehouseFulfillmentMethod(
     generateCustomWarehouseCannotCancelMessage,
     generateCustomWarehouseTooLateMessage,
     generateCustomWarehouseRequestEmail,
+    detectWarehouseReplyIntent,
     generateRefundProcessedMessage,
   } = orderCancellationActivities;
 
@@ -385,6 +371,8 @@ export async function handleCustomWarehouseFulfillmentMethod(
   const warehouseEmailContent = await generateCustomWarehouseRequestEmail(
     context.state.orderNumber as string,
     context.workflowId,
+    customerEmailFromOrder,
+    aiIdentity,
   );
   const warehouseSubject = warehouseEmailContent.subject;
   const warehouseMessage = warehouseEmailContent.body;
@@ -460,7 +448,7 @@ export async function handleCustomWarehouseFulfillmentMethod(
           continue;
         }
 
-        const parsed = parseWarehouseResponse(reply?.body);
+        const parsed = await detectWarehouseReplyIntent(reply?.body);
         if (parsed === 'unknown') {
           log.info('Warehouse response did not include actionable keyword; continuing wait', {
             messageId: reply?.messageId,
@@ -591,6 +579,7 @@ export async function handleCustomWarehouseFulfillmentMethod(
       confirmationSent: false,
     };
   }
+
   cancellationProcessed = true;
 
   const refundResult = await executeWorkflowAction(

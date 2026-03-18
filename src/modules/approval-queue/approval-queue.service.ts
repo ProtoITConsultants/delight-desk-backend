@@ -27,6 +27,8 @@ import {
 } from './approval-queue.types';
 import {
   CUSTOM_WAREHOUSE_STAGES,
+  SHIPBOB_STAGES,
+  SHIPSTATION_STAGES,
   SELF_FULFILLMENT_STAGES,
 } from './approval-queue-progress.constants';
 import { HumanDecision } from '../temporal/workflows/types';
@@ -380,11 +382,16 @@ export class ApprovalQueueService {
     const stages = this.buildStagesForMethod(fulfillmentMethod);
     const timeline = stages.map((stage) => this.buildStageProgress(stage, actions, workflowStatus));
 
-    const currentStep =
+    let currentStep: ApprovalProgressStage | null =
       timeline.find((stage) => stage.status === 'blocked') ||
       timeline.find((stage) => stage.status === 'in_progress') ||
       timeline.find((stage) => stage.status === 'pending') ||
       null;
+
+    if (workflowStatus === 'completed') {
+      const completedStages = timeline.filter((stage) => stage.status === 'completed');
+      currentStep = completedStages.length > 0 ? completedStages[completedStages.length - 1] : null;
+    }
 
     return {
       fulfillmentMethod,
@@ -400,14 +407,34 @@ export class ApprovalQueueService {
     const actionTypes = new Set(
       actions.map((action) => this.normalizeActionType(action.actionType)),
     );
+    const hasShipBobSignal = this.actionsContainKeyword(actions, 'shipbob');
+    const hasShipStationSignal = this.actionsContainKeyword(actions, 'shipstation');
+
+    // Custom warehouse has unique action types that no other method uses.
     if (
       actionTypes.has('contact_warehouse') ||
-      actionTypes.has('wait_for_warehouse_reply') ||
-      actionTypes.has('validate_customer_email')
+      actionTypes.has('wait_for_warehouse_reply')
     ) {
       return 'custom_warehouse';
     }
 
+    // ShipBob / ShipStation share generic action types with self flow, so detect
+    // using provider-specific text in action descriptions/details.
+    if (hasShipBobSignal) {
+      return 'shipbob';
+    }
+    if (hasShipStationSignal) {
+      return 'shipstation';
+    }
+
+    // If cancellation/refund actions exist and no provider-specific signals were found,
+    // this is the self-fulfillment flow.
+    if (actionTypes.has('process_cancellation') || actionTypes.has('process_refund')) {
+      return 'self';
+    }
+
+    // For early-stage workflows where provider-specific actions haven't executed yet,
+    // fall back to configured method.
     if (
       configuredMethod === 'self' ||
       configuredMethod === 'custom_warehouse' ||
@@ -417,16 +444,18 @@ export class ApprovalQueueService {
       return configuredMethod;
     }
 
-    if (actionTypes.has('process_cancellation') || actionTypes.has('process_refund')) {
-      return 'self';
-    }
-
     return 'unknown';
   }
 
   private buildStagesForMethod(fulfillmentMethod: ProgressFulfillmentMethod): StageBlueprint[] {
     if (fulfillmentMethod === 'custom_warehouse') {
       return CUSTOM_WAREHOUSE_STAGES;
+    }
+    if (fulfillmentMethod === 'shipbob') {
+      return SHIPBOB_STAGES;
+    }
+    if (fulfillmentMethod === 'shipstation') {
+      return SHIPSTATION_STAGES;
     }
 
     // Default order-cancellation map for self + unknown, so UI always has a stable timeline.
@@ -441,9 +470,13 @@ export class ApprovalQueueService {
     const stageActionTypeSet = new Set(
       stage.actionTypes.map((actionType) => this.normalizeActionType(actionType)),
     );
-    const stageActions = actions.filter((action) =>
-      stageActionTypeSet.has(this.normalizeActionType(action.actionType)),
-    );
+    const stageActions = actions.filter((action) => {
+      const normalizedActionType = this.normalizeActionType(action.actionType);
+      if (!stageActionTypeSet.has(normalizedActionType)) {
+        return false;
+      }
+      return this.actionBelongsToStage(stage.key, normalizedActionType, action.actionStep);
+    });
     const actionStatuses = stageActions.map((action) => action.actionStatus);
     const blockedStatuses = new Set(['failed', 'escalated', 'rejected']);
     const inProgressStatuses = new Set(['pending_approval', 'approved', 'executing']);
@@ -460,6 +493,9 @@ export class ApprovalQueueService {
     if (status === 'pending' && workflowStatus === 'cancelled') {
       status = 'cancelled';
     }
+    if (status === 'pending' && workflowStatus === 'completed') {
+      status = 'completed';
+    }
 
     return {
       key: stage.key,
@@ -471,6 +507,45 @@ export class ApprovalQueueService {
 
   private normalizeActionType(actionType: string): string {
     return actionType.replace(/^oc_/, '');
+  }
+
+  /**
+   * Some action types (notably fetch_order_details) appear in multiple phases:
+   * - step 4: WooCommerce order fetch during identification
+   * - step 6.x: fulfillment-provider order fetch during eligibility checks
+   *
+   * Disambiguate by action step so timeline stages don't get double-blocked.
+   */
+  private actionBelongsToStage(stageKey: string, actionType: string, actionStep: string): boolean {
+    if (actionType !== 'fetch_order_details') {
+      return true;
+    }
+
+    const stepNumber = Number.parseFloat(actionStep);
+    if (Number.isNaN(stepNumber)) {
+      return true;
+    }
+
+    if (stageKey === 'identify_order') {
+      return stepNumber < 6;
+    }
+
+    if (stageKey === 'check_eligibility') {
+      return stepNumber >= 6 && stepNumber < 7;
+    }
+
+    return true;
+  }
+
+  private actionsContainKeyword(actions: QueueAction[], keyword: string): boolean {
+    const normalizedKeyword = keyword.toLowerCase();
+    return actions.some((action) => {
+      const haystack = [action.name, action.description, action.actionDetails]
+        .filter(Boolean)
+        .join(' ')
+        .toLowerCase();
+      return haystack.includes(normalizedKeyword);
+    });
   }
 
   private extractOrderNumber(actions: QueueAction[]): string | null {

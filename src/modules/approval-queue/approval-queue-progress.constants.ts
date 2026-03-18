@@ -96,3 +96,107 @@ export const CUSTOM_WAREHOUSE_STAGES: StageBlueprint[] = [
     actionTypes: ['process_cancellation', 'process_refund', 'send_final_notification'],
   },
 ];
+
+export const SHIPBOB_STAGES: StageBlueprint[] = [
+  {
+    key: 'identify_order',
+    label: 'Identify Order',
+    order: 1,
+    actionTypes: [
+      'mark_email_read',
+      'verify_ai_confidence',
+      'detect_customer_distress',
+      'extract_order_number',
+      'request_order_info',
+      'fetch_order_details',
+    ],
+  },
+  {
+    key: 'check_eligibility',
+    label: 'Check Eligibility',
+    order: 2,
+    actionTypes: [
+      'validate_order_status',
+      'detect_fulfillment_method',
+      'validate_customer_email',
+      'check_time_eligibility',
+      'fetch_order_details',
+    ],
+  },
+  {
+    key: 'acknowledge_customer',
+    label: 'Acknowledge Customer',
+    order: 3,
+    actionTypes: ['send_acknowledgement'],
+  },
+  {
+    key: 'cancel_in_shipbob',
+    label: 'Cancel in ShipBob',
+    order: 4,
+    actionTypes: ['process_cancellation'],
+  },
+  {
+    key: 'process_refund',
+    label: 'Process Refund',
+    order: 5,
+    actionTypes: ['process_refund'],
+  },
+  {
+    key: 'complete_workflow',
+    label: 'Complete Workflow',
+    order: 6,
+    actionTypes: ['send_final_notification'],
+  },
+];
+
+export const SHIPSTATION_STAGES: StageBlueprint[] = [
+  {
+    key: 'identify_order',
+    label: 'Identify Order',
+    order: 1,
+    actionTypes: [
+      'mark_email_read',
+      'verify_ai_confidence',
+      'detect_customer_distress',
+      'extract_order_number',
+      'request_order_info',
+      'fetch_order_details',
+    ],
+  },
+  {
+    key: 'check_eligibility',
+    label: 'Check Eligibility',
+    order: 2,
+    actionTypes: [
+      'validate_order_status',
+      'detect_fulfillment_method',
+      'validate_customer_email',
+      'check_time_eligibility',
+      'fetch_order_details',
+    ],
+  },
+  {
+    key: 'acknowledge_customer',
+    label: 'Acknowledge Customer',
+    order: 3,
+    actionTypes: ['send_acknowledgement'],
+  },
+  {
+    key: 'cancel_in_shipstation',
+    label: 'Cancel in ShipStation',
+    order: 4,
+    actionTypes: ['process_cancellation'],
+  },
+  {
+    key: 'process_refund',
+    label: 'Process Refund',
+    order: 5,
+    actionTypes: ['process_refund'],
+  },
+  {
+    key: 'complete_workflow',
+    label: 'Complete Workflow',
+    order: 6,
+    actionTypes: ['send_final_notification'],
+  },
+];

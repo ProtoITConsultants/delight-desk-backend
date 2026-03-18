@@ -2,6 +2,8 @@ import { Injectable } from '@nestjs/common';
 import { Activity, ActivityMethod } from 'nestjs-temporal-core';
 import { SystemSettingsRepository } from 'src/database/repos/system-settings.repository';
 import { AgentsService } from 'src/modules/agents/agents.service';
+import { ShipBobService } from 'src/modules/shipbob/shipbob.service';
+import { ShipStationService } from 'src/modules/shipstation/shipstation.service';
 import { WooCommerceRestApiService } from 'src/modules/woocommerce/woocommerce-rest-api.service';
 import { MessageFormattingHelper } from '../../shared/message-formatting.helper';
 
@@ -11,6 +13,8 @@ export class OrderCancellationActivities {
   constructor(
     private readonly systemSettingsRepository: SystemSettingsRepository,
     private readonly wooCommerceRestApiService: WooCommerceRestApiService,
+    private readonly shipBobService: ShipBobService,
+    private readonly shipStationService: ShipStationService,
     private readonly agentsService: AgentsService,
     private readonly messageFormattingHelper: MessageFormattingHelper,
   ) {}
@@ -62,6 +66,48 @@ export class OrderCancellationActivities {
     },
   ): Promise<any> {
     return this.wooCommerceRestApiService.createOrderRefund(userId, orderId, payload);
+  }
+
+  @ActivityMethod({ name: 'getShipBobOrderByWooCommerceOrderId' })
+  getShipBobOrderByWooCommerceOrderId(
+    userId: string,
+    wooCommerceOrderId: string,
+  ): Promise<any | null> {
+    return this.shipBobService.getOrderByWooCommerceOrderId(userId, wooCommerceOrderId);
+  }
+
+  @ActivityMethod({ name: 'checkShipBobCancellationEligibility' })
+  checkShipBobCancellationEligibility(
+    userId: string,
+    shipBobOrderId: number,
+  ): Promise<{ eligible: boolean; reason: string; order: any }> {
+    return this.shipBobService.checkCancellationEligibility(userId, shipBobOrderId);
+  }
+
+  @ActivityMethod({ name: 'cancelShipBobOrderByWooCommerceOrderId' })
+  cancelShipBobOrderByWooCommerceOrderId(userId: string, wooCommerceOrderId: string): Promise<any> {
+    return this.shipBobService.cancelOrderByWooCommerceOrderId(userId, wooCommerceOrderId);
+  }
+
+  @ActivityMethod({ name: 'getShipStationOrderByWooCommerceOrderId' })
+  getShipStationOrderByWooCommerceOrderId(
+    userId: string,
+    wooCommerceOrderId: string,
+  ): Promise<any | null> {
+    return this.shipStationService.getOrderByWooCommerceOrderId(userId, wooCommerceOrderId);
+  }
+
+  @ActivityMethod({ name: 'checkShipStationCancellationEligibility' })
+  checkShipStationCancellationEligibility(
+    userId: string,
+    wooCommerceOrderId: string,
+  ): Promise<{ eligible: boolean; reason: string; order: any }> {
+    return this.shipStationService.checkCancellationEligibility(userId, wooCommerceOrderId);
+  }
+
+  @ActivityMethod({ name: 'cancelShipStationOrderByWooCommerceOrderId' })
+  cancelShipStationOrderByWooCommerceOrderId(userId: string, wooCommerceOrderId: string): Promise<any> {
+    return this.shipStationService.cancelOrderByWooCommerceOrderId(userId, wooCommerceOrderId);
   }
 
   @ActivityMethod({ name: 'generateCancellationProcessedMessage' })
@@ -197,6 +243,206 @@ ${voiceContext}
       {
         role: 'system',
         content: `You are ${aiIdentity?.aiAgentName || 'a helpful customer service agent'}${aiIdentity?.aiAgentTitle ? `, ${aiIdentity.aiAgentTitle},` : ''} responding when cancellation is no longer possible.`,
+      },
+      {
+        role: 'user',
+        content: prompt,
+      },
+    ];
+
+    const response = await this.agentsService['openaiService'].createChatCompletion(messages, 0.6);
+    const rawContent = response.choices[0].message.content || '';
+    const messageContent = this.messageFormattingHelper.stripMarkdownLinks(rawContent);
+
+    return this.messageFormattingHelper.formatMessageWithAiIdentity(
+      messageContent,
+      customerName,
+      aiIdentity,
+    );
+  }
+
+  @ActivityMethod({ name: 'generateShipBobProcessingMessage' })
+  async generateShipBobProcessingMessage(
+    orderNumber: string,
+    customerName: string,
+    aiIdentity?: any,
+  ): Promise<string> {
+    const voiceContext = this.messageFormattingHelper.buildVoiceAndSettingsContext(aiIdentity);
+
+    const prompt = `
+      Generate a customer update email for an order cancellation request that is currently being processed with ShipBob fulfillment.
+
+      Order Number: ${orderNumber}
+      ${aiIdentity?.aiAgentName ? `AI Agent Name: ${aiIdentity.aiAgentName}` : ''}
+      ${aiIdentity?.aiAgentTitle ? `AI Agent Title: ${aiIdentity.aiAgentTitle}` : ''}
+
+      Write a response that:
+      1. Confirms the cancellation request for order #${orderNumber} is being processed now
+      2. States we are coordinating directly with our fulfillment partner to stop shipment
+      3. Sets expectation that a refund update follows once cancellation is completed
+      4. Uses a calm and reassuring tone
+      5. Keeps it under 100 tokens
+      6. Do not include a salutation (like "Hi" or "Hello") at the beginning — a personalised greeting is added automatically
+      7. Do not address or refer to the customer by name anywhere in the body — the greeting already handles personalisation
+      8. Do not include a signature or sign-off at the end
+${voiceContext}
+    `;
+
+    const messages = [
+      {
+        role: 'system',
+        content: `You are ${aiIdentity?.aiAgentName || 'a helpful customer service agent'}${aiIdentity?.aiAgentTitle ? `, ${aiIdentity.aiAgentTitle},` : ''} updating a customer about ShipBob cancellation processing.`,
+      },
+      {
+        role: 'user',
+        content: prompt,
+      },
+    ];
+
+    const response = await this.agentsService['openaiService'].createChatCompletion(messages, 0.6);
+    const rawContent = response.choices[0].message.content || '';
+    const messageContent = this.messageFormattingHelper.stripMarkdownLinks(rawContent);
+
+    return this.messageFormattingHelper.formatMessageWithAiIdentity(
+      messageContent,
+      customerName,
+      aiIdentity,
+    );
+  }
+
+  @ActivityMethod({ name: 'generateShipBobCannotCancelMessage' })
+  async generateShipBobCannotCancelMessage(
+    orderNumber: string,
+    reason: string,
+    customerName: string,
+    aiIdentity?: any,
+  ): Promise<string> {
+    const voiceContext = this.messageFormattingHelper.buildVoiceAndSettingsContext(aiIdentity);
+
+    const prompt = `
+      Generate a customer response for a cancellation request that cannot be completed in ShipBob.
+
+      Order Number: ${orderNumber}
+      ShipBob Reason: ${reason}
+      ${aiIdentity?.aiAgentName ? `AI Agent Name: ${aiIdentity.aiAgentName}` : ''}
+      ${aiIdentity?.aiAgentTitle ? `AI Agent Title: ${aiIdentity.aiAgentTitle}` : ''}
+
+      Write a response that:
+      1. Acknowledges the cancellation request for order #${orderNumber}
+      2. Clearly states cancellation can no longer be completed because fulfillment/shipping is already in progress
+      3. Mentions the customer can reply for return guidance if shipment is delivered
+      4. Uses a professional and empathetic tone
+      5. Keeps it under 120 tokens
+      6. Do not include a salutation (like "Hi" or "Hello") at the beginning — a personalised greeting is added automatically
+      7. Do not address or refer to the customer by name anywhere in the body — the greeting already handles personalisation
+      8. Do not include a signature or sign-off at the end
+${voiceContext}
+    `;
+
+    const messages = [
+      {
+        role: 'system',
+        content: `You are ${aiIdentity?.aiAgentName || 'a helpful customer service agent'}${aiIdentity?.aiAgentTitle ? `, ${aiIdentity.aiAgentTitle},` : ''} communicating a ShipBob cancellation limitation.`,
+      },
+      {
+        role: 'user',
+        content: prompt,
+      },
+    ];
+
+    const response = await this.agentsService['openaiService'].createChatCompletion(messages, 0.6);
+    const rawContent = response.choices[0].message.content || '';
+    const messageContent = this.messageFormattingHelper.stripMarkdownLinks(rawContent);
+
+    return this.messageFormattingHelper.formatMessageWithAiIdentity(
+      messageContent,
+      customerName,
+      aiIdentity,
+    );
+  }
+
+  @ActivityMethod({ name: 'generateShipStationProcessingMessage' })
+  async generateShipStationProcessingMessage(
+    orderNumber: string,
+    customerName: string,
+    aiIdentity?: any,
+  ): Promise<string> {
+    const voiceContext = this.messageFormattingHelper.buildVoiceAndSettingsContext(aiIdentity);
+
+    const prompt = `
+      Generate a customer update email for an order cancellation request that is currently being processed with ShipStation fulfillment.
+
+      Order Number: ${orderNumber}
+      ${aiIdentity?.aiAgentName ? `AI Agent Name: ${aiIdentity.aiAgentName}` : ''}
+      ${aiIdentity?.aiAgentTitle ? `AI Agent Title: ${aiIdentity.aiAgentTitle}` : ''}
+
+      Write a response that:
+      1. Confirms the cancellation request for order #${orderNumber} is being processed now
+      2. States we are coordinating directly with our fulfillment partner to stop shipment
+      3. Sets expectation that a refund update follows once cancellation is completed
+      4. Uses a calm and reassuring tone
+      5. Keeps it under 100 tokens
+      6. Do not include a salutation (like "Hi" or "Hello") at the beginning — a personalised greeting is added automatically
+      7. Do not address or refer to the customer by name anywhere in the body — the greeting already handles personalisation
+      8. Do not include a signature or sign-off at the end
+${voiceContext}
+    `;
+
+    const messages = [
+      {
+        role: 'system',
+        content: `You are ${aiIdentity?.aiAgentName || 'a helpful customer service agent'}${aiIdentity?.aiAgentTitle ? `, ${aiIdentity.aiAgentTitle},` : ''} updating a customer about ShipStation cancellation processing.`,
+      },
+      {
+        role: 'user',
+        content: prompt,
+      },
+    ];
+
+    const response = await this.agentsService['openaiService'].createChatCompletion(messages, 0.6);
+    const rawContent = response.choices[0].message.content || '';
+    const messageContent = this.messageFormattingHelper.stripMarkdownLinks(rawContent);
+
+    return this.messageFormattingHelper.formatMessageWithAiIdentity(
+      messageContent,
+      customerName,
+      aiIdentity,
+    );
+  }
+
+  @ActivityMethod({ name: 'generateShipStationCannotCancelMessage' })
+  async generateShipStationCannotCancelMessage(
+    orderNumber: string,
+    reason: string,
+    customerName: string,
+    aiIdentity?: any,
+  ): Promise<string> {
+    const voiceContext = this.messageFormattingHelper.buildVoiceAndSettingsContext(aiIdentity);
+
+    const prompt = `
+      Generate a customer response for a cancellation request that cannot be completed in ShipStation.
+
+      Order Number: ${orderNumber}
+      ShipStation Reason: ${reason}
+      ${aiIdentity?.aiAgentName ? `AI Agent Name: ${aiIdentity.aiAgentName}` : ''}
+      ${aiIdentity?.aiAgentTitle ? `AI Agent Title: ${aiIdentity.aiAgentTitle}` : ''}
+
+      Write a response that:
+      1. Acknowledges the cancellation request for order #${orderNumber}
+      2. Clearly states cancellation can no longer be completed because fulfillment/shipping is already in progress
+      3. Mentions the customer can reply for return guidance if shipment is delivered
+      4. Uses a professional and empathetic tone
+      5. Keeps it under 120 tokens
+      6. Do not include a salutation (like "Hi" or "Hello") at the beginning — a personalised greeting is added automatically
+      7. Do not address or refer to the customer by name anywhere in the body — the greeting already handles personalisation
+      8. Do not include a signature or sign-off at the end
+${voiceContext}
+    `;
+
+    const messages = [
+      {
+        role: 'system',
+        content: `You are ${aiIdentity?.aiAgentName || 'a helpful customer service agent'}${aiIdentity?.aiAgentTitle ? `, ${aiIdentity.aiAgentTitle},` : ''} communicating a ShipStation cancellation limitation.`,
       },
       {
         role: 'user',

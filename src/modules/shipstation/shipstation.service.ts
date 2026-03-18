@@ -73,6 +73,21 @@ export class ShipStationService {
         return null;
       }
 
+      // ShipStation sandbox can return account-level carrier errors on shipment list queries
+      // (e.g. missing pickup_id / invalid inventory_warehouse_id). In test mode, treat this
+      // as "not found" so cancellation flow can continue into a controlled not-found path.
+      if (this.isTestMode && this.isSandboxCarrierAccountStatusError(error)) {
+        this.logger.warn(
+          `ShipStation sandbox account status error while resolving ${orderNumber}; treating as not found in test mode`,
+          {
+            userId,
+            orderNumber,
+            apiError: this.extractShipStationApiErrorMessage(error),
+          },
+        );
+        return null;
+      }
+
       this.logger.error(`Error fetching ShipStation shipment: ${error?.message}`, {
         userId,
         orderNumber,
@@ -373,7 +388,7 @@ export class ShipStationService {
 
   private throwShipStationApiError(error: any, fallbackMessage: string): never {
     const status = error?.response?.status;
-    const apiMessage = error?.response?.data?.message || error?.message;
+    const apiMessage = this.extractShipStationApiErrorMessage(error);
 
     if (status === 401 || status === 403) {
       throw new BadRequestException('ShipStation API authentication failed');
@@ -384,6 +399,36 @@ export class ShipStationService {
     }
 
     throw new BadRequestException(apiMessage || fallbackMessage);
+  }
+
+  private extractShipStationApiErrorMessage(error: any): string {
+    const data = error?.response?.data;
+    const firstApiError = Array.isArray(data?.errors) ? data.errors[0] : null;
+    return (
+      firstApiError?.message ||
+      data?.message ||
+      error?.message ||
+      'ShipStation API request failed'
+    );
+  }
+
+  private isSandboxCarrierAccountStatusError(error: any): boolean {
+    const data = error?.response?.data;
+    const errors = Array.isArray(data?.errors) ? data.errors : [];
+
+    return errors.some((entry: any) => {
+      const code = String(entry?.error_code || '').toLowerCase();
+      const type = String(entry?.error_type || '').toLowerCase();
+      const fieldName = String(entry?.field_name || '').toLowerCase();
+      const message = String(entry?.message || '').toLowerCase();
+      const fieldValue = String(entry?.field_value || '').toLowerCase();
+
+      return (
+        (type === 'account_status' && code === 'auto_fund_not_supported') ||
+        (message.includes('pickup_id') && fieldName === 'inventory_warehouse_id') ||
+        (fieldName === 'inventory_warehouse_id' && fieldValue === 'invalid-id')
+      );
+    });
   }
 
   private createClient(apiKey: string) {

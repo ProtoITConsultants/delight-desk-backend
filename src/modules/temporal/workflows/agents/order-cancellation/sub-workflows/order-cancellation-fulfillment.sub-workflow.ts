@@ -20,6 +20,8 @@ import {
 import { buildOrderCancellationFailureResult } from './order-cancellation-subworkflow.helpers';
 import { handleCustomWarehouseFulfillmentMethod } from './fulfillment/custom-warehouse-fulfillment.method';
 import { FulfillmentMethod } from './fulfillment/order-cancellation-fulfillment.shared';
+import { handleShipBobFulfillmentMethod } from './fulfillment/shipbob-fulfillment.method';
+import { handleShipStationFulfillmentMethod } from './fulfillment/shipstation-fulfillment.method';
 import { handleSelfFulfillmentMethod } from './fulfillment/self-fulfillment.method';
 
 const orderCancellationActivities = proxyActivities<typeof OrderCancellationActivities.prototype>(
@@ -82,12 +84,20 @@ export async function handleOrderCancellationFulfillment(
       return handleCustomWarehouseFulfillmentMethod(context, activeFulfillmentMethod);
     }
 
+    if (activeFulfillmentMethod === 'shipbob') {
+      return handleShipBobFulfillmentMethod(context, activeFulfillmentMethod);
+    }
+
+    if (activeFulfillmentMethod === 'shipstation') {
+      return handleShipStationFulfillmentMethod(context, activeFulfillmentMethod);
+    }
+
     throw new EscalationError(
       EscalationType.MANUAL_ESCALATION,
       `Fulfillment method "${activeFulfillmentMethod}" is not implemented in this iteration`,
       {
         fulfillmentMethod: activeFulfillmentMethod,
-        supportedMethods: ['self', 'custom_warehouse'],
+        supportedMethods: ['self', 'custom_warehouse', 'shipbob', 'shipstation'],
       },
     );
   } catch (error) {

@@ -82,15 +82,23 @@ export class MessageFormattingHelper {
     aiIdentity?: any,
   ): string {
     const salutation = aiIdentity?.emailSalutation || 'Hi';
+
+    // Build salutation
+    const greeting = `${salutation} ${customerName},\n\n`;
+    const signature = this.buildSignatureFromAiIdentity(aiIdentity);
+
+    return `${greeting}${messageContent}${signature}`;
+  }
+
+  /**
+   * Build dynamic signature block based on AI identity settings.
+   */
+  buildSignatureFromAiIdentity(aiIdentity?: any): string {
     const agentName = aiIdentity?.aiAgentName || '';
     const agentTitle = aiIdentity?.aiAgentTitle || '';
     const companyName = aiIdentity?.companyNameForEmailSignature || '';
     const signatureFooter = aiIdentity?.signatureFooter || '';
 
-    // Build salutation
-    const greeting = `${salutation} ${customerName},\n\n`;
-
-    // Build signature
     let signature = '\n\n';
     if (agentName) {
       signature += agentName;
@@ -111,7 +119,7 @@ export class MessageFormattingHelper {
       signature += `\n\n${signatureFooter}`;
     }
 
-    return `${greeting}${messageContent}${signature}`;
+    return signature;
   }
 
   /**

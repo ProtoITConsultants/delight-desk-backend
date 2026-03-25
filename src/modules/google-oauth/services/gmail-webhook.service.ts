@@ -14,7 +14,7 @@ import { InfraService } from '../../temporal/infra.service';
 @Injectable()
 export class GmailWebhookService {
   private readonly logger = new Logger(GmailWebhookService.name);
-  private static readonly WAREHOUSE_WORKFLOW_MARKER_REGEX = /\[DD-OC-WF:([^\]]+)\]/i;
+  private static readonly WAREHOUSE_WORKFLOW_MARKER_REGEX = /\[DD-(?:OC|AC)-WF:([^\]]+)\]/i;
 
   constructor(
     private readonly repo: GoogleOauthRepository,

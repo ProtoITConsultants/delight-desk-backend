@@ -83,6 +83,33 @@ export class WooCommerceRestApiService {
     }
   }
 
+  async updateOrderShippingAddress(
+    userId: string,
+    orderId: string,
+    shipping: {
+      first_name?: string;
+      last_name?: string;
+      company?: string;
+      address_1: string;
+      address_2?: string;
+      city: string;
+      state?: string;
+      postcode: string;
+      country: string;
+      phone?: string;
+    },
+  ) {
+    try {
+      const api = await this.initWooCommerceClient(userId);
+      const response = await api.put(`orders/${orderId}`, {
+        shipping,
+      });
+      return response.data;
+    } catch (error) {
+      throw new InternalServerErrorException(error.response?.data || error.message);
+    }
+  }
+
   async createOrderRefund(
     userId: string,
     orderId: string,

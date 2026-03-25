@@ -15,6 +15,7 @@ import { MessageFormattingHelper } from './activities/shared/message-formatting.
 
 import { WismoTrackingActivities } from './activities/agents/wismo/wismo-tracking.activities';
 import { OrderCancellationActivities } from './activities/agents/order-cancellation/order-cancellation.activities';
+import { AddressChangeActivities } from './activities/agents/address-change/address-change.activities';
 
 import { RepositoriesModule } from '../../database/repositories.module';
 import { WooCommerceModule } from '../woocommerce/woocommerce.module';
@@ -78,6 +79,7 @@ import { InfraService } from './infra.service';
               WismoTrackingActivities,
               CustomerMessageActivities,
               OrderCancellationActivities,
+              AddressChangeActivities,
             ],
             autoStart: true,
           },
@@ -97,6 +99,7 @@ import { InfraService } from './infra.service';
     WismoTrackingActivities,
     CustomerMessageActivities,
     OrderCancellationActivities,
+    AddressChangeActivities,
     InfraService,
   ],
   exports: [TemporalModule, HttpModule, DatabaseModule, InfraService],

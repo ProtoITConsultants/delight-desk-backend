@@ -15,7 +15,7 @@ import { WORKFLOW_SIGNAL_NAMES } from './workflow-signals.constants';
 @Injectable()
 export class InfraService {
   private readonly logger = new Logger(InfraService.name);
-  private static readonly WAREHOUSE_WORKFLOW_MARKER_REGEX = /\[DD-OC-WF:([^\]]+)\]/i;
+  private static readonly WAREHOUSE_WORKFLOW_MARKER_REGEX = /\[DD-(?:OC|AC)-WF:([^\]]+)\]/i;
 
   constructor(
     private readonly agentsService: AgentsService,

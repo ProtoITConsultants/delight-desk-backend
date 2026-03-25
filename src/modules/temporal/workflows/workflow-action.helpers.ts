@@ -54,6 +54,10 @@ const ACTION_NAME_MAP: Record<string, string> = {
   oc_process_refund: 'Process Refund',
   oc_contact_warehouse: 'Contact Warehouse',
   oc_wait_for_warehouse_reply: 'Wait for Warehouse Reply',
+  extract_address_details: 'Extract Address Details',
+  contact_warehouse: 'Contact Warehouse',
+  wait_for_warehouse_reply: 'Wait for Warehouse Reply',
+  process_address_change: 'Process Address Change',
 };
 
 function getActionName(type: WorkflowActionType): string {
@@ -158,7 +162,9 @@ async function createAndInitializeAction(
     approvalQueueId: context.approvalQueueId!,
     actionType: actionConfig.type,
     actionStep: String(actionConfig.step), // Convert to string to support sub-steps like "3.1"
-    actionStatus: context.requiresModeration ? ActionStatus.PENDING_APPROVAL : ActionStatus.APPROVED,
+    actionStatus: context.requiresModeration
+      ? ActionStatus.PENDING_APPROVAL
+      : ActionStatus.APPROVED,
     description: actionConfig.description,
     name: actionConfig.name ?? getActionName(actionConfig.type),
     actionDetails: actionConfig.actionDetails,
@@ -436,10 +442,7 @@ async function createEscalationFromError(
   const customerName = extractCustomerName(context.email.fromEmail);
 
   // Generate AI response for the escalation
-  const {
-    response: aiResponse,
-    confidence: aiConfidence,
-  } = await generateEscalationResponse(
+  const { response: aiResponse, confidence: aiConfidence } = await generateEscalationResponse(
     escalationType,
     context.email.body,
     customerName,

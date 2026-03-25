@@ -45,7 +45,28 @@ export enum OrderCancellationActionType {
   WAIT_FOR_WAREHOUSE_REPLY = 'wait_for_warehouse_reply',
 }
 
-export type WorkflowActionType = WismoActionType | OrderCancellationActionType;
+export enum AddressChangeActionType {
+  MARK_EMAIL_READ = 'mark_email_read',
+  VERIFY_AI_CONFIDENCE = 'verify_ai_confidence',
+  DETECT_CUSTOMER_DISTRESS = 'detect_customer_distress',
+  DETECT_FULFILLMENT_METHOD = 'detect_fulfillment_method',
+  EXTRACT_ORDER_NUMBER = 'extract_order_number',
+  REQUEST_ORDER_INFO = 'request_order_info',
+  FETCH_ORDER_DETAILS = 'fetch_order_details',
+  VALIDATE_ORDER_STATUS = 'validate_order_status',
+  VALIDATE_CUSTOMER_EMAIL = 'validate_customer_email',
+  SEND_ACKNOWLEDGEMENT = 'send_acknowledgement',
+  EXTRACT_ADDRESS_DETAILS = 'extract_address_details',
+  CONTACT_WAREHOUSE = 'contact_warehouse',
+  WAIT_FOR_WAREHOUSE_REPLY = 'wait_for_warehouse_reply',
+  PROCESS_ADDRESS_CHANGE = 'process_address_change',
+  SEND_FINAL_NOTIFICATION = 'send_final_notification',
+}
+
+export type WorkflowActionType =
+  | WismoActionType
+  | OrderCancellationActionType
+  | AddressChangeActionType;
 
 /**
  * Action status enum for tracking approval queue items

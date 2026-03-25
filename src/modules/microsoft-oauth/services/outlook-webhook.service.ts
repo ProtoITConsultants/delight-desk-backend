@@ -13,7 +13,7 @@ import { MicrosoftOauthService } from '../microsoft-oauth.service';
 @Injectable()
 export class OutlookWebhookService {
   private readonly logger = new Logger(OutlookWebhookService.name);
-  private static readonly WAREHOUSE_WORKFLOW_MARKER_REGEX = /\[DD-OC-WF:([^\]]+)\]/i;
+  private static readonly WAREHOUSE_WORKFLOW_MARKER_REGEX = /\[DD-(?:OC|AC)-WF:([^\]]+)\]/i;
 
   constructor(
     private readonly microsoftRepo: MicrosoftOauthRepository,

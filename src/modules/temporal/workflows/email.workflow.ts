@@ -1,6 +1,7 @@
 import * as wf from '@temporalio/workflow';
 import { handleWismo } from './agents/wismo';
 import { handleOrderCancellation } from './agents/order-cancellation';
+import { handleAddressChange } from './agents/address-change';
 import { WorkFlowInput } from './types';
 import { WORKFLOW_SIGNAL_NAMES } from '../workflow-signals.constants';
 
@@ -46,11 +47,13 @@ class EmailWorkflowOrchestrator {
       case 'order_cancellation':
         return await handleOrderCancellation(input);
 
+      case 'address_change':
+        return await handleAddressChange(input);
+
       case 'subscription':
       case 'product':
       case 'returns':
       case 'promo_code':
-      case 'address_change':
         wf.log.info(`${agentType} workflow not yet implemented`, { emailId: input.email.id });
         return `${agentType} workflow not yet implemented for email [${input.email.id}]`;
 

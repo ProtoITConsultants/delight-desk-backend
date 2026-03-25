@@ -1,0 +1,32 @@
+%% Subscription Agent — agentic flow (portfolio): NL intent → IDs + validate → execute via APIs
+flowchart TD
+    A([Inbound: subscription modification]) --> B["Router: classify subscription_changes<br/>+ confidence score"]
+    B --> C{Confidence ≥ threshold<br/>for Subscription Agent?}
+    C -->|No| Z([Escalation queue: human / copilot])
+    C -->|Yes| D["Subscription Agent: intent parser<br/>+ WC + Stripe side-effects"]
+    D --> E["Extract subscription id via NLU / regex;<br/>fallback: WC lookup by billing email"]
+    E --> F{WC validates subscription id<br/>+ email ownership?}
+    F -->|No| Z
+    F -->|Yes| G["Map utterance → action enum:<br/>pause | resume | cancel | modify"]
+    G --> H{Pre-flight guards:<br/>payment method, SKU, proration rules}
+    H -->|Fail| I([Outbound: explain hard stop / next step])
+    H -->|Pass| J["WooCommerce Subscriptions API:<br/>apply subscription mutation"]
+    J --> K{Modify touches price / interval?}
+    K -->|Yes| L["Stripe Billing API:<br/>update subscription schedule / items"]
+    K -->|No| M
+    L --> M{HITL: high-risk action<br/>needs sign-off?}
+    J --> M
+    M -->|Yes| N[Reviewer approves mutation]
+    N --> O([Outbound: confirmation + audit metadata])
+    M -->|No| O
+
+    style A fill:#f5f5f5
+    style O fill:#e8f5e9
+    style I fill:#fff3e0
+    style Z fill:#fff3e0
+    style B fill:#e3f2fd
+    style D fill:#ede7f6
+    style E fill:#ede7f6
+    style G fill:#ede7f6
+    style J fill:#e0f7fa
+    style L fill:#e0f7fa

@@ -1,0 +1,22 @@
+%% Product Agent — agentic flow (portfolio): classify → specialized agent → RAG → grounded reply
+flowchart TD
+    A([Inbound: product-related email]) --> B["Router: multi-class LLM classification<br/>+ confidence score"]
+    B --> C{Confidence ≥ routing threshold<br/>for product intent?}
+    C -->|No| Z([Escalation queue: human / copilot])
+    C -->|Yes| D["Product Agent: policy-bound LLM<br/>+ tool-use orchestration"]
+    D --> E["RAG: embedding similarity search<br/>over isolated knowledge corpus"]
+    E --> F{Top-k chunks exceed<br/>similarity threshold?}
+    F -->|No| Z
+    F -->|Yes| G["Retrieval-augmented generation:<br/>cite sources; refuse if context insufficient"]
+    G --> H{HITL gate: automation<br/>requires approval?}
+    H -->|Yes| I[Human reviewer accepts draft]
+    H -->|No| J([Outbound: cited, grounded reply])
+    I --> J
+
+    style A fill:#f5f5f5
+    style J fill:#e8f5e9
+    style Z fill:#fff3e0
+    style B fill:#e3f2fd
+    style D fill:#ede7f6
+    style E fill:#e0f7fa
+    style G fill:#ede7f6

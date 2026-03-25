@@ -1,0 +1,34 @@
+%% Promo Code Agent — agentic flow (portfolio): classify → agent + store data + rules engine
+flowchart TD
+    A([Inbound: discount / promo email]) --> B["Router: intent split — discount_inquiries<br/>vs promo_refund + full thread context"]
+    B --> C{Confidence ≥ threshold<br/>for Promo Code Agent?}
+    C -->|No| Z([Escalation queue: human / copilot])
+    C -->|Yes| D["Promo Code Agent: policy-bound LLM<br/>+ deterministic eligibility layer"]
+    D --> E["WooCommerce REST: fetch orders<br/>+ customer segment metadata"]
+    E --> F["Match active promo configs:<br/>isActive, eligibleForAutomation, rule tiers"]
+    F --> G{Branch by intent}
+    G -->|New discount| H{Eligibility rules pass?}
+    H -->|Yes| I["Select SKU-mapped promo code<br/>first-time / general / loyalty"]
+    H -->|No| J([Decline path: templated denial + alternatives])
+    G -->|Code issue / refund| K["LLM extraction + classification:<br/>coupon id, defect class"]
+    K --> L{Resolvable from WC + config?}
+    L -->|Yes| M[Troubleshoot, replace code, or partial refund path]
+    L -->|Ambiguous| N([Clarification: minimal slot-fill ask])
+    L -->|No| Z
+    I --> O{Approval workflow<br/>before send?}
+    M --> O
+    O -->|Yes| P[Reviewer approves payload]
+    P --> Q([Outbound: promo outcome])
+    O -->|No| Q
+    N --> Q
+
+    style A fill:#f5f5f5
+    style Q fill:#e8f5e9
+    style J fill:#e3f2fd
+    style Z fill:#fff3e0
+    style B fill:#e3f2fd
+    style D fill:#ede7f6
+    style E fill:#e0f7fa
+    style F fill:#ede7f6
+    style I fill:#ede7f6
+    style K fill:#ede7f6

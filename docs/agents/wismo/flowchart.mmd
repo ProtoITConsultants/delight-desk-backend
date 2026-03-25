@@ -1,0 +1,32 @@
+%% WISMO Agent — agentic flow (portfolio): classify → extract order → tracking API → grounded status reply
+flowchart TD
+    A([Inbound: WISMO / tracking]) --> B["Ingest pipeline: dedupe by Message-Id<br/>+ LLM router: wismo + confidence"]
+    B --> C["Enrich: hydrate customer + order context<br/>for routing + slot filling"]
+    C --> D{Confidence ≥ threshold<br/>+ category = WISMO?}
+    D -->|No| Z([Escalation queue: human / copilot])
+    D -->|Yes| E["WISMO Agent: structured extraction<br/>+ moderation + response gen"]
+    E --> F["NL → order number extraction<br/>(LLM + regex fallback)"]
+    F --> G{Order id resolved?}
+    G -->|No| H["WooCommerce REST: query orders<br/>by billing_email, recency window"]
+    H --> I{Match returned?}
+    I -->|No| Z
+    I -->|Yes| J
+    G -->|Yes| J["AfterShip API: fetch tracking + carrier events"]
+    J --> K{200 + trackable payload?}
+    K -->|No| Z
+    K -->|Yes| L["Generate reply conditioned on<br/>status, ETA, exception codes"]
+    L --> M{Auto-send vs<br/>approval queue?}
+    M -->|Queue| N[Reviewer approves outbound]
+    N --> O([Outbound: tracking summary])
+    M -->|Auto| O
+
+    style A fill:#f5f5f5
+    style O fill:#e8f5e9
+    style Z fill:#fff3e0
+    style B fill:#e3f2fd
+    style C fill:#e3f2fd
+    style E fill:#ede7f6
+    style F fill:#ede7f6
+    style H fill:#e0f7fa
+    style J fill:#e0f7fa
+    style L fill:#ede7f6

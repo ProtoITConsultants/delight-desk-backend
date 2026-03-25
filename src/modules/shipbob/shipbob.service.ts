@@ -334,6 +334,69 @@ export class ShipBobService {
     return this.cancelOrder(userId, order.id);
   }
 
+  async updateOrderRecipientAddress(
+    userId: string,
+    orderId: number,
+    recipient: {
+      name: string;
+      address: {
+        address1: string;
+        address2?: string;
+        city: string;
+        state?: string;
+        country: string;
+        zip_code: string;
+        company_name?: string;
+      };
+      email?: string;
+      phone_number?: string;
+    },
+  ): Promise<any> {
+    try {
+      const axiosInstance = await this.getClientForUser(userId);
+      const response = await axiosInstance.put(`/2026-01/order/${orderId}`, {
+        recipient,
+      });
+      return response.data;
+    } catch (error: any) {
+      if (error?.response?.status === 404 || error?.response?.status === 405) {
+        throw new BadRequestException(
+          'ShipBob address update endpoint is unavailable for current API/version; manual update is required.',
+        );
+      }
+      throw new BadRequestException(
+        `Failed to update ShipBob order address: ${error?.response?.data?.message || error?.message}`,
+      );
+    }
+  }
+
+  async updateOrderRecipientAddressByWooCommerceOrderId(
+    userId: string,
+    wooCommerceOrderId: string,
+    recipient: {
+      name: string;
+      address: {
+        address1: string;
+        address2?: string;
+        city: string;
+        state?: string;
+        country: string;
+        zip_code: string;
+        company_name?: string;
+      };
+      email?: string;
+      phone_number?: string;
+    },
+  ): Promise<any> {
+    const order = await this.getOrderByWooCommerceOrderId(userId, wooCommerceOrderId);
+    if (!order) {
+      throw new NotFoundException(
+        `ShipBob order not found for WooCommerce order ID: ${wooCommerceOrderId}`,
+      );
+    }
+    return this.updateOrderRecipientAddress(userId, order.id, recipient);
+  }
+
   async verifyCredentials(personalAccessToken: string): Promise<{ channelId: string }> {
     try {
       const axiosInstance = this.createClient(personalAccessToken);

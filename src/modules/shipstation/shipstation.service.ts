@@ -340,6 +340,65 @@ export class ShipStationService {
     return this.cancelOrder(userId, wooCommerceOrderId);
   }
 
+  async updateOrderShippingAddressByWooCommerceOrderId(
+    userId: string,
+    wooCommerceOrderId: string,
+    shippingAddress: {
+      name?: string;
+      company?: string;
+      street1: string;
+      street2?: string;
+      city: string;
+      state?: string;
+      postalCode: string;
+      country: string;
+      phone?: string;
+      residential?: boolean;
+    },
+  ): Promise<any> {
+    const shipment = await this.getOrderByWooCommerceOrderId(userId, wooCommerceOrderId);
+    if (!shipment) {
+      throw new NotFoundException(`Order not found in ShipStation: ${wooCommerceOrderId}`);
+    }
+
+    const shipmentStatus = String(shipment.shipment_status || '').toLowerCase();
+    if (shipmentStatus === ShipStationShipmentStatus.CANCELLED) {
+      throw new BadRequestException('ShipStation shipment is cancelled and not editable');
+    }
+    if (shipmentStatus === ShipStationShipmentStatus.LABEL_PURCHASED) {
+      throw new BadRequestException(
+        'ShipStation shipment already has label purchased and is not editable',
+      );
+    }
+
+    const currentShipment = (await this.getOrderById(userId, shipment.shipment_id)) as any;
+    const currentShipTo = currentShipment?.ship_to || {};
+    const updatedShipTo = {
+      ...currentShipTo,
+      name: shippingAddress.name ?? currentShipTo.name,
+      company_name: shippingAddress.company ?? currentShipTo.company_name,
+      address_line1: shippingAddress.street1,
+      address_line2: shippingAddress.street2 ?? currentShipTo.address_line2,
+      city_locality: shippingAddress.city,
+      state_province: shippingAddress.state ?? currentShipTo.state_province,
+      postal_code: shippingAddress.postalCode,
+      country_code: shippingAddress.country,
+      phone: shippingAddress.phone ?? currentShipTo.phone,
+      address_residential_indicator:
+        typeof shippingAddress.residential === 'boolean'
+          ? shippingAddress.residential
+            ? 'yes'
+            : 'no'
+          : currentShipTo.address_residential_indicator || 'unknown',
+    };
+
+    const axiosInstance = await this.getClientForUser(userId);
+    const updateResponse = await axiosInstance.put(`/v2/shipments/${shipment.shipment_id}`, {
+      ship_to: updatedShipTo,
+    });
+    return updateResponse.data;
+  }
+
   async verifyCredentials(apiKey: string): Promise<void> {
     try {
       const axiosInstance = this.createClient(apiKey);
@@ -405,10 +464,7 @@ export class ShipStationService {
     const data = error?.response?.data;
     const firstApiError = Array.isArray(data?.errors) ? data.errors[0] : null;
     return (
-      firstApiError?.message ||
-      data?.message ||
-      error?.message ||
-      'ShipStation API request failed'
+      firstApiError?.message || data?.message || error?.message || 'ShipStation API request failed'
     );
   }
 

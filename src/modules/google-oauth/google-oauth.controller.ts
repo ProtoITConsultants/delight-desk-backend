@@ -45,7 +45,8 @@ export class GoogleOauthController {
   @ApiResponse({ status: 500, description: 'Internal server error' })
   async googleLogin(@CurrentUserId() userId: string) {
     const existingAccount = await this.googleService.accountExists(userId);
-    if (existingAccount) {
+
+    if (existingAccount && existingAccount.status === 'connected') {
       throw new BadRequestException('An account already connected');
     }
 
@@ -104,7 +105,9 @@ export class GoogleOauthController {
     description: 'Account disconnected successfully',
     schema: {
       type: 'object',
-      properties: { message: { type: 'string', example: 'Google account disconnected successfully' } },
+      properties: {
+        message: { type: 'string', example: 'Google account disconnected successfully' },
+      },
     },
   })
   @ApiResponse({ status: 401, description: 'Unauthorized - User not authenticated' })

@@ -49,7 +49,7 @@ export class MicrosoftOauthController {
   @ApiResponse({ status: 500, description: 'Internal server error' })
   async microsoftLogin(@CurrentUserId() userId: string) {
     const existingAccount = await this.microsoftService.accountExists(userId);
-    if (existingAccount) {
+    if (existingAccount && existingAccount.status === 'connected') {
       throw new BadRequestException('An account already connected');
     }
 

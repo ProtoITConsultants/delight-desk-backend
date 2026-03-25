@@ -32,7 +32,7 @@ export class GoogleOauthService {
   /**
    * Check if user has a Google account connected
    */
-  async accountExists(userId: string): Promise<boolean> {
+  async accountExists(userId: string): Promise<{ status: string } | undefined> {
     return await this.repo.accountExists(userId);
   }
 

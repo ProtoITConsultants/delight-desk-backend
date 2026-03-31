@@ -1,5 +1,14 @@
 import { InferSelectModel } from 'drizzle-orm';
-import { customType, index, integer, pgTable, text, timestamp, uniqueIndex, uuid } from 'drizzle-orm/pg-core';
+import {
+  customType,
+  index,
+  integer,
+  pgTable,
+  text,
+  timestamp,
+  uniqueIndex,
+  uuid,
+} from 'drizzle-orm/pg-core';
 import { users } from './user.schema';
 import { productKnowledgeChunks } from './product_knowledge_chunk.schema';
 

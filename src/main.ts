@@ -89,6 +89,10 @@ async function bootstrap() {
       'AI Team Center - Identity',
       'Configure AI agent identity, personality, and email signature for consistent customer communication',
     )
+    .addTag(
+      'AI Team Center - Product Knowledge',
+      'Manage product knowledge sources and retrieval context for AI agents',
+    )
     .addTag('Approval Queue', 'Human-in-the-loop approval workflow for AI actions')
     .addTag('Google OAuth', 'Gmail OAuth integration')
     .addTag('Microsoft OAuth', 'Outlook OAuth integration')

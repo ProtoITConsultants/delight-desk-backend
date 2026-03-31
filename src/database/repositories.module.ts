@@ -18,6 +18,9 @@ import { MicrosoftOauthRepository } from './repos/microsoft-oauth.repository';
 import { UserStoreConnectionsRepository } from './repos/user-store-connections.repository';
 import { AiAssistantEmailSignatureRepository } from './repos/ai-assistant-email-signature.repository';
 import { AiIdentityRepository } from './repos/ai-identity.repository';
+import { ProductKnowledgeSourcesRepository } from './repos/product-knowledge-sources.repository';
+import { ProductKnowledgeChunksRepository } from './repos/product-knowledge-chunks.repository';
+import { ProductKnowledgeEmbeddingsRepository } from './repos/product-knowledge-embeddings.repository';
 
 @Module({
   imports: [DatabaseModule],
@@ -41,6 +44,9 @@ import { AiIdentityRepository } from './repos/ai-identity.repository';
     UserStoreConnectionsRepository,
     AiAssistantEmailSignatureRepository,
     AiIdentityRepository,
+    ProductKnowledgeSourcesRepository,
+    ProductKnowledgeChunksRepository,
+    ProductKnowledgeEmbeddingsRepository,
   ],
   exports: [
     EmailsRepository,
@@ -62,6 +68,9 @@ import { AiIdentityRepository } from './repos/ai-identity.repository';
     AiAssistantEmailSignatureRepository,
     ApiRateLimitRepository,
     AiIdentityRepository,
+    ProductKnowledgeSourcesRepository,
+    ProductKnowledgeChunksRepository,
+    ProductKnowledgeEmbeddingsRepository,
   ],
 })
 export class RepositoriesModule {}

@@ -18,3 +18,6 @@ export * from './approval_queue_actions.schema';
 export * from './ai_assistant_email_signature.schema';
 export * from './api_rate_limits.schema';
 export * from './ai_identity.schema';
+export * from './product_knowledge_source.schema';
+export * from './product_knowledge_chunk.schema';
+export * from './product_knowledge_embedding.schema';

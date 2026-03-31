@@ -20,4 +20,11 @@ export class OpenAIService {
       response_format,
     });
   }
+
+  async createEmbeddings(input: string | string[], model = 'text-embedding-3-small') {
+    return await this.openai.embeddings.create({
+      model,
+      input,
+    });
+  }
 }

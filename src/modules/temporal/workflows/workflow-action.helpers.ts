@@ -58,6 +58,9 @@ const ACTION_NAME_MAP: Record<string, string> = {
   contact_warehouse: 'Contact Warehouse',
   wait_for_warehouse_reply: 'Wait for Warehouse Reply',
   process_address_change: 'Process Address Change',
+  retrieve_product_knowledge: 'Retrieve Product Knowledge',
+  generate_product_response: 'Generate Product Response',
+  send_product_response: 'Send Product Response',
 };
 
 function getActionName(type: WorkflowActionType): string {

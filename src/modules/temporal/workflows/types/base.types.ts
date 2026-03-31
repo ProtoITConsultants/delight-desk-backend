@@ -15,6 +15,8 @@ export enum EscalationType {
   DUPLICATE_REQUEST = 'duplicate_request',
   RATE_LIMIT_EXCEEDED = 'rate_limit_exceeded',
   ORDER_ALREADY_PROCESSED = 'order_already_processed',
+  PRODUCT_KNOWLEDGE_NOT_FOUND = 'product_knowledge_not_found',
+  PRODUCT_KNOWLEDGE_LOW_SIMILARITY = 'product_knowledge_low_similarity',
 }
 
 export enum HumanDecision {

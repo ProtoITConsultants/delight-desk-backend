@@ -63,10 +63,19 @@ export enum AddressChangeActionType {
   SEND_FINAL_NOTIFICATION = 'send_final_notification',
 }
 
+export enum ProductActionType {
+  MARK_EMAIL_READ = 'mark_email_read',
+  VERIFY_AI_CONFIDENCE = 'verify_ai_confidence',
+  RETRIEVE_PRODUCT_KNOWLEDGE = 'retrieve_product_knowledge',
+  GENERATE_PRODUCT_RESPONSE = 'generate_product_response',
+  SEND_PRODUCT_RESPONSE = 'send_product_response',
+}
+
 export type WorkflowActionType =
   | WismoActionType
   | OrderCancellationActionType
-  | AddressChangeActionType;
+  | AddressChangeActionType
+  | ProductActionType;
 
 /**
  * Action status enum for tracking approval queue items

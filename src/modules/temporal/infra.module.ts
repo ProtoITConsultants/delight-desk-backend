@@ -16,6 +16,7 @@ import { MessageFormattingHelper } from './activities/shared/message-formatting.
 import { WismoTrackingActivities } from './activities/agents/wismo/wismo-tracking.activities';
 import { OrderCancellationActivities } from './activities/agents/order-cancellation/order-cancellation.activities';
 import { AddressChangeActivities } from './activities/agents/address-change/address-change.activities';
+import { ProductActivities } from './activities/agents/product/product.activities';
 
 import { RepositoriesModule } from '../../database/repositories.module';
 import { WooCommerceModule } from '../woocommerce/woocommerce.module';
@@ -28,6 +29,7 @@ import { GoogleOauthModule } from '../google-oauth/google-oauth.module';
 import { MicrosoftOauthModule } from '../microsoft-oauth/microsoft-oauth.module';
 import { ShipBobModule } from '../shipbob/shipbob.module';
 import { ShipStationModule } from '../shipstation/shipstation.module';
+import { AiTeamCenterModule } from '../ai-team-center/ai-team-center.module';
 import { ClassificationUtil } from './utils/classification.util';
 import { InfraService } from './infra.service';
 
@@ -44,6 +46,7 @@ import { InfraService } from './infra.service';
     SendgridModule,
     ShipBobModule,
     ShipStationModule,
+    AiTeamCenterModule,
     forwardRef(() => AiAssistantModule),
     forwardRef(() => GoogleOauthModule),
     forwardRef(() => MicrosoftOauthModule),
@@ -80,6 +83,7 @@ import { InfraService } from './infra.service';
               CustomerMessageActivities,
               OrderCancellationActivities,
               AddressChangeActivities,
+              ProductActivities,
             ],
             autoStart: true,
           },
@@ -100,6 +104,7 @@ import { InfraService } from './infra.service';
     CustomerMessageActivities,
     OrderCancellationActivities,
     AddressChangeActivities,
+    ProductActivities,
     InfraService,
   ],
   exports: [TemporalModule, HttpModule, DatabaseModule, InfraService],

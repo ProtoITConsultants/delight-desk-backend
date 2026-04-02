@@ -8,6 +8,9 @@ import { ForgotPasswordDto, LoginDto, ResetPasswordDto, SignupDto } from './dto/
 
 @Injectable()
 export class AuthService {
+  /** Hard cap so a misconfigured PASSWORD_RESET_EXPIRY_MS cannot yield long-lived reset links. */
+  private static readonly MAX_RESET_TOKEN_EXPIRY_MS = 10 * 60 * 1000;
+
   constructor(
     private readonly usersService: UsersService,
     private readonly configService: ConfigService,
@@ -66,7 +69,11 @@ export class AuthService {
 
     const token = randomUUID();
 
-    const expiryMs = Number(this.configService.get<string>('PASSWORD_RESET_EXPIRY_MS'));
+    const configuredExpiryMs = Number(this.configService.get<string>('PASSWORD_RESET_EXPIRY_MS'));
+    const expiryMs =
+      Number.isFinite(configuredExpiryMs) && configuredExpiryMs > 0
+        ? Math.min(configuredExpiryMs, AuthService.MAX_RESET_TOKEN_EXPIRY_MS)
+        : AuthService.MAX_RESET_TOKEN_EXPIRY_MS;
 
     const expiry = new Date(Date.now() + expiryMs);
 
@@ -87,6 +94,7 @@ export class AuthService {
     const hashed = await bcrypt.hash(dto.password, 10);
 
     await this.usersService.updatePassword(user.id, hashed);
+    await this.usersService.deleteSessionsByUserId(user.id); // invalidate existing cookies
 
     return { message: 'Password reset successful' };
   }

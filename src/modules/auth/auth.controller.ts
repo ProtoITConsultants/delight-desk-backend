@@ -118,7 +118,7 @@ export class AuthController {
   @ApiOperation({
     summary: 'Request password reset',
     description:
-      'Sends a password reset email with a token to the provided email address. Token expires in 1 hour.',
+      'Sends a password reset email with a token to the provided email address. Token expires in at most 10 minutes.',
   })
   @ApiBody({ type: ForgotPasswordDto })
   @ApiResponse({

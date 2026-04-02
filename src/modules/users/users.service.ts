@@ -60,6 +60,10 @@ export class UsersService {
     });
   }
 
+  deleteSessionsByUserId(userId: string) {
+    return this.userRepo.deleteSessionsByUserId(userId);
+  }
+
   async verifyAdmin(userId: string): Promise<VerifyAdminResponse> {
     const isAdmin = await this.userRepo.isAdmin(userId);
     return { isAdmin };

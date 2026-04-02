@@ -31,13 +31,13 @@ export class SignupDto {
   email: string;
 
   @ApiProperty({
-    description: 'User password (minimum 6 characters)',
+    description: 'User password (minimum 12 characters)',
     example: 'SecurePass123!',
-    minLength: 6,
+    minLength: 12,
     type: String,
   })
   @IsNotEmpty()
-  @MinLength(6)
+  @MinLength(12)
   password: string;
 
   @ApiProperty({
@@ -64,11 +64,11 @@ export class LoginDto {
   @ApiProperty({
     description: 'User password',
     example: 'SecurePass123!',
-    minLength: 6,
+    minLength: 12,
     type: String,
   })
   @IsNotEmpty()
-  @MinLength(6)
+  @MinLength(12)
   password: string;
 }
 
@@ -92,12 +92,12 @@ export class ResetPasswordDto {
   token: string;
 
   @ApiProperty({
-    description: 'New password (minimum 6 characters)',
+    description: 'New password (minimum 12 characters)',
     example: 'NewSecurePass123!',
-    minLength: 6,
+    minLength: 12,
     type: String,
   })
   @IsNotEmpty()
-  @MinLength(6)
+  @MinLength(12)
   password: string;
 }

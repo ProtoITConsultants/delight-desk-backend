@@ -1,4 +1,7 @@
 import { createHash } from 'crypto';
+import { lookup } from 'dns/promises';
+import type { LookupAddress } from 'dns';
+import { isIP } from 'net';
 import { chromium } from 'playwright';
 import * as cheerio from 'cheerio';
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
@@ -101,6 +104,7 @@ export class ProductKnowledgeService {
 
   async ingestUrlSource(userId: string, dto: IngestUrlProductKnowledgeDto) {
     const parsedUrl = this.parseAndValidateUrl(dto.url);
+    await this.assertHostnameResolvesToPublicAddress(parsedUrl.hostname);
     const requestedTitle = dto.title?.trim() || parsedUrl.hostname;
     const existingUrlSource = await this.sourcesRepository.findLatestByUserAndSourceUrl(
       userId,
@@ -379,6 +383,16 @@ export class ProductKnowledgeService {
       throw new BadRequestException('Only HTTP and HTTPS URLs are supported');
     }
 
+    if (parsed.port && !['80', '443'].includes(parsed.port)) {
+      throw new BadRequestException('Only standard HTTP/HTTPS ports are allowed');
+    }
+
+    if (this.isLocalOrSpecialUseHostname(parsed.hostname)) {
+      throw new BadRequestException(
+        'URL points to a private or local network host and is not allowed',
+      );
+    }
+
     return parsed;
   }
 
@@ -390,13 +404,20 @@ export class ProductKnowledgeService {
     let browser: Awaited<ReturnType<typeof chromium.launch>> | null = null;
 
     try {
+      const requestHostPolicyCache = new Map<string, boolean>();
       browser = await chromium.launch({ headless: true });
       const context = await browser.newContext({
         userAgent: 'DelightDeskKnowledgeBot/1.0',
       });
 
-      await context.route('**/*', (route) => {
+      await context.route('**/*', async (route) => {
         const resourceType = route.request().resourceType();
+        const requestUrl = route.request().url();
+
+        if (!(await this.isAllowedCrawlUrl(requestUrl, requestHostPolicyCache))) {
+          return route.abort();
+        }
+
         if (resourceType === 'image' || resourceType === 'font' || resourceType === 'media') {
           return route.abort();
         }
@@ -410,6 +431,8 @@ export class ProductKnowledgeService {
 
       const html = await page.content();
       const finalUrl = page.url();
+      const finalParsedUrl = this.parseAndValidateUrl(finalUrl);
+      await this.assertHostnameResolvesToPublicAddress(finalParsedUrl.hostname);
       const extraction = this.extractStructuredContent(html);
 
       if (!extraction.textContent) {
@@ -456,6 +479,102 @@ export class ProductKnowledgeService {
         await browser.close();
       }
     }
+  }
+
+  private async isAllowedCrawlUrl(url: string, cache: Map<string, boolean>): Promise<boolean> {
+    let parsed: URL;
+
+    try {
+      parsed = new URL(url);
+    } catch {
+      return false;
+    }
+
+    if (!['http:', 'https:'].includes(parsed.protocol)) {
+      return false;
+    }
+
+    const hostKey = parsed.hostname.toLowerCase();
+    const cached = cache.get(hostKey);
+    if (cached !== undefined) {
+      return cached;
+    }
+
+    try {
+      await this.assertHostnameResolvesToPublicAddress(parsed.hostname);
+      cache.set(hostKey, true);
+      return true;
+    } catch {
+      cache.set(hostKey, false);
+      return false;
+    }
+  }
+
+  /** SSRF / DNS-rebind mitigation: resolved addresses must all be public (non-RFC1918, etc.). */
+  private async assertHostnameResolvesToPublicAddress(hostname: string): Promise<void> {
+    if (this.isLocalOrSpecialUseHostname(hostname)) {
+      throw new BadRequestException(
+        'URL points to a private or local network host and is not allowed',
+      );
+    }
+
+    const resolved: LookupAddress[] = await lookup(hostname, { all: true }).catch(() => []);
+
+    if (!Array.isArray(resolved) || resolved.length === 0) {
+      throw new BadRequestException('Unable to resolve URL hostname');
+    }
+
+    const hasOnlyPublicAddresses = resolved.every((entry) => !this.isPrivateOrSpecialUseIp(entry.address));
+    if (!hasOnlyPublicAddresses) {
+      throw new BadRequestException(
+        'URL points to a private or local network host and is not allowed',
+      );
+    }
+  }
+
+  private isLocalOrSpecialUseHostname(hostname: string): boolean {
+    const normalized = hostname.trim().toLowerCase();
+
+    if (!normalized) return true;
+    if (normalized === 'localhost') return true;
+    if (normalized.endsWith('.localhost') || normalized.endsWith('.local')) return true;
+
+    const ipVersion = isIP(normalized);
+    if (ipVersion > 0) {
+      return this.isPrivateOrSpecialUseIp(normalized);
+    }
+
+    return false;
+  }
+
+  private isPrivateOrSpecialUseIp(address: string): boolean {
+    const ipVersion = isIP(address);
+    if (ipVersion === 4) {
+      const [a, b] = address.split('.').map((part) => Number(part));
+
+      if (a === 10) return true;
+      if (a === 127) return true;
+      if (a === 0) return true;
+      if (a === 169 && b === 254) return true;
+      if (a === 172 && b >= 16 && b <= 31) return true;
+      if (a === 192 && b === 168) return true;
+      if (a >= 224) return true;
+      if (a === 100 && b >= 64 && b <= 127) return true;
+      if (a === 198 && (b === 18 || b === 19)) return true;
+      return false;
+    }
+
+    if (ipVersion === 6) {
+      const normalized = address.toLowerCase();
+      if (normalized === '::1') return true;
+      if (normalized === '::') return true;
+      if (normalized.startsWith('fc') || normalized.startsWith('fd')) return true;
+      if (normalized.startsWith('fe80')) return true;
+      if (normalized.startsWith('::ffff:127.')) return true;
+      return false;
+    }
+
+    return true;
   }
 
   private extractStructuredContent(html: string): {

@@ -17,17 +17,19 @@ export class SendgridService {
   }
 
   async sendMail(to: string, subject: string, html: string) {
+    const safeTo = this.sanitizeEmailHeaderValue(to);
+    const safeSubject = this.sanitizeHeaderValue(subject);
     const msg = {
-      to,
+      to: safeTo,
       from: this.configService.get<string>('SENDGRID_FROM_EMAIL') as string,
-      subject,
+      subject: safeSubject,
       html,
     };
 
     try {
       return await sgMail.send(msg);
     } catch (error: any) {
-      this.logger.error(`Failed to send email to ${to}`, error?.stack || error);
+      this.logger.error(`Failed to send email to ${safeTo}`, error?.stack || error);
       throw new ServiceUnavailableException('Unable to send email');
     }
   }
@@ -38,21 +40,25 @@ export class SendgridService {
       <h2>Password Reset Request</h2>
       <p>Click below to reset your password:</p>
       <a href="${resetUrl}" target="_blank">Reset Password</a>
-      <p>This link will expire in 1 hour.</p>
+      <p>This link will expire in 10 minutes.</p>
     `;
     return this.sendMail(to, 'Password Reset Request', html);
   }
 
   async sendContactInquiryEmail(dto: ContactUsDto) {
     const supportEmail = this.configService.get<string>('CONTACT_SUPPORT_EMAIL') as string;
+    const safeName = this.escapeHtml(dto.name);
+    const safeEmail = this.escapeHtml(dto.email);
+    const safeSubject = dto.subject ? this.escapeHtml(dto.subject) : null;
+    const safeInquiry = this.escapeHtml(dto.inquiry);
 
     const html = `
       <h2>New Contact Inquiry</h2>
-      <p><strong>Name:</strong> ${dto.name}</p>
-      <p><strong>Email:</strong> ${dto.email}</p>
-      ${dto.subject ? `<p><strong>Subject:</strong> ${dto.subject}</p>` : ''}
-      <p><strong>Inquiry:</strong></pdto.>
-      <p>${dto.inquiry}</p>
+      <p><strong>Name:</strong> ${safeName}</p>
+      <p><strong>Email:</strong> ${safeEmail}</p>
+      ${safeSubject ? `<p><strong>Subject:</strong> ${safeSubject}</p>` : ''}
+      <p><strong>Inquiry:</strong></p>
+      <p>${safeInquiry}</p>
     `;
 
     return this.sendMail(supportEmail, 'New Contact Inquiry', html);
@@ -109,5 +115,25 @@ export class SendgridService {
     `;
 
     return this.sendMail(to, `Action Required: Reconnect Your ${providerName} Account`, html);
+  }
+
+  /** Strip newlines from header-shaped strings to reduce SMTP header-injection risk. */
+  private sanitizeHeaderValue(value: string): string {
+    return String(value || '').replace(/[\r\n]+/g, ' ').trim();
+  }
+
+  /** Restrict `to` to characters valid in a single mailbox header token. */
+  private sanitizeEmailHeaderValue(value: string): string {
+    return this.sanitizeHeaderValue(value).replace(/[^\w@.+\-]/g, '');
+  }
+
+  /** Escape user-supplied contact fields embedded in HTML notification emails. */
+  private escapeHtml(value: string): string {
+    return String(value || '')
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#39;');
   }
 }

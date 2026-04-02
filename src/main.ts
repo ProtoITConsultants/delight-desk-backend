@@ -1,13 +1,62 @@
 import { Pool } from 'pg';
 import morgan from 'morgan';
+import helmet from 'helmet';
 import session from 'express-session';
 import { AppModule } from './app.module';
 import pgSession from 'connect-pg-simple';
 import { NestFactory } from '@nestjs/core';
 import { ConfigService } from '@nestjs/config';
+import { NextFunction, Request, Response } from 'express';
 import { ValidationPipe } from '@nestjs/common';
 import { NestExpressApplication } from '@nestjs/platform-express';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
+import { SecurityAuditInterceptor } from './interceptors/security-audit.interceptor';
+import { AuthenticatedResponseSecurityInterceptor } from './interceptors/authenticated-response-security.interceptor';
+
+/** Sliding-window limiter by route + IP (in-memory; per-process, not distributed). */
+function createPublicRateLimitMiddleware(limit: number, windowMs: number) {
+  const bucket = new Map<string, { count: number; resetAt: number }>();
+
+  return (req: Request, res: Response, next: NextFunction) => {
+    const now = Date.now();
+    const ip = req.ip || req.socket.remoteAddress || 'unknown';
+    const key = `${req.path}:${ip}`;
+    const current = bucket.get(key);
+
+    if (!current || now > current.resetAt) {
+      bucket.set(key, { count: 1, resetAt: now + windowMs });
+      return next();
+    }
+
+    if (current.count >= limit) {
+      return res.status(429).json({
+        statusCode: 429,
+        message: `Too many requests. Limit is ${limit} requests per ${Math.floor(windowMs / 60000)} minute(s).`,
+        error: 'Too Many Requests',
+      });
+    }
+
+    current.count += 1;
+    bucket.set(key, current);
+    return next();
+  };
+}
+
+/** Reject query params that often carry secrets so they are not logged or leaked via Referer. */
+function hasSensitiveQueryKey(query: Request['query']): boolean {
+  const sensitiveKeys = new Set([
+    'token',
+    'access_token',
+    'refresh_token',
+    'password',
+    'secret',
+    'api_key',
+    'apikey',
+    'authorization',
+  ]);
+
+  return Object.keys(query || {}).some((key) => sensitiveKeys.has(key.toLowerCase()));
+}
 
 async function bootstrap() {
   const app = await NestFactory.create<NestExpressApplication>(AppModule);
@@ -22,11 +71,32 @@ async function bootstrap() {
     .map((origin) => origin.trim())
     .filter((origin) => origin.length > 0);
 
+  if (isProd && origins.length === 0) {
+    throw new Error('CORS_ORIGINS must be configured in production');
+  }
+
   app.enableCors({
-    origin: origins.length > 0 ? origins : '*',
+    origin: (origin, callback) => {
+      // Mobile apps and curl send no Origin; browsers must match CORS_ORIGINS.
+      if (!origin) return callback(null, true);
+      if (origins.includes(origin)) return callback(null, true);
+      return callback(new Error('Origin not allowed by CORS'));
+    },
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
     credentials: true,
   });
+
+  // Default security headers; CORP allows cross-origin assets when cookies/credentials are used.
+  app.use(
+    helmet({
+      crossOriginResourcePolicy: { policy: 'cross-origin' },
+    }),
+  );
+  app.disable('x-powered-by');
+
+  if (isProd) {
+    app.useLogger(['error', 'warn', 'log']);
+  }
 
   app.set('trust proxy', 1);
 
@@ -56,10 +126,41 @@ async function bootstrap() {
   app.useGlobalPipes(
     new ValidationPipe({
       whitelist: true,
+      forbidNonWhitelisted: true, // reject unexpected JSON properties on DTOs
+      transform: true,
+      forbidUnknownValues: true,
     }),
   );
 
-  app.use(morgan('dev'));
+  app.use((req, res, next) => {
+    if (hasSensitiveQueryKey(req.query)) {
+      return res.status(400).json({
+        statusCode: 400,
+        message: 'Sensitive values must not be sent in query parameters',
+        error: 'Bad Request',
+      });
+    }
+    return next();
+  });
+
+  // Brute-force and abuse mitigation on unauthenticated auth and contact routes.
+  const publicAuthRateLimit = createPublicRateLimitMiddleware(10, 60 * 1000);
+  app.use('/auth/login', publicAuthRateLimit);
+  app.use('/auth/signup', publicAuthRateLimit);
+  app.use('/auth/forgot-password', publicAuthRateLimit);
+  app.use('/auth/reset-password', publicAuthRateLimit);
+  app.use('/contact', createPublicRateLimitMiddleware(20, 60 * 1000));
+
+  // Omit query string from access logs to reduce accidental capture of sensitive params.
+  morgan.token('clean-url', (req) => (((req as any).originalUrl || req.url || '') as string).split('?')[0]);
+  app.use(
+    morgan(isProd ? ':remote-addr - :method :clean-url :status :response-time ms' : 'dev'),
+  );
+
+  app.useGlobalInterceptors(
+    new AuthenticatedResponseSecurityInterceptor(), // no-store for session-backed responses
+    new SecurityAuditInterceptor(), // structured audit log for authenticated requests
+  );
 
   const config = new DocumentBuilder()
     .setTitle('DelightDesk API')
@@ -102,21 +203,29 @@ async function bootstrap() {
     .addTag('Billing', 'Plans and subscription management')
     .build();
 
-  const document = SwaggerModule.createDocument(app, config);
-  SwaggerModule.setup('api-docs', app, document, {
-    customSiteTitle: 'DelightDesk API Documentation',
-    customCss: '.swagger-ui .topbar { display: none }',
-    swaggerOptions: {
-      persistAuthorization: true,
-      tagsSorter: 'alpha',
-      operationsSorter: 'alpha',
-    },
-  });
+  // Hide API docs in production unless explicitly enabled (reduces attack surface).
+  const enableSwagger =
+    !isProd || configService.get<string>('ENABLE_SWAGGER_IN_PRODUCTION') === 'true';
+
+  if (enableSwagger) {
+    const document = SwaggerModule.createDocument(app, config);
+    SwaggerModule.setup('api-docs', app, document, {
+      customSiteTitle: 'DelightDesk API Documentation',
+      customCss: '.swagger-ui .topbar { display: none }',
+      swaggerOptions: {
+        persistAuthorization: true,
+        tagsSorter: 'alpha',
+        operationsSorter: 'alpha',
+      },
+    });
+  }
 
   const baseUrl = `http://localhost:${port}`;
   console.log(`🚀 Application is running on: ${baseUrl}`);
-  console.log(`📚 Swagger UI available at: ${baseUrl}/api-docs`);
-  console.log(`📄 OpenAPI JSON available at: ${baseUrl}/api-docs-json`);
+  if (enableSwagger) {
+    console.log(`📚 Swagger UI available at: ${baseUrl}/api-docs`);
+    console.log(`📄 OpenAPI JSON available at: ${baseUrl}/api-docs-json`);
+  }
 
   app.enableShutdownHooks();
 

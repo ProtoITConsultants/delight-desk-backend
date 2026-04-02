@@ -33,15 +33,23 @@ export class ChangePasswordDto {
   @IsNotEmpty()
   currentPassword: string;
 
-  @ApiProperty({ description: 'New password (minimum 6 characters)', example: 'NewPass123', minLength: 6 })
+  @ApiProperty({
+    description: 'New password (minimum 12 characters)',
+    example: 'NewPass123Secure',
+    minLength: 12,
+  })
   @IsString()
   @IsNotEmpty()
-  @MinLength(6)
+  @MinLength(12)
   newPassword: string;
 
-  @ApiProperty({ description: 'Confirm new password (must match new password)', example: 'NewPass123', minLength: 6 })
+  @ApiProperty({
+    description: 'Confirm new password (must match new password)',
+    example: 'NewPass123Secure',
+    minLength: 12,
+  })
   @IsString()
   @IsNotEmpty()
-  @MinLength(6)
+  @MinLength(12)
   confirmNewPassword: string;
 }

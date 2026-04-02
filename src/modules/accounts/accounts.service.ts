@@ -44,6 +44,7 @@ export class AccountsService {
 
     const hashed = await bcrypt.hash(dto.newPassword, 10);
     await this.usersService.updatePassword(userId, hashed);
+    await this.usersService.deleteSessionsByUserId(userId); // other devices must re-authenticate
 
     return { message: 'Password changed successfully' };
   }

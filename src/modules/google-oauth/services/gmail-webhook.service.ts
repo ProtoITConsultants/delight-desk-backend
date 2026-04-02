@@ -55,7 +55,7 @@ export class GmailWebhookService {
       try {
         await this.processMessage(gmail, msgRef, account.userId);
       } catch (err: any) {
-        console.error('Failed to process message ' + msgRef.id, err?.message || err);
+        this.logger.error(`Failed to process message ${msgRef.id}`, err?.message || err);
       }
     }
 
@@ -91,7 +91,7 @@ export class GmailWebhookService {
         return { fullSync: true, messages: msgIds.map((m: any) => ({ id: m.id })) };
       }
     } catch (err: any) {
-      console.error('Failed to fetch email history:', err);
+      this.logger.error('Failed to fetch email history', err);
       return null;
     }
   }
@@ -131,8 +131,7 @@ export class GmailWebhookService {
 
     // Filter out non-customer emails unless this is an explicit warehouse-routing reply.
     if (!hasWarehouseWorkflowMarker && !this.emailClassifier.isLikelyCustomerEmail(body)) {
-      console.log('Skipping - not likely customer email:', msg.id);
-      console.log('Skipped Email body:', body);
+      this.logger.debug(`Skipping non-customer email: ${msg.id}`);
       return;
     }
 
@@ -186,7 +185,7 @@ export class GmailWebhookService {
       isIncomingEmail &&
       (!isOwnerInitiated || shouldBypassOwnerInitiatedGuard)
     ) {
-      console.log('Triggering email pipeline for:', insertedEmail.id);
+      this.logger.log(`Triggering email pipeline for: ${insertedEmail.id}`);
       await this.triggerEmailPipeline(insertedEmail);
     } else {
       const reason = !isIncomingEmail
@@ -196,7 +195,7 @@ export class GmailWebhookService {
           : isOwnerInitiated
             ? 'owner-initiated thread'
             : 'already exists';
-      console.log(`Skipping pipeline (${reason}):`, messageId);
+      this.logger.debug(`Skipping pipeline (${reason}): ${messageId}`);
     }
   }
 
@@ -225,7 +224,7 @@ export class GmailWebhookService {
       try {
         await this.infraService.processEmail(email);
       } catch (error) {
-        console.error(`Pipeline failed for email ${email.id}:`, error);
+        this.logger.error(`Pipeline failed for email ${email.id}`, error as any);
       }
     });
   }

@@ -54,6 +54,9 @@ jobs:
           cp -r drizzle deploy/
           cp drizzle.config.ts deploy/
 
+          echo "Copying scripts (npm run security:* and other ops utilities on the server)..."
+          cp -r scripts deploy/
+
           echo "Creating tarball..."
           cd deploy
           tar -czf ../deploy.tar.gz .

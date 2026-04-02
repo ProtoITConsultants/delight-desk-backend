@@ -1,19 +1,26 @@
 /**
- * Offline check: flags users whose email local-part or full address matches risky defaults
- * (root/admin/sa). Run with DATABASE_URL for periodic or pre-release audits.
+ * Flags users whose email local-part or full address matches risky defaults (root/admin/sa).
+ *
+ * Run from project root: `npm run security:audit-default-accounts` (same layout as EC2 ~/delight-desk).
+ * DATABASE_URL must be set in the environment or in `.env` at the repository root (same source as Nest).
  */
 const { Client } = require('pg');
+const path = require('path');
+
+// Load ../.env relative to this file so the script works when cwd is not the repo root.
+require('dotenv').config({ path: path.resolve(__dirname, '..', '.env') });
 
 async function run() {
   const connectionString = process.env.DATABASE_URL;
   if (!connectionString) {
-    throw new Error('DATABASE_URL is required');
+    throw new Error('DATABASE_URL is required (set in environment or .env at project root)');
   }
 
   const client = new Client({ connectionString });
   await client.connect();
 
   try {
+    // First condition: rare exact string match; second: local-part (before @) equals root|admin|sa.
     const query = `
       SELECT id, email, role, created_at
       FROM users
@@ -52,6 +59,7 @@ async function run() {
 }
 
 run().catch((error) => {
+  // Connection errors, missing pg, etc.
   console.error('Default account audit failed:', error.message);
   process.exit(1);
 });

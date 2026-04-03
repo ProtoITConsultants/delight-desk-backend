@@ -1,3 +1,4 @@
+import { existsSync, statSync } from 'fs';
 import { Pool } from 'pg';
 import morgan from 'morgan';
 import helmet from 'helmet';
@@ -64,6 +65,14 @@ async function bootstrap() {
   const configService = app.get(ConfigService);
   const isProd = configService.get<string>('NODE_ENV') === 'production';
   const port = Number(configService.get<string>('PORT')) || 3000;
+
+  // Block overly permissive .env on disk in production (group/other must not read secrets).
+  if (isProd && existsSync('.env')) {
+    const mode = statSync('.env').mode & 0o777;
+    if ((mode & 0o077) !== 0) {
+      throw new Error('.env permissions are too broad in production. Expected 600 or stricter.');
+    }
+  }
 
   const origins = configService
     .get<string>('CORS_ORIGINS', '')

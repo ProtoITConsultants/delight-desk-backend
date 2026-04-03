@@ -57,6 +57,10 @@ jobs:
           echo "Copying scripts (npm run security:* and other ops utilities on the server)..."
           cp -r scripts deploy/
 
+          echo "Copying DNS inventory (required by npm run security:dns-check on the server)..."
+          mkdir -p deploy/docs
+          cp docs/dns-inventory.json deploy/docs/
+
           echo "Creating tarball..."
           cd deploy
           tar -czf ../deploy.tar.gz .

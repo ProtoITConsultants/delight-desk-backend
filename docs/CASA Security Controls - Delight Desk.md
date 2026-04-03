@@ -101,6 +101,7 @@ This document provides CASA evidence for backend security controls implemented i
 - Before release:
   - Run `npm run build`.
   - Run `npm run security:integrity`.
+  - Run `npm run security:dns-check`.
   - Confirm `ENABLE_SWAGGER_IN_PRODUCTION` is unset or false.
   - Confirm `CORS_ORIGINS` is explicitly set in production.
 - During deployment:
@@ -112,4 +113,6 @@ This document provides CASA evidence for backend security controls implemented i
 - Enforce MFA for admin/operator identities at IAM/IdP level.
 - Validate TLS certificate policy and OCSP stapling at load balancer/CDN.
 - Use managed secret store (e.g., cloud secret manager) for runtime key material.
-- Perform periodic subdomain takeover scans for owned domains/subdomains.
+- Periodic domain/subdomain checks are automated with `npm run security:dns-check`
+  and the scheduled GitHub Action `Security DNS Monitor`; maintain
+  `docs/dns-inventory.json` as the source of truth.

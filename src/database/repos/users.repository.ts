@@ -1,8 +1,8 @@
-import { eq, sql } from 'drizzle-orm';
+import { eq, inArray, sql } from 'drizzle-orm';
 import { Inject, Injectable } from '@nestjs/common';
 import type { NodePgDatabase } from 'drizzle-orm/node-postgres';
 import { DATABASE_CONNECTION } from 'src/database/database.module';
-import { agents, systemSettings, userAgents, users } from 'src/database/schema/index';
+import { agents, systemSettings, userAgents, userSessions, users } from 'src/database/schema/index';
 
 @Injectable()
 export class UserRepository {
@@ -166,7 +166,7 @@ export class UserRepository {
 
     if (sidsToDelete.length === 0) return;
 
-    await this.db.execute(sql`DELETE FROM user_sessions WHERE sid = ANY(${sidsToDelete}::text[])`);
+    await this.db.delete(userSessions).where(inArray(userSessions.sid, sidsToDelete));
 
     return true;
   }

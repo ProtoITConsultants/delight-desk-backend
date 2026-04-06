@@ -116,3 +116,5 @@ This document provides CASA evidence for backend security controls implemented i
 - Periodic domain/subdomain checks are automated with `npm run security:dns-check`
   and the scheduled GitHub Action `Security DNS Monitor`; maintain
   `docs/dns-inventory.json` as the source of truth.
+- Operational execution steps and evidence commands are documented in
+  `docs/CASA Ops Runbook - AWS.md`.

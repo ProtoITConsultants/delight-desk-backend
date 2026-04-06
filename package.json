@@ -21,7 +21,8 @@
     "migrate:list-prod-users": "ts-node -r tsconfig-paths/register scripts/migrate-ai-assistant-data.ts list-production-users",
     "security:integrity": "node scripts/security-integrity-check.js",
     "security:audit-default-accounts": "node scripts/audit-default-accounts.js",
-    "security:dns-check": "node scripts/security-dns-check.js"
+    "security:dns-check": "node scripts/security-dns-check.js",
+    "security:iam-mfa-check": "node scripts/security-iam-mfa-check.js"
   },
   "dependencies": {
     "@aftership/tracking-sdk": "^15.0.1",

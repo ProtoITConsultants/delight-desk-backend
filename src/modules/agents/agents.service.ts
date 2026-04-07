@@ -3,11 +3,14 @@ import { WooCommerceService } from '../woocommerce/woocommerce.service';
 import { WooCommerceRestApiService } from '../woocommerce/woocommerce-rest-api.service';
 import { AgentsRepository } from 'src/database/repos/agents.repository';
 import {
+  ProductPreviewDto,
+  ProductPreviewResponse,
   UpdateSystemSettingsDto,
   UpdateUserAgentDto,
   WismoPreviewDto,
   WismoPreviewResponse,
 } from './agents.dto';
+import { ProductAgentPreviewService } from './product-agent-preview.service';
 import { UserAgentsRepository } from 'src/database/repos/user-agents.repository';
 import { SystemSettingsRepository } from 'src/database/repos/system-settings.repository';
 import { UserStoreConnectionsRepository } from 'src/database/repos/user-store-connections.repository';
@@ -36,6 +39,7 @@ export class AgentsService {
     private readonly storeRepo: UserStoreConnectionsRepository,
     private readonly systemSettingsRepo: SystemSettingsRepository,
     private readonly userRepo: UserRepository,
+    private readonly productAgentPreviewService: ProductAgentPreviewService,
   ) {}
 
   async getAgentsForUser(userId: string) {
@@ -44,7 +48,7 @@ export class AgentsService {
 
   async updateUserAgentSettings(userId: string, agentId: string, dto: UpdateUserAgentDto) {
     const { isEnabled, requiresModeration } = dto;
-    if (!isEnabled && !requiresModeration) {
+    if (isEnabled === undefined && requiresModeration === undefined) {
       throw new BadRequestException(
         'At least one field must be provided to update agent settings.',
       );
@@ -53,7 +57,7 @@ export class AgentsService {
     const agent = await this.agentsRepo.getAgentById(agentId);
     if (!agent) throw new NotFoundException('Agent not found');
 
-    if (isEnabled) {
+    if (isEnabled === true) {
       const hasStore = await this.storeRepo.userHasStore(userId);
       if (!hasStore) {
         throw new ConflictException(
@@ -62,7 +66,11 @@ export class AgentsService {
       }
     }
 
-    await this.userAgentsRepo.update(userId, agentId, { isEnabled, requiresModeration });
+    const updates: Partial<UpdateUserAgentDto> = {};
+    if (isEnabled !== undefined) updates.isEnabled = isEnabled;
+    if (requiresModeration !== undefined) updates.requiresModeration = requiresModeration;
+
+    await this.userAgentsRepo.update(userId, agentId, updates);
 
     return { message: 'Agent settings updated successfully' };
   }
@@ -200,6 +208,13 @@ export class AgentsService {
       },
       hasTracking,
     };
+  }
+
+  async generateProductPreview(
+    userId: string,
+    dto: ProductPreviewDto,
+  ): Promise<ProductPreviewResponse> {
+    return this.productAgentPreviewService.previewProductResponse(userId, dto);
   }
 
   private formatWooCommerceOrder(order: any): OrderDetails {

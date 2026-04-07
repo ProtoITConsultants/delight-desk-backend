@@ -1,13 +1,17 @@
 import { BadRequestException, ConflictException, NotFoundException } from '@nestjs/common';
 import { AgentsService } from './agents.service';
+import { AgentTypes } from 'src/common/agent-types';
 
 describe('AgentsService.updateUserAgentSettings', () => {
   function createService({
     agentExists = true,
     hasStore = true,
-  }: { agentExists?: boolean; hasStore?: boolean } = {}) {
+    agentType = AgentTypes.WISMO,
+  }: { agentExists?: boolean; hasStore?: boolean; agentType?: string } = {}) {
     const agentsRepo = {
-      getAgentById: jest.fn().mockResolvedValue(agentExists ? { id: 'agent-1' } : null),
+      getAgentById: jest
+        .fn()
+        .mockResolvedValue(agentExists ? { id: 'agent-1', type: agentType } : null),
     };
     const userAgentsRepo = {
       update: jest.fn().mockResolvedValue(undefined),
@@ -63,6 +67,22 @@ describe('AgentsService.updateUserAgentSettings', () => {
         isEnabled: true,
       }),
     ).rejects.toThrow(ConflictException);
+  });
+
+  it('skips store connection check when enabling product agent', async () => {
+    const { service, storeRepo, userAgentsRepo } = createService({
+      hasStore: false,
+      agentType: AgentTypes.PRODUCT,
+    });
+
+    await service.updateUserAgentSettings('user-1', 'agent-1', {
+      isEnabled: true,
+    });
+
+    expect(storeRepo.userHasStore).not.toHaveBeenCalled();
+    expect(userAgentsRepo.update).toHaveBeenCalledWith('user-1', 'agent-1', {
+      isEnabled: true,
+    });
   });
 
   it('throws not found for unknown agent', async () => {

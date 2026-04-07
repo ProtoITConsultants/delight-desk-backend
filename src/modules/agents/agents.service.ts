@@ -57,7 +57,7 @@ export class AgentsService {
     const agent = await this.agentsRepo.getAgentById(agentId);
     if (!agent) throw new NotFoundException('Agent not found');
 
-    if (isEnabled === true) {
+    if (isEnabled === true && agent.type !== AgentTypes.PRODUCT) {
       const hasStore = await this.storeRepo.userHasStore(userId);
       if (!hasStore) {
         throw new ConflictException(

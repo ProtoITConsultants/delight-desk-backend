@@ -1,5 +1,10 @@
 import { AgentsService } from './agents.service';
-import { UpdateSystemSettingsDto, UpdateUserAgentDto, WismoPreviewDto } from './agents.dto';
+import {
+  ProductPreviewDto,
+  UpdateSystemSettingsDto,
+  UpdateUserAgentDto,
+  WismoPreviewDto,
+} from './agents.dto';
 import { SessionGuard } from 'src/guards/session.guard';
 import { RateLimitGuard } from 'src/guards/rate-limit.guard';
 import { CurrentUserId } from 'src/decorators/current-user.decorator';
@@ -115,5 +120,24 @@ export class AgentsController {
   @UseInterceptors(RateLimitInterceptor)
   previewWismoResponse(@CurrentUserId() userId: string, @Body() dto: WismoPreviewDto) {
     return this.agentsService.generateWismoPreview(userId, dto);
+  }
+
+  @Post('/product/preview')
+  @ApiOperation({
+    summary: 'Generate Product Agent response preview',
+    description:
+      'Generate a high-fidelity Product Agent preview using classification, retrieval quality gates, and product response generation. Rate limited to 5 requests.',
+  })
+  @ApiBody({ type: ProductPreviewDto })
+  @ApiResponse({ status: 200, description: 'Product preview generated successfully' })
+  @ApiResponse({ status: 400, description: 'Bad request - Invalid preview payload' })
+  @ApiResponse({ status: 401, description: 'Unauthorized - User not authenticated' })
+  @ApiResponse({ status: 429, description: 'Too many requests - Rate limit exceeded' })
+  @ApiResponse({ status: 500, description: 'Internal server error' })
+  @RateLimit('product-preview', 5)
+  @UseGuards(RateLimitGuard)
+  @UseInterceptors(RateLimitInterceptor)
+  previewProductResponse(@CurrentUserId() userId: string, @Body() dto: ProductPreviewDto) {
+    return this.agentsService.generateProductPreview(userId, dto);
   }
 }

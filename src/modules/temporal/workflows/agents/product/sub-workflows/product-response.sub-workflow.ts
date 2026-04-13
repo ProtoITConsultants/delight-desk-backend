@@ -11,7 +11,11 @@ import {
 import { extractCustomerName, executeWorkflowAction } from '../../../workflow-action.helpers';
 import {
   PRODUCT_CLASSIFICATION_CONFIDENCE_THRESHOLD,
-  PRODUCT_MIN_CONTEXT_TOKENS,
+  PRODUCT_MIN_CHUNKS_FOR_SIMILARITY_RELAXATION,
+  PRODUCT_MIN_TOKENS_FOR_RECOMMENDATION_SIMILARITY,
+  PRODUCT_MIN_TOKENS_FOR_SIMILARITY_RELAXATION,
+  PRODUCT_RECOMMENDATION_SIMILARITY_THRESHOLD,
+  PRODUCT_RELAXED_SIMILARITY_THRESHOLD,
   PRODUCT_RETRIEVAL_DEFAULTS,
   PRODUCT_VERY_LOW_SIMILARITY_THRESHOLD,
   ACTIVITY_TIMEOUTS,
@@ -118,6 +122,7 @@ export async function handleProductResponse(
         userId: context.email.userId,
         query: context.email.body,
         ...PRODUCT_RETRIEVAL_DEFAULTS,
+        enableQueryExpansion: true,
       });
 
       if (!retrieval.selectedChunks?.length) {
@@ -136,25 +141,32 @@ export async function handleProductResponse(
       const topSimilarity = Math.max(
         ...retrieval.selectedChunks.map((chunk: any) => chunk.similarity),
       );
-      if (topSimilarity < PRODUCT_VERY_LOW_SIMILARITY_THRESHOLD) {
+      const hasStrictSimilarity = topSimilarity >= PRODUCT_VERY_LOW_SIMILARITY_THRESHOLD;
+      const hasRelaxedSimilarity =
+        topSimilarity >= PRODUCT_RELAXED_SIMILARITY_THRESHOLD &&
+        (retrieval.selectedChunks.length >= PRODUCT_MIN_CHUNKS_FOR_SIMILARITY_RELAXATION ||
+          retrieval.usedTokens >= PRODUCT_MIN_TOKENS_FOR_SIMILARITY_RELAXATION);
+      const isRecommendationQuery =
+        /\b(do you recommend|would you recommend|is this good|is it good|worth it|best for)\b/i.test(
+          context.email.body,
+        );
+      const hasRecommendationSimilarity =
+        isRecommendationQuery &&
+        topSimilarity >= PRODUCT_RECOMMENDATION_SIMILARITY_THRESHOLD &&
+        retrieval.usedTokens >= PRODUCT_MIN_TOKENS_FOR_RECOMMENDATION_SIMILARITY;
+
+      if (!hasStrictSimilarity && !hasRelaxedSimilarity && !hasRecommendationSimilarity) {
         throw new EscalationError(
           EscalationType.PRODUCT_KNOWLEDGE_LOW_SIMILARITY,
           `Product knowledge similarity too low (${topSimilarity.toFixed(3)} < ${PRODUCT_VERY_LOW_SIMILARITY_THRESHOLD})`,
           {
             topSimilarity,
             threshold: PRODUCT_VERY_LOW_SIMILARITY_THRESHOLD,
-            query: context.email.body,
-          },
-        );
-      }
-
-      if (retrieval.usedTokens < PRODUCT_MIN_CONTEXT_TOKENS) {
-        throw new EscalationError(
-          EscalationType.PRODUCT_KNOWLEDGE_NOT_FOUND,
-          `Insufficient product context retrieved (${retrieval.usedTokens} tokens)`,
-          {
+            relaxedThreshold: PRODUCT_RELAXED_SIMILARITY_THRESHOLD,
+            recommendationThreshold: PRODUCT_RECOMMENDATION_SIMILARITY_THRESHOLD,
+            recommendationQuery: isRecommendationQuery,
+            chunkCount: retrieval.selectedChunks.length,
             usedTokens: retrieval.usedTokens,
-            minimum: PRODUCT_MIN_CONTEXT_TOKENS,
             query: context.email.body,
           },
         );

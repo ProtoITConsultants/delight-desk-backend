@@ -107,6 +107,9 @@ describe('ProductKnowledgeService', () => {
       .mockImplementation((task: () => Promise<void>) => {
         void task();
       });
+    jest
+      .spyOn(service as any, 'assertHostnameResolvesToPublicAddress')
+      .mockResolvedValue(undefined);
 
     jest.spyOn(service as any, 'fetchRenderedUrlTextContent').mockResolvedValue({
       textContent:
@@ -162,6 +165,9 @@ describe('ProductKnowledgeService', () => {
       .mockImplementation((task: () => Promise<void>) => {
         queuedTaskPromise = task();
       });
+    jest
+      .spyOn(service as any, 'assertHostnameResolvesToPublicAddress')
+      .mockResolvedValue(undefined);
 
     jest.spyOn(service as any, 'fetchRenderedUrlTextContent').mockResolvedValue({
       textContent: 'Updated URL content with refreshed spec details and FAQ text.',
@@ -196,5 +202,58 @@ describe('ProductKnowledgeService', () => {
     expect(result.reingesting).toBe(true);
     expect(queueSpy).toHaveBeenCalledTimes(1);
     expect(result.deduplicated).toBe(false);
+  });
+
+  it('expands recommendation-style query when enabled and uses improved retrieval', async () => {
+    const { service, retrievalService } = makeService();
+    retrievalService.retrieve.mockImplementation(async ({ query }: { query: string }) => {
+      if (String(query).includes('compatibility specifications usage')) {
+        return {
+          query,
+          totalMatches: 8,
+          usedTokens: 300,
+          selectedChunks: [{ similarity: 0.72, content: 'Fast charging supported.' }],
+          skippedBySimilarity: 5,
+          skippedByTokenBudget: 0,
+        };
+      }
+      return {
+        query,
+        totalMatches: 8,
+        usedTokens: 0,
+        selectedChunks: [],
+        skippedBySimilarity: 8,
+        skippedByTokenBudget: 0,
+      };
+    });
+
+    const result = await service.retrieveForQuery({
+      userId: 'user-1',
+      query: 'Do you recommend this for fast charging?',
+      enableQueryExpansion: true,
+    });
+
+    expect(retrievalService.retrieve).toHaveBeenCalledTimes(5);
+    expect(result.selectedChunks).toHaveLength(1);
+    expect(result.usedTokens).toBe(300);
+  });
+
+  it('does not expand query by default', async () => {
+    const { service, retrievalService } = makeService();
+    retrievalService.retrieve.mockResolvedValue({
+      query: 'Can I use this with 20W adapter?',
+      totalMatches: 2,
+      usedTokens: 180,
+      selectedChunks: [{ similarity: 0.81, content: '20W adapter supported.' }],
+      skippedBySimilarity: 0,
+      skippedByTokenBudget: 0,
+    });
+
+    await service.retrieveForQuery({
+      userId: 'user-1',
+      query: 'Can I use this with 20W adapter?',
+    });
+
+    expect(retrievalService.retrieve).toHaveBeenCalledTimes(1);
   });
 });

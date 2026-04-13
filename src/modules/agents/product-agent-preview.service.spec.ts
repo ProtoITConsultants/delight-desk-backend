@@ -3,14 +3,14 @@ import { MessageFormattingHelper } from '../temporal/activities/shared/message-f
 import { ProductAgentPreviewService } from './product-agent-preview.service';
 
 describe('ProductAgentPreviewService', () => {
-  const baseDto = { question: 'Will this work with iPhone 15?', customerName: 'Sarah' };
+  const baseDto = { query: 'Will this work with iPhone 15?', customerName: 'Sarah' };
   const baseClassification = {
     category: AgentTypes.PRODUCT,
     confidence: 91,
     scenarios: { escalation: false, thankful: false },
   };
   const baseRetrieval = {
-    query: baseDto.question,
+    query: baseDto.query,
     totalMatches: 2,
     usedTokens: 240,
     selectedChunks: [
@@ -51,6 +51,12 @@ describe('ProductAgentPreviewService', () => {
         { type: AgentTypes.PRODUCT, isEnabled: agentEnabled, requiresModeration },
       ]),
     };
+    const userRepo = {
+      findById: jest.fn().mockResolvedValue({
+        id: 'user-1',
+        email: 'owner@example.com',
+      }),
+    };
     const aiIdentityRepository = {
       findByUserId: jest.fn().mockResolvedValue({
         emailSalutation: 'Hi',
@@ -69,6 +75,7 @@ describe('ProductAgentPreviewService', () => {
       classificationUtil as any,
       productKnowledgeService as any,
       agentsRepo as any,
+      userRepo as any,
       aiIdentityRepository as any,
       openaiService as any,
       messageFormattingHelper,
@@ -80,6 +87,7 @@ describe('ProductAgentPreviewService', () => {
         classificationUtil,
         productKnowledgeService,
         agentsRepo,
+        userRepo,
         aiIdentityRepository,
         openaiService,
       },
@@ -92,8 +100,7 @@ describe('ProductAgentPreviewService', () => {
     });
 
     const result = await service.previewProductResponse('user-1', baseDto);
-    expect(result.status).toBe('blocked');
-    expect(result.blockReason).toBe('non_product_intent');
+    expect(result.body).toContain('outside product support scope');
   });
 
   it('blocks when confidence is below threshold', async () => {
@@ -102,8 +109,7 @@ describe('ProductAgentPreviewService', () => {
     });
 
     const result = await service.previewProductResponse('user-1', baseDto);
-    expect(result.status).toBe('blocked');
-    expect(result.blockReason).toBe('low_classification_confidence');
+    expect(result.body).toContain("couldn't determine your product intent");
   });
 
   it('blocks when escalation scenario is detected', async () => {
@@ -115,8 +121,7 @@ describe('ProductAgentPreviewService', () => {
     });
 
     const result = await service.previewProductResponse('user-1', baseDto);
-    expect(result.status).toBe('blocked');
-    expect(result.blockReason).toBe('escalation_scenario');
+    expect(result.body).toContain('better handled by a human support specialist');
   });
 
   it('blocks when top retrieval similarity is too low', async () => {
@@ -124,30 +129,89 @@ describe('ProductAgentPreviewService', () => {
       retrieval: {
         ...baseRetrieval,
         usedTokens: 220,
-        selectedChunks: [{ ...baseRetrieval.selectedChunks[0], similarity: 0.5 }],
+        selectedChunks: [{ ...baseRetrieval.selectedChunks[0], similarity: 0.46 }],
       },
     });
 
     const result = await service.previewProductResponse('user-1', baseDto);
-    expect(result.status).toBe('blocked');
-    expect(result.blockReason).toBe('low_similarity');
+    expect(result.body).toContain('limited matching product details');
+  });
+
+  it('allows generation with adaptive similarity when context evidence is strong', async () => {
+    const { service } = createService({
+      retrieval: {
+        ...baseRetrieval,
+        usedTokens: 735,
+        selectedChunks: [
+          { ...baseRetrieval.selectedChunks[0], similarity: 0.529 },
+          { ...baseRetrieval.selectedChunks[0], chunkId: 'chunk-2', similarity: 0.521 },
+        ],
+      },
+    });
+
+    const result = await service.previewProductResponse('user-1', baseDto);
+    expect(result.body).toBeDefined();
+  });
+
+  it('allows recommendation query with borderline similarity and usable context', async () => {
+    const { service } = createService({
+      retrieval: {
+        ...baseRetrieval,
+        usedTokens: 107,
+        selectedChunks: [{ ...baseRetrieval.selectedChunks[0], similarity: 0.481 }],
+      },
+    });
+    const recommendationDto = {
+      query: 'Do you recommend this for someone who needs fast charging?',
+      customerName: 'Sarah',
+    };
+
+    const result = await service.previewProductResponse('user-1', recommendationDto);
+    expect(result.body).toBeDefined();
+  });
+
+  it('still generates when relevant retrieval is concise', async () => {
+    const { service } = createService({
+      retrieval: {
+        ...baseRetrieval,
+        usedTokens: 40,
+        selectedChunks: [{ ...baseRetrieval.selectedChunks[0], similarity: 0.59 }],
+      },
+    });
+
+    const result = await service.previewProductResponse('user-1', baseDto);
+    expect(result.body).toBeDefined();
+  });
+
+  it('allows generation with relaxed context when similarity is strong', async () => {
+    const { service } = createService({
+      retrieval: {
+        ...baseRetrieval,
+        usedTokens: 60,
+        selectedChunks: [{ ...baseRetrieval.selectedChunks[0], similarity: 0.61 }],
+      },
+    });
+
+    const result = await service.previewProductResponse('user-1', baseDto);
+    expect(result.body).toBeDefined();
   });
 
   it('generates preview response on happy path', async () => {
     const { service, mocks } = createService({});
 
     const result = await service.previewProductResponse('user-1', baseDto);
-    expect(result.status).toBe('generated');
-    expect(result.responseText).toContain('Hi Sarah');
+    expect(result.from).toBe('owner@example.com');
+    expect(result.to).toBe('customer@example.com');
+    expect(result.responseText).toBeUndefined();
+    expect(result.body).toContain('Hi Sarah');
     expect(mocks.openaiService.createChatCompletion).toHaveBeenCalledTimes(1);
   });
 
-  it('returns needs_moderation when product agent moderation is enabled', async () => {
+  it('uses customer defaults when name/email are omitted', async () => {
     const { service } = createService({ requiresModeration: true });
 
-    const result = await service.previewProductResponse('user-1', baseDto);
-    expect(result.status).toBe('needs_moderation');
-    expect(result.moderationRequired).toBe(true);
-    expect(result.responseText).toBeDefined();
+    const result = await service.previewProductResponse('user-1', { query: 'Can I use this daily?' });
+    expect(result.to).toBe('customer@example.com');
+    expect(result.body).toContain('Hi customer');
   });
 });

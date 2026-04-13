@@ -134,9 +134,9 @@ export class AgentsController {
   @ApiResponse({ status: 401, description: 'Unauthorized - User not authenticated' })
   @ApiResponse({ status: 429, description: 'Too many requests - Rate limit exceeded' })
   @ApiResponse({ status: 500, description: 'Internal server error' })
-  @RateLimit('product-preview', 5)
-  @UseGuards(RateLimitGuard)
-  @UseInterceptors(RateLimitInterceptor)
+  // @RateLimit('product-preview', 5)
+  // @UseGuards(RateLimitGuard)
+  // @UseInterceptors(RateLimitInterceptor)
   previewProductResponse(@CurrentUserId() userId: string, @Body() dto: ProductPreviewDto) {
     return this.agentsService.generateProductPreview(userId, dto);
   }

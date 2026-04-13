@@ -167,7 +167,6 @@ export class AgentsService {
     const orderDetails = this.formatWooCommerceOrder(order);
 
     let tracking: any = null;
-    let hasTracking = false;
 
     if (orderDetails.trackingNumber && orderDetails.trackingProvider) {
       try {
@@ -176,7 +175,6 @@ export class AgentsService {
           orderDetails.trackingProvider,
           parseInt(orderDetails.orderId),
         );
-        hasTracking = true;
       } catch (error) {
         // Continue without tracking
         console.log('Failed to fetch tracking, continuing without it:', error.message);
@@ -200,13 +198,6 @@ export class AgentsService {
       to: orderDetails.customerInfo.email,
       subject: `Re: Order Status Inquiry - Order #${orderDetails.orderId}`,
       body: aiResponse,
-      signature: '',
-      orderDetails: {
-        orderId: orderDetails.orderId,
-        status: orderDetails.status,
-        trackingNumber: orderDetails.trackingNumber,
-      },
-      hasTracking,
     };
   }
 

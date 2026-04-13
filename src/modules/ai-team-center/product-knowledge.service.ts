@@ -184,8 +184,38 @@ export class ProductKnowledgeService {
     topK?: number;
     minSimilarity?: number;
     maxTokens?: number;
+    enableQueryExpansion?: boolean;
   }) {
-    return this.retrievalService.retrieve(params);
+    const {
+      userId,
+      query,
+      topK,
+      minSimilarity,
+      maxTokens,
+      enableQueryExpansion = false,
+    } = params;
+
+    if (!enableQueryExpansion) {
+      return this.retrievalService.retrieve({ userId, query, topK, minSimilarity, maxTokens });
+    }
+
+    const candidates = this.buildRetrievalQueryCandidates(query);
+    let bestResult: Awaited<ReturnType<ProductKnowledgeRetrievalService['retrieve']>> | null = null;
+
+    for (const candidate of candidates) {
+      const result = await this.retrievalService.retrieve({
+        userId,
+        query: candidate,
+        topK,
+        minSimilarity,
+        maxTokens,
+      });
+      bestResult = this.pickBetterRetrievalResult(bestResult, result);
+    }
+
+    return (
+      bestResult ?? this.retrievalService.retrieve({ userId, query, topK, minSimilarity, maxTokens })
+    );
   }
 
   private async processSourceContent(params: {
@@ -350,6 +380,67 @@ export class ProductKnowledgeService {
   private estimateTokens(content: string): number {
     const words = content.split(/\s+/).filter(Boolean).length;
     return Math.max(1, Math.ceil(words * 1.3));
+  }
+
+  private buildRetrievalQueryCandidates(query: string): string[] {
+    const normalized = this.normalizeText(query);
+    if (!normalized) {
+      return [query];
+    }
+
+    const candidates = [normalized];
+    const recommendationPattern =
+      /\b(do you recommend|would you recommend|is this good|is it good|should i buy|worth it|best for)\b/gi;
+    const recommendationReduced = normalized
+      .replace(recommendationPattern, '')
+      .replace(/\s{2,}/g, ' ')
+      .trim();
+
+    if (recommendationReduced && recommendationReduced.toLowerCase() !== normalized.toLowerCase()) {
+      candidates.push(recommendationReduced);
+      candidates.push(`${recommendationReduced} compatibility specifications usage`);
+      candidates.push(`${recommendationReduced} product details compatibility performance limitations`);
+    }
+
+    const genericProductAugmented = `${normalized} product specifications compatibility usage recommendations`;
+    candidates.push(genericProductAugmented);
+
+    const unique: string[] = [];
+    const seen = new Set<string>();
+    for (const candidate of candidates) {
+      const key = candidate.toLowerCase();
+      if (!key || seen.has(key)) continue;
+      seen.add(key);
+      unique.push(candidate);
+    }
+    return unique;
+  }
+
+  private pickBetterRetrievalResult(
+    current:
+      | Awaited<ReturnType<ProductKnowledgeRetrievalService['retrieve']>>
+      | null,
+    next: Awaited<ReturnType<ProductKnowledgeRetrievalService['retrieve']>>,
+  ) {
+    if (!current) return next;
+
+    const currentTopSimilarity = current.selectedChunks.length
+      ? Math.max(...current.selectedChunks.map((chunk) => chunk.similarity))
+      : -1;
+    const nextTopSimilarity = next.selectedChunks.length
+      ? Math.max(...next.selectedChunks.map((chunk) => chunk.similarity))
+      : -1;
+
+    if (next.selectedChunks.length !== current.selectedChunks.length) {
+      return next.selectedChunks.length > current.selectedChunks.length ? next : current;
+    }
+    if (nextTopSimilarity !== currentTopSimilarity) {
+      return nextTopSimilarity > currentTopSimilarity ? next : current;
+    }
+    if (next.usedTokens !== current.usedTokens) {
+      return next.usedTokens > current.usedTokens ? next : current;
+    }
+    return current;
   }
 
   private normalizeText(input: string): string {

@@ -18,6 +18,7 @@ export class ProductActivities {
     topK?: number;
     minSimilarity?: number;
     maxTokens?: number;
+    enableQueryExpansion?: boolean;
   }) {
     return this.productKnowledgeService.retrieveForQuery(params);
   }

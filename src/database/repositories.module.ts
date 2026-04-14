@@ -21,6 +21,7 @@ import { AiIdentityRepository } from './repos/ai-identity.repository';
 import { ProductKnowledgeSourcesRepository } from './repos/product-knowledge-sources.repository';
 import { ProductKnowledgeChunksRepository } from './repos/product-knowledge-chunks.repository';
 import { ProductKnowledgeEmbeddingsRepository } from './repos/product-knowledge-embeddings.repository';
+import { PromoCodeConfigurationsRepository } from './repos/promo-code-configurations.repository';
 
 @Module({
   imports: [DatabaseModule],
@@ -47,6 +48,7 @@ import { ProductKnowledgeEmbeddingsRepository } from './repos/product-knowledge-
     ProductKnowledgeSourcesRepository,
     ProductKnowledgeChunksRepository,
     ProductKnowledgeEmbeddingsRepository,
+    PromoCodeConfigurationsRepository,
   ],
   exports: [
     EmailsRepository,
@@ -71,6 +73,7 @@ import { ProductKnowledgeEmbeddingsRepository } from './repos/product-knowledge-
     ProductKnowledgeSourcesRepository,
     ProductKnowledgeChunksRepository,
     ProductKnowledgeEmbeddingsRepository,
+    PromoCodeConfigurationsRepository,
   ],
 })
 export class RepositoriesModule {}

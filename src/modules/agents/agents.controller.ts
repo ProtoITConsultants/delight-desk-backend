@@ -1,7 +1,9 @@
 import { AgentsService } from './agents.service';
 import {
+  CreatePromoCodeConfigurationDto,
   ProductPreviewDto,
   UpdateSystemSettingsDto,
+  UpdatePromoCodeConfigurationDto,
   UpdateUserAgentDto,
   WismoPreviewDto,
 } from './agents.dto';
@@ -18,6 +20,7 @@ import {
   Post,
   UseGuards,
   UseInterceptors,
+  Delete,
 } from '@nestjs/common';
 import { RateLimitInterceptor } from 'src/interceptors/rate-limit.interceptor';
 import {
@@ -139,5 +142,70 @@ export class AgentsController {
   // @UseInterceptors(RateLimitInterceptor)
   previewProductResponse(@CurrentUserId() userId: string, @Body() dto: ProductPreviewDto) {
     return this.agentsService.generateProductPreview(userId, dto);
+  }
+
+  @Get('/promo-code/configurations')
+  @ApiOperation({
+    summary: 'List promo code configurations',
+    description:
+      'Retrieve all promo code configurations for the authenticated user. These configs are used by Promo Code Agent automation and moderation flows.',
+  })
+  @ApiResponse({ status: 200, description: 'Promo code configurations retrieved successfully' })
+  @ApiResponse({ status: 401, description: 'Unauthorized - User not authenticated' })
+  getPromoCodeConfigurations(@CurrentUserId() userId: string) {
+    return this.agentsService.getPromoCodeConfigurations(userId);
+  }
+
+  @Post('/promo-code/configurations')
+  @ApiOperation({
+    summary: 'Create promo code configuration',
+    description:
+      'Create a new promo code configuration with usage type, discount setup, validity window, and eligibility rules. Automation currently supports first-time customer discount usage type.',
+  })
+  @ApiBody({ type: CreatePromoCodeConfigurationDto })
+  @ApiResponse({ status: 201, description: 'Promo code configuration created successfully' })
+  @ApiResponse({ status: 400, description: 'Bad request - Invalid promo code configuration' })
+  @ApiResponse({ status: 401, description: 'Unauthorized - User not authenticated' })
+  createPromoCodeConfiguration(
+    @CurrentUserId() userId: string,
+    @Body() dto: CreatePromoCodeConfigurationDto,
+  ) {
+    return this.agentsService.createPromoCodeConfiguration(userId, dto);
+  }
+
+  @Patch('/promo-code/configurations/:configId')
+  @ApiOperation({
+    summary: 'Update promo code configuration',
+    description:
+      'Update an existing promo code configuration. Any subset of fields can be updated. Configuration is scoped to the authenticated user.',
+  })
+  @ApiParam({ name: 'configId', type: String, description: 'Promo code configuration ID' })
+  @ApiBody({ type: UpdatePromoCodeConfigurationDto })
+  @ApiResponse({ status: 200, description: 'Promo code configuration updated successfully' })
+  @ApiResponse({ status: 400, description: 'Bad request - Invalid promo code configuration' })
+  @ApiResponse({ status: 401, description: 'Unauthorized - User not authenticated' })
+  @ApiResponse({ status: 404, description: 'Promo code configuration not found' })
+  updatePromoCodeConfiguration(
+    @CurrentUserId() userId: string,
+    @Param('configId') configId: string,
+    @Body() dto: UpdatePromoCodeConfigurationDto,
+  ) {
+    return this.agentsService.updatePromoCodeConfiguration(userId, configId, dto);
+  }
+
+  @Delete('/promo-code/configurations/:configId')
+  @ApiOperation({
+    summary: 'Delete promo code configuration',
+    description: 'Delete a promo code configuration owned by the authenticated user.',
+  })
+  @ApiParam({ name: 'configId', type: String, description: 'Promo code configuration ID' })
+  @ApiResponse({ status: 200, description: 'Promo code configuration deleted successfully' })
+  @ApiResponse({ status: 401, description: 'Unauthorized - User not authenticated' })
+  @ApiResponse({ status: 404, description: 'Promo code configuration not found' })
+  deletePromoCodeConfiguration(
+    @CurrentUserId() userId: string,
+    @Param('configId') configId: string,
+  ) {
+    return this.agentsService.deletePromoCodeConfiguration(userId, configId);
   }
 }

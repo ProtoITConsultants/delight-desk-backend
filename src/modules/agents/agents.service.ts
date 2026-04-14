@@ -3,9 +3,12 @@ import { WooCommerceService } from '../woocommerce/woocommerce.service';
 import { WooCommerceRestApiService } from '../woocommerce/woocommerce-rest-api.service';
 import { AgentsRepository } from 'src/database/repos/agents.repository';
 import {
+  CreatePromoCodeConfigurationDto,
   ProductPreviewDto,
   ProductPreviewResponse,
+  PromoCodeConfigurationResponse,
   UpdateSystemSettingsDto,
+  UpdatePromoCodeConfigurationDto,
   UpdateUserAgentDto,
   WismoPreviewDto,
   WismoPreviewResponse,
@@ -15,6 +18,7 @@ import { UserAgentsRepository } from 'src/database/repos/user-agents.repository'
 import { SystemSettingsRepository } from 'src/database/repos/system-settings.repository';
 import { UserStoreConnectionsRepository } from 'src/database/repos/user-store-connections.repository';
 import { UserRepository } from 'src/database/repos/users.repository';
+import { PromoCodeConfigurationsRepository } from 'src/database/repos/promo-code-configurations.repository';
 import {
   BadRequestException,
   ConflictException,
@@ -26,6 +30,11 @@ import { EmailEntity } from '../../database/schema';
 import { OpenAIService } from '../openai/openai.service';
 import { OrderDetails, OrderExtractionResult } from '../temporal/workflows/types';
 import { AftershipService } from '../aftership/aftership.service';
+import {
+  promoCodeDiscountTypes,
+  promoCodeUsageTypes,
+  PromoCodeConfigurationEntity,
+} from 'src/database/schema';
 
 @Injectable()
 export class AgentsService {
@@ -40,6 +49,7 @@ export class AgentsService {
     private readonly systemSettingsRepo: SystemSettingsRepository,
     private readonly userRepo: UserRepository,
     private readonly productAgentPreviewService: ProductAgentPreviewService,
+    private readonly promoCodeConfigsRepo: PromoCodeConfigurationsRepository,
   ) {}
 
   async getAgentsForUser(userId: string) {
@@ -208,6 +218,71 @@ export class AgentsService {
     return this.productAgentPreviewService.previewProductResponse(userId, dto);
   }
 
+  async getPromoCodeConfigurations(userId: string): Promise<PromoCodeConfigurationResponse[]> {
+    return this.promoCodeConfigsRepo.listByUserId(userId);
+  }
+
+  async createPromoCodeConfiguration(
+    userId: string,
+    dto: CreatePromoCodeConfigurationDto,
+  ): Promise<PromoCodeConfigurationResponse> {
+    this.validatePromoCodeConfig(dto);
+    return this.promoCodeConfigsRepo.create(this.mapPromoCodeConfigCreate(userId, dto));
+  }
+
+  async updatePromoCodeConfiguration(
+    userId: string,
+    configId: string,
+    dto: UpdatePromoCodeConfigurationDto,
+  ): Promise<PromoCodeConfigurationResponse> {
+    if (Object.keys(dto).length === 0) {
+      throw new BadRequestException('At least one field must be provided to update promo code config.');
+    }
+
+    const existing = await this.promoCodeConfigsRepo.findByIdAndUserId(configId, userId);
+    if (!existing) {
+      throw new NotFoundException('Promo code configuration not found');
+    }
+
+    const mergedDto: UpdatePromoCodeConfigurationDto = {
+      promoCode: existing.promoCode,
+      description: existing.description ?? undefined,
+      isActive: existing.isActive,
+      usageType: existing.usageType as (typeof promoCodeUsageTypes)[number],
+      discountType: existing.discountType as (typeof promoCodeDiscountTypes)[number],
+      discountPercentage: this.toNullableNumber(existing.discountPercentage),
+      maxRefundAmount: this.toNullableNumber(existing.maxRefundAmount),
+      validFrom: existing.validFrom?.toISOString(),
+      validUntil: existing.validUntil?.toISOString(),
+      minimumOrderValue: this.toNullableNumber(existing.minimumOrderValue),
+      maxUsageCount: existing.maxUsageCount,
+      appliesToSubscriptions: existing.appliesToSubscriptions,
+      ...dto,
+    };
+    this.validatePromoCodeConfig(mergedDto);
+
+    const updated = await this.promoCodeConfigsRepo.update(
+      configId,
+      userId,
+      this.mapPromoCodeConfigUpdate(dto),
+    );
+
+    if (!updated) {
+      throw new NotFoundException('Promo code configuration not found');
+    }
+
+    return updated;
+  }
+
+  async deletePromoCodeConfiguration(userId: string, configId: string): Promise<{ message: string }> {
+    const deleted = await this.promoCodeConfigsRepo.delete(configId, userId);
+    if (!deleted) {
+      throw new NotFoundException('Promo code configuration not found');
+    }
+
+    return { message: 'Promo code configuration deleted successfully' };
+  }
+
   private formatWooCommerceOrder(order: any): OrderDetails {
     return {
       orderId: order.id.toString(),
@@ -267,5 +342,85 @@ export class AgentsService {
     const response = await this.openaiService.createChatCompletion(messages, temperature);
 
     return response.choices[0].message.content || '';
+  }
+
+  private validatePromoCodeConfig(
+    dto: CreatePromoCodeConfigurationDto | UpdatePromoCodeConfigurationDto,
+  ): void {
+    if (dto.validFrom && dto.validUntil) {
+      const validFromDate = new Date(dto.validFrom);
+      const validUntilDate = new Date(dto.validUntil);
+      if (validFromDate > validUntilDate) {
+        throw new BadRequestException('validFrom must be before validUntil');
+      }
+    }
+
+    if (dto.discountType === 'percentage' && dto.discountPercentage === null) {
+      throw new BadRequestException('discountPercentage cannot be null when discountType is percentage');
+    }
+  }
+
+  private mapPromoCodeConfigCreate(
+    userId: string,
+    dto: CreatePromoCodeConfigurationDto,
+  ): Omit<PromoCodeConfigurationEntity, 'id' | 'createdAt' | 'updatedAt'> {
+    return {
+      userId,
+      promoCode: dto.promoCode.trim(),
+      description: dto.description ?? null,
+      isActive: dto.isActive ?? true,
+      usageType: dto.usageType ?? 'first_time_customer_discount',
+      discountType: dto.discountType ?? 'percentage',
+      discountPercentage: this.toNullableString(dto.discountPercentage),
+      maxRefundAmount: this.toNullableString(dto.maxRefundAmount),
+      validFrom: dto.validFrom ? new Date(dto.validFrom) : null,
+      validUntil: dto.validUntil ? new Date(dto.validUntil) : null,
+      minimumOrderValue: this.toNullableString(dto.minimumOrderValue),
+      maxUsageCount: dto.maxUsageCount ?? null,
+      appliesToSubscriptions: dto.appliesToSubscriptions ?? false,
+    };
+  }
+
+  private mapPromoCodeConfigUpdate(
+    dto: UpdatePromoCodeConfigurationDto,
+  ): Partial<Omit<PromoCodeConfigurationEntity, 'id' | 'userId' | 'createdAt' | 'updatedAt'>> {
+    return {
+      ...(dto.promoCode !== undefined ? { promoCode: dto.promoCode.trim() } : {}),
+      ...(dto.description !== undefined ? { description: dto.description } : {}),
+      ...(dto.isActive !== undefined ? { isActive: dto.isActive } : {}),
+      ...(dto.usageType !== undefined ? { usageType: dto.usageType } : {}),
+      ...(dto.discountType !== undefined ? { discountType: dto.discountType } : {}),
+      ...(dto.discountPercentage !== undefined
+        ? { discountPercentage: this.toNullableString(dto.discountPercentage) }
+        : {}),
+      ...(dto.maxRefundAmount !== undefined
+        ? { maxRefundAmount: this.toNullableString(dto.maxRefundAmount) }
+        : {}),
+      ...(dto.validFrom !== undefined ? { validFrom: dto.validFrom ? new Date(dto.validFrom) : null } : {}),
+      ...(dto.validUntil !== undefined
+        ? { validUntil: dto.validUntil ? new Date(dto.validUntil) : null }
+        : {}),
+      ...(dto.minimumOrderValue !== undefined
+        ? { minimumOrderValue: this.toNullableString(dto.minimumOrderValue) }
+        : {}),
+      ...(dto.maxUsageCount !== undefined ? { maxUsageCount: dto.maxUsageCount } : {}),
+      ...(dto.appliesToSubscriptions !== undefined
+        ? { appliesToSubscriptions: dto.appliesToSubscriptions }
+        : {}),
+    };
+  }
+
+  private toNullableString(value: number | null | undefined): string | null {
+    if (value === null || value === undefined) {
+      return null;
+    }
+    return value.toString();
+  }
+
+  private toNullableNumber(value: string | number | null): number | null {
+    if (value === null) {
+      return null;
+    }
+    return Number(value);
   }
 }

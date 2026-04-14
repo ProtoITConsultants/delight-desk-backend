@@ -21,3 +21,4 @@ export * from './ai_identity.schema';
 export * from './product_knowledge_source.schema';
 export * from './product_knowledge_chunk.schema';
 export * from './product_knowledge_embedding.schema';
+export * from './promo_code_config.schema';

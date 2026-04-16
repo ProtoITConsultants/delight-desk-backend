@@ -14,6 +14,7 @@ import { ApprovalQueueModule } from './modules/approval-queue/approval-queue.mod
 import { MicrosoftOauthModule } from './modules/microsoft-oauth/microsoft-oauth.module';
 import { AiTeamCenterModule } from './modules/ai-team-center/ai-team-center.module';
 import { SystemSettingsModule } from './modules/system-settings/system-settings.module';
+import { DashboardModule } from './modules/dashboard/dashboard.module';
 
 @Module({
   imports: [
@@ -34,6 +35,7 @@ import { SystemSettingsModule } from './modules/system-settings/system-settings.
     AiAssistantModule,
     AiTeamCenterModule,
     SystemSettingsModule,
+    DashboardModule,
   ],
   controllers: [],
   providers: [],

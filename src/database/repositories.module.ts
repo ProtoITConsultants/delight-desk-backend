@@ -23,6 +23,7 @@ import { ProductKnowledgeChunksRepository } from './repos/product-knowledge-chun
 import { ProductKnowledgeEmbeddingsRepository } from './repos/product-knowledge-embeddings.repository';
 import { PromoCodeConfigurationsRepository } from './repos/promo-code-configurations.repository';
 import { DashboardAnalyticsRepository } from './repos/dashboard-analytics.repository';
+import { ActivityLogRepository } from './repos/activity-log.repository';
 
 @Module({
   imports: [DatabaseModule],
@@ -51,6 +52,7 @@ import { DashboardAnalyticsRepository } from './repos/dashboard-analytics.reposi
     ProductKnowledgeEmbeddingsRepository,
     PromoCodeConfigurationsRepository,
     DashboardAnalyticsRepository,
+    ActivityLogRepository,
   ],
   exports: [
     EmailsRepository,
@@ -77,6 +79,7 @@ import { DashboardAnalyticsRepository } from './repos/dashboard-analytics.reposi
     ProductKnowledgeEmbeddingsRepository,
     PromoCodeConfigurationsRepository,
     DashboardAnalyticsRepository,
+    ActivityLogRepository,
   ],
 })
 export class RepositoriesModule {}

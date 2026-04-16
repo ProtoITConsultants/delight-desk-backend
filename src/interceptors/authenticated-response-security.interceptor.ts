@@ -11,7 +11,7 @@ export class AuthenticatedResponseSecurityInterceptor implements NestInterceptor
     const req = http.getRequest();
     const res = http.getResponse();
 
-    if (req?.session?.userId) {
+    if (req?.session?.userId && !res.headersSent) {
       res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, private');
       res.setHeader('Pragma', 'no-cache');
       res.setHeader('Expires', '0');

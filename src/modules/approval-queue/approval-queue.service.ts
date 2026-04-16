@@ -36,6 +36,7 @@ import {
 import { HumanDecision } from '../temporal/workflows/types';
 import { InfraService } from '../temporal/infra.service';
 import { ApprovalQueueEventsService } from './approval-queue-events.service';
+import { ActivityLogEventsService } from '../dashboard/activity-log/activity-log-events.service';
 
 @Injectable()
 export class ApprovalQueueService {
@@ -46,6 +47,7 @@ export class ApprovalQueueService {
     private readonly systemSettingsRepository: SystemSettingsRepository,
     private readonly infraService: InfraService,
     private readonly approvalQueueEventsService: ApprovalQueueEventsService,
+    private readonly activityLogEventsService: ActivityLogEventsService,
   ) {}
 
   streamQueueUpdates(userId: string): Observable<MessageEvent> {
@@ -273,6 +275,7 @@ export class ApprovalQueueService {
     );
 
     this.approvalQueueEventsService.emitQueueUpdated(userId, 'action_approved');
+    this.activityLogEventsService.emitActivityUpdated(userId, 'action_approved');
 
     return { message: 'Action approved successfully' };
   }
@@ -317,6 +320,7 @@ export class ApprovalQueueService {
     );
 
     this.approvalQueueEventsService.emitQueueUpdated(userId, 'action_rejected');
+    this.activityLogEventsService.emitActivityUpdated(userId, 'action_rejected');
 
     return { message: 'Action rejected successfully' };
   }
@@ -364,6 +368,7 @@ export class ApprovalQueueService {
     );
 
     this.approvalQueueEventsService.emitQueueUpdated(userId, 'action_edited_and_approved');
+    this.activityLogEventsService.emitActivityUpdated(userId, 'action_edited_and_approved');
 
     return { message: 'Action edited and approved successfully' };
   }
@@ -385,6 +390,7 @@ export class ApprovalQueueService {
     await this.approvalQueueRepository.cancelWorkflowTransactionally(workflow.id, userId);
 
     this.approvalQueueEventsService.emitQueueUpdated(userId, 'workflow_cancelled');
+    this.activityLogEventsService.emitActivityUpdated(userId, 'workflow_cancelled');
 
     return { message: 'Workflow cancelled successfully' };
   }
@@ -431,10 +437,7 @@ export class ApprovalQueueService {
     const hasShipStationSignal = this.actionsContainKeyword(actions, 'shipstation');
 
     // Custom warehouse has unique action types that no other method uses.
-    if (
-      actionTypes.has('contact_warehouse') ||
-      actionTypes.has('wait_for_warehouse_reply')
-    ) {
+    if (actionTypes.has('contact_warehouse') || actionTypes.has('wait_for_warehouse_reply')) {
       return 'custom_warehouse';
     }
 

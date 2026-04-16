@@ -31,6 +31,7 @@ import { ShipBobModule } from '../shipbob/shipbob.module';
 import { ShipStationModule } from '../shipstation/shipstation.module';
 import { AiTeamCenterModule } from '../ai-team-center/ai-team-center.module';
 import { ApprovalQueueEventsModule } from '../approval-queue/approval-queue-events.module';
+import { ActivityLogEventsModule } from '../dashboard/activity-log/activity-log-events.module';
 import { ClassificationUtil } from './utils/classification.util';
 import { InfraService } from './infra.service';
 
@@ -49,6 +50,7 @@ import { InfraService } from './infra.service';
     ShipStationModule,
     AiTeamCenterModule,
     ApprovalQueueEventsModule,
+    ActivityLogEventsModule,
     forwardRef(() => AiAssistantModule),
     forwardRef(() => GoogleOauthModule),
     forwardRef(() => MicrosoftOauthModule),

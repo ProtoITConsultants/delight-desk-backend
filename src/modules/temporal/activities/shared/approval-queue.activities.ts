@@ -3,6 +3,7 @@ import { Activity, ActivityMethod } from 'nestjs-temporal-core';
 import { ApprovalQueueRepository } from 'src/database/repos/approval-queue.repository';
 import { ApprovalQueueActionsRepository } from 'src/database/repos/approval-queue-actions.repository';
 import { ApprovalQueueEventsService } from 'src/modules/approval-queue/approval-queue-events.service';
+import { ActivityLogEventsService } from 'src/modules/dashboard/activity-log/activity-log-events.service';
 
 @Injectable()
 @Activity()
@@ -11,6 +12,7 @@ export class ApprovalQueueActivities {
     private readonly approvalQueueRepository: ApprovalQueueRepository,
     private readonly approvalQueueActionsRepository: ApprovalQueueActionsRepository,
     private readonly approvalQueueEventsService: ApprovalQueueEventsService,
+    private readonly activityLogEventsService: ActivityLogEventsService,
   ) {}
 
   @ActivityMethod({ name: 'findApprovalQueueByWorkflowId' })
@@ -106,30 +108,53 @@ export class ApprovalQueueActivities {
       return;
     }
     this.approvalQueueEventsService.emitQueueUpdated(userId, reason);
+    // Mirror every queue-updated emission onto the activity log stream
+    // so the dashboard's Activity Log card refreshes in lockstep with
+    // the approval queue. Emission is a no-op when the user has no
+    // active subscribers, so this never blocks the Temporal activity.
+    this.activityLogEventsService.emitActivityUpdated(userId, reason);
   }
 
   private async emitQueueUpdatedByApprovalQueueId(
     approvalQueueId: string | null | undefined,
     reason: string,
   ): Promise<void> {
-    if (!approvalQueueId || !this.approvalQueueEventsService.hasAnyActiveSubscribers()) {
+    if (!approvalQueueId) {
       return;
     }
+    const hasQueueSubscribers = this.approvalQueueEventsService.hasAnyActiveSubscribers();
+    const hasActivitySubscribers = this.activityLogEventsService.hasAnyActiveSubscribers();
+    if (!hasQueueSubscribers && !hasActivitySubscribers) {
+      return;
+    }
+
     const userId =
       await this.approvalQueueRepository.findUserIdByApprovalQueueId(approvalQueueId);
-    if (!userId || !this.approvalQueueEventsService.hasActiveSubscribers(userId)) {
+    if (!userId) {
       return;
     }
-    this.approvalQueueEventsService.emitQueueUpdated(userId, reason);
+
+    if (this.approvalQueueEventsService.hasActiveSubscribers(userId)) {
+      this.approvalQueueEventsService.emitQueueUpdated(userId, reason);
+    }
+    if (this.activityLogEventsService.hasActiveSubscribers(userId)) {
+      this.activityLogEventsService.emitActivityUpdated(userId, reason);
+    }
   }
 
   private async emitQueueUpdatedByActionId(
     actionId: string | null | undefined,
     reason: string,
   ): Promise<void> {
-    if (!actionId || !this.approvalQueueEventsService.hasAnyActiveSubscribers()) {
+    if (!actionId) {
       return;
     }
+    const hasQueueSubscribers = this.approvalQueueEventsService.hasAnyActiveSubscribers();
+    const hasActivitySubscribers = this.activityLogEventsService.hasAnyActiveSubscribers();
+    if (!hasQueueSubscribers && !hasActivitySubscribers) {
+      return;
+    }
+
     const action = await this.approvalQueueActionsRepository.findById(actionId);
     if (!action) {
       return;

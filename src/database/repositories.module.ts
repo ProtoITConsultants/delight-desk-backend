@@ -22,6 +22,7 @@ import { ProductKnowledgeSourcesRepository } from './repos/product-knowledge-sou
 import { ProductKnowledgeChunksRepository } from './repos/product-knowledge-chunks.repository';
 import { ProductKnowledgeEmbeddingsRepository } from './repos/product-knowledge-embeddings.repository';
 import { PromoCodeConfigurationsRepository } from './repos/promo-code-configurations.repository';
+import { DashboardAnalyticsRepository } from './repos/dashboard-analytics.repository';
 
 @Module({
   imports: [DatabaseModule],
@@ -49,6 +50,7 @@ import { PromoCodeConfigurationsRepository } from './repos/promo-code-configurat
     ProductKnowledgeChunksRepository,
     ProductKnowledgeEmbeddingsRepository,
     PromoCodeConfigurationsRepository,
+    DashboardAnalyticsRepository,
   ],
   exports: [
     EmailsRepository,
@@ -74,6 +76,7 @@ import { PromoCodeConfigurationsRepository } from './repos/promo-code-configurat
     ProductKnowledgeChunksRepository,
     ProductKnowledgeEmbeddingsRepository,
     PromoCodeConfigurationsRepository,
+    DashboardAnalyticsRepository,
   ],
 })
 export class RepositoriesModule {}

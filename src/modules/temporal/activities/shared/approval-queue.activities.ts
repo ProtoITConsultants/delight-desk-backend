@@ -2,6 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { Activity, ActivityMethod } from 'nestjs-temporal-core';
 import { ApprovalQueueRepository } from 'src/database/repos/approval-queue.repository';
 import { ApprovalQueueActionsRepository } from 'src/database/repos/approval-queue-actions.repository';
+import { ApprovalQueueEventsService } from 'src/modules/approval-queue/approval-queue-events.service';
 
 @Injectable()
 @Activity()
@@ -9,6 +10,7 @@ export class ApprovalQueueActivities {
   constructor(
     private readonly approvalQueueRepository: ApprovalQueueRepository,
     private readonly approvalQueueActionsRepository: ApprovalQueueActionsRepository,
+    private readonly approvalQueueEventsService: ApprovalQueueEventsService,
   ) {}
 
   @ActivityMethod({ name: 'findApprovalQueueByWorkflowId' })
@@ -18,17 +20,23 @@ export class ApprovalQueueActivities {
 
   @ActivityMethod({ name: 'createApprovalQueueItem' })
   async createApprovalQueueItem(data: any): Promise<any> {
-    return this.approvalQueueRepository.createApprovalQueueItem(data);
+    const created = await this.approvalQueueRepository.createApprovalQueueItem(data);
+    this.emitQueueUpdated(data?.userId, 'workflow_created');
+    return created;
   }
 
   @ActivityMethod({ name: 'createApprovalQueueAction' })
   async createApprovalQueueAction(data: any): Promise<any> {
-    return this.approvalQueueActionsRepository.createAction(data);
+    const created = await this.approvalQueueActionsRepository.createAction(data);
+    await this.emitQueueUpdatedByApprovalQueueId(data?.approvalQueueId, 'action_created');
+    return created;
   }
 
   @ActivityMethod({ name: 'updateApprovalQueueAction' })
   async updateApprovalQueueAction(actionId: string, data: any): Promise<any> {
-    return this.approvalQueueActionsRepository.updateAction(actionId, data);
+    const updated = await this.approvalQueueActionsRepository.updateAction(actionId, data);
+    await this.emitQueueUpdatedByActionId(actionId, 'action_updated');
+    return updated;
   }
 
   @ActivityMethod({ name: 'updateApprovalQueueStatus' })
@@ -38,19 +46,29 @@ export class ApprovalQueueActivities {
     status: string,
     escalationId?: string,
   ): Promise<any> {
+    let updated: any;
     if (status === 'in_progress') {
-      return this.approvalQueueRepository.markAsInProgress(approvalQueueId, userId);
+      updated = await this.approvalQueueRepository.markAsInProgress(approvalQueueId, userId);
     } else if (status === 'completed') {
-      return this.approvalQueueRepository.markAsCompleted(approvalQueueId, userId);
+      updated = await this.approvalQueueRepository.markAsCompleted(approvalQueueId, userId);
     } else if (status === 'escalated' && escalationId) {
-      return this.approvalQueueRepository.markAsEscalated(approvalQueueId, userId, escalationId);
+      updated = await this.approvalQueueRepository.markAsEscalated(
+        approvalQueueId,
+        userId,
+        escalationId,
+      );
+    } else {
+      updated = await this.approvalQueueRepository.updateStatus(approvalQueueId, userId, status);
     }
-    return this.approvalQueueRepository.updateStatus(approvalQueueId, userId, status);
+    this.emitQueueUpdated(userId, 'workflow_status_updated');
+    return updated;
   }
 
   @ActivityMethod({ name: 'markActionAsExecuted' })
   async markActionAsExecuted(actionId: string): Promise<any> {
-    return this.approvalQueueActionsRepository.markAsExecuted(actionId);
+    const updated = await this.approvalQueueActionsRepository.markAsExecuted(actionId);
+    await this.emitQueueUpdatedByActionId(actionId, 'action_executed');
+    return updated;
   }
 
   @ActivityMethod({ name: 'markActionAsEscalated' })
@@ -59,11 +77,13 @@ export class ApprovalQueueActivities {
     escalationId: string,
     escalationReason: string,
   ): Promise<any> {
-    return this.approvalQueueActionsRepository.markAsEscalated(
+    const updated = await this.approvalQueueActionsRepository.markAsEscalated(
       actionId,
       escalationId,
       escalationReason,
     );
+    await this.emitQueueUpdatedByActionId(actionId, 'action_escalated');
+    return updated;
   }
 
   @ActivityMethod({ name: 'updateApprovalQueueItem' })
@@ -72,6 +92,48 @@ export class ApprovalQueueActivities {
     userId: string,
     data: Partial<any>,
   ): Promise<any> {
-    return this.approvalQueueRepository.updateApprovalQueueItem(approvalQueueId, userId, data);
+    const updated = await this.approvalQueueRepository.updateApprovalQueueItem(
+      approvalQueueId,
+      userId,
+      data,
+    );
+    this.emitQueueUpdated(userId, 'workflow_updated');
+    return updated;
+  }
+
+  private emitQueueUpdated(userId: string | null | undefined, reason: string): void {
+    if (!userId) {
+      return;
+    }
+    this.approvalQueueEventsService.emitQueueUpdated(userId, reason);
+  }
+
+  private async emitQueueUpdatedByApprovalQueueId(
+    approvalQueueId: string | null | undefined,
+    reason: string,
+  ): Promise<void> {
+    if (!approvalQueueId || !this.approvalQueueEventsService.hasAnyActiveSubscribers()) {
+      return;
+    }
+    const userId =
+      await this.approvalQueueRepository.findUserIdByApprovalQueueId(approvalQueueId);
+    if (!userId || !this.approvalQueueEventsService.hasActiveSubscribers(userId)) {
+      return;
+    }
+    this.approvalQueueEventsService.emitQueueUpdated(userId, reason);
+  }
+
+  private async emitQueueUpdatedByActionId(
+    actionId: string | null | undefined,
+    reason: string,
+  ): Promise<void> {
+    if (!actionId || !this.approvalQueueEventsService.hasAnyActiveSubscribers()) {
+      return;
+    }
+    const action = await this.approvalQueueActionsRepository.findById(actionId);
+    if (!action) {
+      return;
+    }
+    await this.emitQueueUpdatedByApprovalQueueId(action.approvalQueueId, reason);
   }
 }

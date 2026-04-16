@@ -31,6 +31,15 @@ export class ApprovalQueueRepository {
     return item;
   }
 
+  async findUserIdByApprovalQueueId(approvalQueueId: string): Promise<string | null> {
+    const [item] = await this.db
+      .select({ userId: approvalQueue.userId })
+      .from(approvalQueue)
+      .where(eq(approvalQueue.id, approvalQueueId));
+
+    return item?.userId ?? null;
+  }
+
   async findByIdWithDetails(id: string, userId: string) {
     const [item] = await this.db
       .select({ approval: approvalQueue })

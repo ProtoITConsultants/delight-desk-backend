@@ -2,8 +2,10 @@ import {
   BadRequestException,
   ForbiddenException,
   Injectable,
+  MessageEvent,
   NotFoundException,
 } from '@nestjs/common';
+import { Observable } from 'rxjs';
 import { ApprovalQueueRepository } from '../../database/repos/approval-queue.repository';
 import { ApprovalQueueActionsRepository } from '../../database/repos/approval-queue-actions.repository';
 import { EscalationsRepository } from '../../database/repos/escalations.repository';
@@ -33,6 +35,7 @@ import {
 } from './approval-queue-progress.constants';
 import { HumanDecision } from '../temporal/workflows/types';
 import { InfraService } from '../temporal/infra.service';
+import { ApprovalQueueEventsService } from './approval-queue-events.service';
 
 @Injectable()
 export class ApprovalQueueService {
@@ -42,7 +45,12 @@ export class ApprovalQueueService {
     private readonly escalationsRepository: EscalationsRepository,
     private readonly systemSettingsRepository: SystemSettingsRepository,
     private readonly infraService: InfraService,
+    private readonly approvalQueueEventsService: ApprovalQueueEventsService,
   ) {}
+
+  streamQueueUpdates(userId: string): Observable<MessageEvent> {
+    return this.approvalQueueEventsService.subscribe(userId);
+  }
 
   async getApprovalQueueItems(userId: string, dto: GetApprovalQueueDto): Promise<any> {
     const { page = 1, limit = 20, status, category } = dto;
@@ -260,6 +268,8 @@ export class ApprovalQueueService {
       actionId, // Pass action ID
     );
 
+    this.approvalQueueEventsService.emitQueueUpdated(userId, 'action_approved');
+
     return { message: 'Action approved successfully' };
   }
 
@@ -301,6 +311,8 @@ export class ApprovalQueueService {
       },
       actionId, // Pass action ID
     );
+
+    this.approvalQueueEventsService.emitQueueUpdated(userId, 'action_rejected');
 
     return { message: 'Action rejected successfully' };
   }
@@ -347,6 +359,8 @@ export class ApprovalQueueService {
       actionId, // Pass action ID
     );
 
+    this.approvalQueueEventsService.emitQueueUpdated(userId, 'action_edited_and_approved');
+
     return { message: 'Action edited and approved successfully' };
   }
 
@@ -365,6 +379,8 @@ export class ApprovalQueueService {
     await this.infraService.cancelWorkflow(workflowId);
 
     await this.approvalQueueRepository.cancelWorkflowTransactionally(workflow.id, userId);
+
+    this.approvalQueueEventsService.emitQueueUpdated(userId, 'workflow_cancelled');
 
     return { message: 'Workflow cancelled successfully' };
   }

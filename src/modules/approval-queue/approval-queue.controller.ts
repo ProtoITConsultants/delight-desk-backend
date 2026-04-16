@@ -4,9 +4,11 @@ import {
   Get,
   HttpCode,
   HttpStatus,
+  MessageEvent,
   Param,
   Post,
   Query,
+  Sse,
   UseGuards,
 } from '@nestjs/common';
 import {
@@ -18,6 +20,7 @@ import {
   ApiResponse,
   ApiTags,
 } from '@nestjs/swagger';
+import { Observable } from 'rxjs';
 import { ApprovalQueueService } from './approval-queue.service';
 import {
   CancelWorkflowDto,
@@ -180,6 +183,16 @@ export class ApprovalQueueController {
   @ApiResponse({ status: 500, description: 'Internal server error' })
   async getStats(@CurrentUserId() userId: string) {
     return this.approvalQueueService.getStats(userId);
+  }
+
+  @Sse('stream')
+  @ApiOperation({
+    summary: 'Subscribe to approval queue updates',
+    description:
+      'Streams server-sent events for approval queue changes. Emits connected, heartbeat, and queue_updated events. Frontend should refetch queue data when receiving queue_updated events.',
+  })
+  streamApprovalQueue(@CurrentUserId() userId: string): Observable<MessageEvent> {
+    return this.approvalQueueService.streamQueueUpdates(userId);
   }
 
   @Post('cancel')

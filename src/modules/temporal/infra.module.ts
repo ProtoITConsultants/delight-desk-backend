@@ -30,6 +30,7 @@ import { MicrosoftOauthModule } from '../microsoft-oauth/microsoft-oauth.module'
 import { ShipBobModule } from '../shipbob/shipbob.module';
 import { ShipStationModule } from '../shipstation/shipstation.module';
 import { AiTeamCenterModule } from '../ai-team-center/ai-team-center.module';
+import { ApprovalQueueEventsModule } from '../approval-queue/approval-queue-events.module';
 import { ClassificationUtil } from './utils/classification.util';
 import { InfraService } from './infra.service';
 
@@ -47,6 +48,7 @@ import { InfraService } from './infra.service';
     ShipBobModule,
     ShipStationModule,
     AiTeamCenterModule,
+    ApprovalQueueEventsModule,
     forwardRef(() => AiAssistantModule),
     forwardRef(() => GoogleOauthModule),
     forwardRef(() => MicrosoftOauthModule),

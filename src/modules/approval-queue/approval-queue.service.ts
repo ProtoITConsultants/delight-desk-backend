@@ -52,6 +52,10 @@ export class ApprovalQueueService {
     return this.approvalQueueEventsService.subscribe(userId);
   }
 
+  getStreamStats() {
+    return this.approvalQueueEventsService.getStreamStats();
+  }
+
   async getApprovalQueueItems(userId: string, dto: GetApprovalQueueDto): Promise<any> {
     const { page = 1, limit = 20, status, category } = dto;
 

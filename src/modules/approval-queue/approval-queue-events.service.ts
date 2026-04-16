@@ -32,6 +32,13 @@ export class ApprovalQueueEventsService {
   private readonly logger = new Logger(ApprovalQueueEventsService.name);
   private readonly streams = new Map<string, UserStreamState>();
 
+  getStreamStats() {
+    return {
+      activeUsers: this.streams.size,
+      totalSubscribers: [...this.streams.values()].reduce((sum, s) => sum + s.subscriberCount, 0),
+    };
+  }
+
   hasActiveSubscribers(userId: string): boolean {
     const state = this.streams.get(userId);
     return !!state && state.subscriberCount > 0;
@@ -110,9 +117,7 @@ export class ApprovalQueueEventsService {
 
     const subject = new Subject<MessageEvent>();
 
-    const heartbeatSubscription = interval(
-      ApprovalQueueEventsService.HEARTBEAT_INTERVAL_MS,
-    )
+    const heartbeatSubscription = interval(ApprovalQueueEventsService.HEARTBEAT_INTERVAL_MS)
       .pipe(
         map(
           () =>

@@ -195,6 +195,28 @@ export class ApprovalQueueController {
     return this.approvalQueueService.streamQueueUpdates(userId);
   }
 
+  @Get('stream/stats')
+  @ApiOperation({
+    summary: 'Get SSE stream stats',
+    description:
+      'Returns current SSE subscription stats: number of active users and total subscribers. Useful for diagnostics.',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Stream stats retrieved successfully',
+    schema: {
+      type: 'object',
+      properties: {
+        activeUsers: { type: 'number' },
+        totalSubscribers: { type: 'number' },
+      },
+    },
+  })
+  @ApiResponse({ status: 401, description: 'Unauthorized - User not authenticated' })
+  getStreamStats() {
+    return this.approvalQueueService.getStreamStats();
+  }
+
   @Post('cancel')
   @ApiOperation({
     summary: 'Cancel a workflow',

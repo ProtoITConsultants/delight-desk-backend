@@ -102,7 +102,6 @@ This document provides CASA evidence for backend security controls implemented i
   - Run `npm run build`.
   - Run `npm run security:integrity`.
   - Run `npm run security:dns-check`.
-  - Confirm `ENABLE_SWAGGER_IN_PRODUCTION` is unset or false.
   - Confirm `CORS_ORIGINS` is explicitly set in production.
 - During deployment:
   - Verify SSH host keys are pinned in GitHub Actions run.

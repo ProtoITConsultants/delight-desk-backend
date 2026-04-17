@@ -82,20 +82,7 @@ export class OutlookWebhookService {
     const fromAddress: string = message.from?.emailAddress?.address || '';
     const subject: string | null = message.subject || null;
     const conversationId: string = message.conversationId;
-
-    // Outgoing messages (sent by the account owner) are not processed by the AI
-    // pipeline, but we DO record the thread so that any customer reply can be
-    // recognised as part of an owner-initiated conversation and likewise skipped.
-    if (fromAddress.toLowerCase() === accountEmail.toLowerCase()) {
-      await this.googleRepo.upsertThreadWithProvider(
-        userId,
-        conversationId,
-        subject,
-        'microsoft',
-        'owner',
-      );
-      return;
-    }
+    const isIncoming = fromAddress.toLowerCase() !== accountEmail.toLowerCase();
 
     const toAddress: string = message.toRecipients?.[0]?.emailAddress?.address || accountEmail;
     const ccAddress: string | null = message.ccRecipients?.[0]?.emailAddress?.address || null;
@@ -114,26 +101,29 @@ export class OutlookWebhookService {
         ? `${extractedBody || ''}\n\nReference: [DD-OC-WF:${warehouseWorkflowId}]`
         : extractedBody;
 
-    // Filter out non-customer emails unless this is an explicit warehouse-routing reply.
-    if (!hasWarehouseWorkflowMarker && !this.emailClassifier.isLikelyCustomerEmail(body)) {
-      this.logger.log(`Skipping Outlook message ${messageId} — not a customer email`);
-      return;
-    }
-
-    // Upsert thread using conversationId as the provider-native thread identifier
-    const { thread } = await this.googleRepo.upsertThreadWithProvider(
+    // Upsert thread using conversationId as the provider-native thread identifier.
+    // If this is the very first message in the thread AND it was sent by the
+    // account owner, mark it as 'owner' so customer replies later are NOT
+    // routed through the AI pipeline.
+    const { thread, isNew } = await this.googleRepo.upsertThreadWithProvider(
       userId,
       conversationId,
       subject,
       'microsoft',
     );
+    if (!isIncoming && isNew) {
+      await this.googleRepo.updateThreadById(thread.id, { initiatedBy: 'owner' });
+    }
 
-    // Skip pipeline for threads the owner started manually — these are direct
-    // conversations the agent should not interfere with.
-    if (thread.initiatedBy === 'owner' && !hasWarehouseWorkflowMarker) {
-      this.logger.log(
-        `Skipping pipeline for Outlook message ${messageId} — owner-initiated thread`,
-      );
+    // For INCOMING messages we apply the customer-email classifier filter;
+    // OUTGOING owner messages are always persisted so the AI Assistant
+    // thread-history view can render the agent's own replies.
+    if (
+      isIncoming &&
+      !hasWarehouseWorkflowMarker &&
+      !this.emailClassifier.isLikelyCustomerEmail(body)
+    ) {
+      this.logger.log(`Skipping Outlook message ${messageId} — not a customer email`);
       return;
     }
 
@@ -150,16 +140,34 @@ export class OutlookWebhookService {
       snippet: body.slice(0, 200),
       body,
       internalDate,
-      direction: 'incoming' as const,
+      direction: (isIncoming ? 'incoming' : 'outgoing') as 'incoming' | 'outgoing',
     };
 
     const { inserted, insertedEmail } = await this.googleRepo.insertEmailIfNotExists(emailPayload);
 
-    if (inserted && insertedEmail) {
+    // Trigger AI pipeline only for new INCOMING customer-initiated emails.
+    // Owner-sent (outgoing) messages and replies in owner-initiated threads
+    // must never be processed by the AI agent.
+    const isOwnerInitiated = thread.initiatedBy === 'owner';
+    const shouldBypassOwnerInitiatedGuard = hasWarehouseWorkflowMarker;
+
+    if (
+      inserted &&
+      insertedEmail &&
+      isIncoming &&
+      (!isOwnerInitiated || shouldBypassOwnerInitiatedGuard)
+    ) {
       this.logger.log(`Triggering pipeline for Outlook message: ${messageId}`);
       this.triggerEmailPipeline(insertedEmail);
     } else {
-      this.logger.log(`Outlook message already exists or skipped: ${messageId}`);
+      const reason = !isIncoming
+        ? 'outgoing'
+        : shouldBypassOwnerInitiatedGuard
+          ? 'warehouse-marker-reply'
+          : isOwnerInitiated
+            ? 'owner-initiated thread'
+            : 'already exists';
+      this.logger.log(`Skipping pipeline for Outlook message ${messageId} (${reason})`);
     }
   }
 

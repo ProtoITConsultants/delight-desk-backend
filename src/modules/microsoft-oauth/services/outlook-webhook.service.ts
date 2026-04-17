@@ -4,6 +4,7 @@ import { GoogleOauthRepository } from 'src/database/repos/google-oauth.repositor
 import { EmailClassificationService } from 'src/modules/google-oauth/services/email-classification.service';
 import { EmailContentExtractorUtil } from 'src/modules/google-oauth/utils/email-content-extractor.util';
 import { InfraService } from 'src/modules/temporal/infra.service';
+import { AiAssistantEventsService } from 'src/modules/ai-assistant/ai-assistant-events.service';
 import { MicrosoftOauthService } from '../microsoft-oauth.service';
 
 /**
@@ -22,6 +23,7 @@ export class OutlookWebhookService {
     private readonly emailClassifier: EmailClassificationService,
     private readonly contentExtractor: EmailContentExtractorUtil,
     private readonly infraService: InfraService,
+    private readonly aiAssistantEventsService: AiAssistantEventsService,
   ) {}
 
   /**
@@ -144,6 +146,17 @@ export class OutlookWebhookService {
     };
 
     const { inserted, insertedEmail } = await this.googleRepo.insertEmailIfNotExists(emailPayload);
+
+    // Notify any open AI Assistant tabs for this user that a new message
+    // has landed in one of their threads (incoming customer reply OR our
+    // own outgoing reply captured by the Outlook subscription) so the
+    // Gmail-style thread view re-renders. Cheap no-op if no subscribers.
+    if (inserted && insertedEmail) {
+      this.aiAssistantEventsService.emitEscalationsUpdated(
+        userId,
+        isIncoming ? 'incoming_email_received' : 'outgoing_email_recorded',
+      );
+    }
 
     // Trigger AI pipeline only for new INCOMING customer-initiated emails.
     // Owner-sent (outgoing) messages and replies in owner-initiated threads

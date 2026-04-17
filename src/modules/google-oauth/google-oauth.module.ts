@@ -8,6 +8,7 @@ import { InfraModule } from '../temporal/infra.module';
 import { SendgridModule } from '../sendgrid/sendgrid.module';
 import { RepositoriesModule } from '../../database/repositories.module';
 import { TokenHealthService } from './token-health.service';
+import { AiAssistantEventsModule } from '../ai-assistant/ai-assistant-events.module';
 
 // Services
 import { GmailService } from './services/gmail.service';
@@ -25,6 +26,7 @@ import { GmailMessageBuilder } from './utils/gmail-message.builder';
     InfraModule,
     SendgridModule,
     RepositoriesModule,
+    AiAssistantEventsModule,
     forwardRef(() => InfraModule),
   ],
   controllers: [GoogleOauthController],

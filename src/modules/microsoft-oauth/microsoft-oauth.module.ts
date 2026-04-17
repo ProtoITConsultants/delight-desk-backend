@@ -8,6 +8,7 @@ import { MicrosoftOauthRepository } from '../../database/repos/microsoft-oauth.r
 import { OutlookWebhookService } from './services/outlook-webhook.service';
 import { RepositoriesModule } from '../../database/repositories.module';
 import { InfraModule } from '../temporal/infra.module';
+import { AiAssistantEventsModule } from '../ai-assistant/ai-assistant-events.module';
 
 // Shared email utilities reused from the Google OAuth module (no Google-specific deps)
 import { EmailClassificationService } from '../google-oauth/services/email-classification.service';
@@ -18,6 +19,7 @@ import { EmailContentExtractorUtil } from '../google-oauth/utils/email-content-e
     PassportModule.register({ session: true }),
     DatabaseModule,
     RepositoriesModule,
+    AiAssistantEventsModule,
     forwardRef(() => InfraModule),
   ],
   controllers: [MicrosoftOauthController],

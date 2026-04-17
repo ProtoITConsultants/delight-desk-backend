@@ -7,6 +7,7 @@ import { EmailContentExtractorUtil } from '../utils/email-content-extractor.util
 import { EmailClassificationService } from './email-classification.service';
 import { GMAIL_API, GMAIL_SENT_LABEL, IRRELEVANT_GMAIL_LABELS } from '../constants/gmail.constants';
 import { InfraService } from '../../temporal/infra.service';
+import { AiAssistantEventsService } from '../../ai-assistant/ai-assistant-events.service';
 
 /**
  * Service for processing Gmail webhook notifications
@@ -22,6 +23,7 @@ export class GmailWebhookService {
     private readonly contentExtractor: EmailContentExtractorUtil,
     private readonly emailClassifier: EmailClassificationService,
     private readonly infraService: InfraService,
+    private readonly aiAssistantEventsService: AiAssistantEventsService,
   ) {}
 
   /**
@@ -173,6 +175,17 @@ export class GmailWebhookService {
 
     // Insert email if it doesn't exist
     const { inserted, insertedEmail } = await this.repo.insertEmailIfNotExists(emailPayload);
+
+    // Notify any open AI Assistant tabs for this user that a new message
+    // has landed in one of their threads (incoming customer reply OR our
+    // own outgoing reply captured by Gmail's SENT label) so the
+    // Gmail-style thread view re-renders. Cheap no-op if no subscribers.
+    if (inserted && insertedEmail) {
+      this.aiAssistantEventsService.emitEscalationsUpdated(
+        userId,
+        isIncomingEmail ? 'incoming_email_received' : 'outgoing_email_recorded',
+      );
+    }
 
     // Trigger email pipeline only for new incoming emails in customer-initiated threads.
     // Replies to threads the owner started manually are intentional direct conversations

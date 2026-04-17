@@ -7,12 +7,16 @@ import {
 import { EscalationsRepository } from '../../database/repos/escalations.repository';
 import { AiAssistantEmailSignatureRepository } from '../../database/repos/ai-assistant-email-signature.repository';
 import { GoogleOauthService } from '../google-oauth/google-oauth.service';
+import { MicrosoftOauthService } from '../microsoft-oauth/microsoft-oauth.service';
 import {
   BulkUpdateEscalationStatusDto,
   BulkUpdateResult,
   EmailSignatureResponse,
   EscalationListResponse,
+  EscalationListWithThreadResponse,
   EscalationStatsResponse,
+  EscalationThreadMessage,
+  EscalationWithThreadItem,
   GenerateAiResponseDto,
   GenerateAiResponseResponse,
   GetEscalationsDto,
@@ -24,6 +28,7 @@ import {
 } from './ai-assistant.dto';
 import { extractEmail } from '../temporal/workflows/agents/wismo';
 import { EmailThreadsRepository } from '../../database/repos/email-threads.repository';
+import { EmailsRepository } from '../../database/repos/emails.repository';
 import { OpenAIService } from '../openai/openai.service';
 
 @Injectable()
@@ -32,7 +37,9 @@ export class AiAssistantService {
     private readonly escalationsRepository: EscalationsRepository,
     private readonly emailSignatureRepository: AiAssistantEmailSignatureRepository,
     private readonly googleOauthService: GoogleOauthService,
+    private readonly microsoftOauthService: MicrosoftOauthService,
     private readonly emailThreadsRepository: EmailThreadsRepository,
+    private readonly emailsRepository: EmailsRepository,
     private readonly openaiService: OpenAIService,
   ) {}
 
@@ -77,14 +84,121 @@ export class AiAssistantService {
     };
   }
 
-  async getEscalationById(userId: string, id: string) {
-    const escalation = await this.escalationsRepository.findByIdWithDetails(id, userId);
+  /**
+   * Paginated list of escalations enriched with the FULL email thread for
+   * each item. Same query params, same pagination envelope, and same
+   * filter/sort semantics as `getEscalations` — this is intended as a
+   * drop-in "v2" the frontend can call when it needs to render the
+   * Gmail-style conversation per escalation.
+   *
+   * Implementation note: thread metadata and messages are fetched in
+   * exactly TWO additional batched queries (regardless of page size),
+   * so this remains O(1) round-trips — not N+1.
+   */
+  async getEscalationsWithThread(
+    userId: string,
+    dto: GetEscalationsDto,
+  ): Promise<EscalationListWithThreadResponse> {
+    const { page = 1, limit = 20, status, priority, sortBy, sortOrder, search } = dto;
 
-    if (!escalation) {
-      throw new NotFoundException('Escalation not found');
+    const offset = (page - 1) * limit;
+
+    const filters = {
+      userId,
+      status,
+      priority,
+      search,
+      sortBy,
+      sortOrder,
+      limit,
+      offset,
+    };
+
+    const escalations = priority
+      ? await this.escalationsRepository.getEscalationsWithFiltersPriority(filters)
+      : await this.escalationsRepository.getEscalationsWithFilters(filters);
+
+    const totalItems = await this.escalationsRepository.countEscalationsWithFilters(filters);
+    const totalPages = Math.ceil(totalItems / limit);
+
+    // Collect every internal thread id referenced by the page so we can
+    // batch-fetch threads + messages in one round-trip each.
+    const threadIds = Array.from(
+      new Set(escalations.map((e) => e.threadId).filter((id): id is string => !!id)),
+    );
+
+    const [threads, messages] = await Promise.all([
+      this.emailThreadsRepository.findByIds(threadIds),
+      this.emailsRepository.findAllByThreadIds(threadIds, userId),
+    ]);
+
+    // Index by threadId for O(1) lookups while assembling the response.
+    const threadById = new Map(threads.map((t) => [t.id, t]));
+    const messagesByThreadId = new Map<string, EscalationThreadMessage[]>();
+    for (const m of messages) {
+      const list = messagesByThreadId.get(m.threadId) ?? [];
+      list.push({
+        id: m.id,
+        messageId: m.messageId,
+        threadId: m.threadId,
+        fromEmail: m.fromEmail,
+        toEmail: m.toEmail,
+        cc: m.cc ?? null,
+        bcc: m.bcc ?? null,
+        subject: m.subject ?? null,
+        snippet: m.snippet ?? null,
+        body: m.body,
+        internalDate: m.internalDate ?? null,
+        direction: (m.direction as 'incoming' | 'outgoing' | null) ?? null,
+        createdAt: m.createdAt,
+      });
+      messagesByThreadId.set(m.threadId, list);
     }
 
-    return escalation;
+    const data: EscalationWithThreadItem[] = escalations.map((escalation) => {
+      const thread = escalation.threadId ? threadById.get(escalation.threadId) : undefined;
+      const items = escalation.threadId ? (messagesByThreadId.get(escalation.threadId) ?? []) : [];
+
+      return {
+        id: escalation.id,
+        workflowId: escalation.workflowId,
+        threadId: escalation.threadId,
+        userId: escalation.userId,
+        status: escalation.status,
+        reason: escalation.reason,
+        email: escalation.email,
+        aiSuggestedResponse: escalation.aiSuggestedResponse ?? null,
+        aiSuggestedResponseConfidence: escalation.aiSuggestedResponseConfidence ?? null,
+        priority: escalation.priority ?? null,
+        createdAt: escalation.createdAt,
+        resolvedAt: escalation.resolvedAt ?? null,
+        thread: thread
+          ? {
+              id: thread.id,
+              threadId: thread.threadId,
+              subject: thread.subject ?? null,
+              provider: thread.provider ?? null,
+              initiatedBy: thread.initiatedBy ?? null,
+              createdAt: thread.createdAt,
+              updatedAt: thread.updatedAt,
+            }
+          : null,
+        messages: items,
+        messagesCount: items.length,
+      };
+    });
+
+    return {
+      data,
+      pagination: {
+        currentPage: page,
+        totalPages,
+        totalItems,
+        itemsPerPage: limit,
+        hasNextPage: page < totalPages,
+        hasPreviousPage: page > 1,
+      },
+    };
   }
 
   async updateStatus(userId: string, id: string, dto: UpdateEscalationStatusDto) {
@@ -279,44 +393,86 @@ export class AiAssistantService {
       }
     }
 
-    // @ts-ignore
-    const emailThread = await this.emailThreadsRepository.findById(escalation.email.threadId);
+    // escalation.email.threadId points to email_threads.id (internal UUID).
+    // The thread row tells us which provider (Gmail vs Outlook) the
+    // conversation lives on so we can route the reply correctly.
+    // @ts-ignore - escalation.email is jsonb
+    const internalThreadId: string | undefined = escalation.email?.threadId;
 
-    if (!emailThread) {
-      // @ts-ignore
-      throw new Error(`Email thread not found: ${escalation.email.threadId}`);
+    if (!internalThreadId) {
+      throw new Error('Escalation has no associated email thread');
     }
 
-    // Check if Gmail thread still exists before replying
-    const threadExists = await this.googleOauthService.checkThreadExists(
-      userId,
-      emailThread.threadId,
-    );
+    const emailThread = await this.emailThreadsRepository.findById(internalThreadId);
 
-    // Send the email using Google OAuth service
+    if (!emailThread) {
+      throw new Error(`Email thread not found: ${internalThreadId}`);
+    }
+
+    // Resolve the customer's email address (the original sender of the
+    // escalated email) and the reply subject.
+    // @ts-ignore - escalation.email is jsonb
+    const recipientEmail = extractEmail(escalation.email?.fromEmail) || escalation.email?.fromEmail;
+    // @ts-ignore - escalation.email is jsonb
+    const replySubject = `Re: ${escalation.email?.subject ?? ''}`;
+
+    if (!recipientEmail) {
+      throw new BadRequestException('Could not determine the customer email to reply to.');
+    }
+
+    const isMicrosoft = emailThread.provider === 'microsoft';
+
     try {
-      if (threadExists) {
-        // Thread exists in Gmail, reply to it
-
-        await this.googleOauthService.replyToGmailThread(
+      if (isMicrosoft) {
+        // Outlook: try replying to the conversation. If it no longer exists,
+        // fall back to a standalone send so the agent can still reach the
+        // customer.
+        const conversationExists = await this.microsoftOauthService.checkConversationExists(
           userId,
-          // @ts-ignore
-          'developer@delightdesk.io' || extractEmail(escalation.email.fromEmail),
-          // @ts-ignore
-          `Re: ${escalation.email.subject}`,
-          finalMessage,
           emailThread.threadId,
         );
+
+        if (conversationExists) {
+          // Pass the most recent provider-native message ID we have stored
+          // for this thread to avoid Graph's InefficientFilter error.
+          const lastMessageId =
+            await this.emailThreadsRepository.findLatestMessageIdByInternalThreadId(emailThread.id);
+          await this.microsoftOauthService.replyToOutlookThread(
+            userId,
+            emailThread.threadId,
+            finalMessage,
+            lastMessageId ?? undefined,
+          );
+        } else {
+          await this.microsoftOauthService.sendEmail(userId, {
+            to: recipientEmail,
+            subject: replySubject,
+            body: finalMessage,
+          });
+        }
       } else {
-        // Thread was deleted from Gmail, send as standalone email
-        await this.googleOauthService.sendStandaloneEmail(
+        // Gmail (default for legacy threads where provider may be null too)
+        const threadExists = await this.googleOauthService.checkThreadExists(
           userId,
-          // @ts-ignore
-          'developer@delightdesk.io' || extractEmail(escalation.email.fromEmail),
-          // @ts-ignore
-          `Re: ${escalation.email.subject}`,
-          finalMessage,
+          emailThread.threadId,
         );
+
+        if (threadExists) {
+          await this.googleOauthService.replyToGmailThread(
+            userId,
+            recipientEmail,
+            replySubject,
+            finalMessage,
+            emailThread.threadId,
+          );
+        } else {
+          await this.googleOauthService.sendStandaloneEmail(
+            userId,
+            recipientEmail,
+            replySubject,
+            finalMessage,
+          );
+        }
       }
     } catch (e) {
       throw new BadRequestException('Please reconnect your business email for this action.');

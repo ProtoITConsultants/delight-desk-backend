@@ -1,4 +1,4 @@
-import { eq } from 'drizzle-orm';
+import { and, asc, eq, inArray } from 'drizzle-orm';
 import { emails } from '../schema';
 import { Inject, Injectable } from '@nestjs/common';
 import { DATABASE_CONNECTION } from '../database.module';
@@ -11,6 +11,33 @@ export class EmailsRepository {
   async findById(id: string) {
     const [email] = await this.db.select().from(emails).where(eq(emails.id, id));
     return email;
+  }
+
+  /**
+   * Return all emails belonging to ANY of the given threads, ordered
+   * chronologically (oldest first). Used by the paginated
+   * "escalations-with-thread" endpoint so we fetch every page's
+   * messages in a SINGLE round-trip instead of N+1 queries.
+   *
+   * Falls back to createdAt when internalDate is missing so newly
+   * persisted outgoing replies still appear in order.
+   */
+  async findAllByThreadIds(threadIds: string[], userId?: string) {
+    if (!threadIds.length) {
+      return [];
+    }
+
+    const conditions = [inArray(emails.threadId, threadIds)];
+
+    if (userId) {
+      conditions.push(eq(emails.userId, userId));
+    }
+
+    return this.db
+      .select()
+      .from(emails)
+      .where(and(...conditions))
+      .orderBy(asc(emails.internalDate), asc(emails.createdAt));
   }
 
   async update(id: string, updates: any) {

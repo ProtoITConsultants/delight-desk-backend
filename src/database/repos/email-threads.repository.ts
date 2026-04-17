@@ -1,4 +1,4 @@
-import { desc, eq } from 'drizzle-orm';
+import { desc, eq, inArray } from 'drizzle-orm';
 import { emailThreads, emails } from '../schema';
 import { Inject, Injectable, NotFoundException } from '@nestjs/common';
 import { DATABASE_CONNECTION } from '../database.module';
@@ -12,6 +12,17 @@ export class EmailThreadsRepository {
     const [thread] = await this.db.select().from(emailThreads).where(eq(emailThreads.id, id));
 
     return thread;
+  }
+
+  /**
+   * Batch-fetch thread metadata for many ids at once.
+   * Returns an empty array when ids is empty.
+   */
+  async findByIds(ids: string[]) {
+    if (!ids.length) {
+      return [];
+    }
+    return this.db.select().from(emailThreads).where(inArray(emailThreads.id, ids));
   }
 
   /**

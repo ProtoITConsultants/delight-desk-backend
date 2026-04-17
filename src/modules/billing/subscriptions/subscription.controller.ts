@@ -1,5 +1,5 @@
 import { Controller, ForbiddenException, Get, Param, UseGuards } from '@nestjs/common';
-import { ApiExcludeEndpoint } from '@nestjs/swagger';
+
 import { SubscriptionService } from './subscription.service';
 import { SessionGuard } from 'src/guards/session.guard';
 import { CurrentUserId } from 'src/decorators/current-user.decorator';
@@ -10,7 +10,6 @@ export class SubscriptionController {
 
   @UseGuards(SessionGuard)
   @Get('subscriptions/:userId')
-  @ApiExcludeEndpoint()
   /** Only the signed-in user may read their own subscription rows (IDOR prevention). */
   getUserSubscriptions(
     @Param('userId') userId: string,

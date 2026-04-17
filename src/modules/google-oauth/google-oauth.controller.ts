@@ -17,15 +17,7 @@ import {
   Res,
   UseGuards,
 } from '@nestjs/common';
-import {
-  ApiCookieAuth,
-  ApiExcludeEndpoint,
-  ApiOperation,
-  ApiResponse,
-  ApiTags,
-} from '@nestjs/swagger';
 
-@ApiTags('Google OAuth')
 @Controller('google-oauth')
 export class GoogleOauthController {
   constructor(
@@ -36,13 +28,6 @@ export class GoogleOauthController {
   @Get('login')
   @Redirect()
   @UseGuards(SessionGuard)
-  @ApiOperation({
-    summary: 'Initiate Google OAuth login',
-    description: 'Start the Google OAuth flow to connect a Google account',
-  })
-  @ApiResponse({ status: 302, description: 'Redirect to Google OAuth' })
-  @ApiResponse({ status: 400, description: 'Bad request - Account already connected' })
-  @ApiResponse({ status: 500, description: 'Internal server error' })
   async googleLogin(@CurrentUserId() userId: string) {
     const existingAccount = await this.googleService.accountExists(userId);
 
@@ -57,12 +42,10 @@ export class GoogleOauthController {
   }
 
   @Get('redirect')
-  @ApiExcludeEndpoint()
   @UseGuards(AuthGuard('google'))
   async googleRedirect() {}
 
   @Get('callback')
-  @ApiExcludeEndpoint()
   @UseGuards(AuthGuard('google'))
   async googleCallback(@CurrentUserId() userId: string, @Req() req: any, @Res() res: any) {
     const googleAccount = req.user;
@@ -95,25 +78,6 @@ export class GoogleOauthController {
   }
 
   @Delete('disconnect')
-  @ApiOperation({
-    summary: 'Disconnect Google account',
-    description: 'Disconnect the linked Google account from the user profile',
-  })
-  @ApiCookieAuth('connect.sid')
-  @ApiResponse({
-    status: 200,
-    description: 'Account disconnected successfully',
-    schema: {
-      type: 'object',
-      properties: {
-        message: { type: 'string', example: 'Google account disconnected successfully' },
-      },
-    },
-  })
-  @ApiResponse({ status: 401, description: 'Unauthorized - User not authenticated' })
-  @ApiResponse({ status: 400, description: 'Google account already disconnected' })
-  @ApiResponse({ status: 404, description: 'Google account not found' })
-  @ApiResponse({ status: 500, description: 'Internal server error' })
   @UseGuards(SessionGuard)
   async disconnect(@CurrentUserId() userId: string) {
     await this.googleService.disconnectGoogleAccount(userId);
@@ -121,7 +85,6 @@ export class GoogleOauthController {
   }
 
   @Post('gmail/webhook')
-  @ApiExcludeEndpoint()
   @HttpCode(200)
   handleGmailWebhook(@Body() body: any) {
     const message = body?.message?.data;

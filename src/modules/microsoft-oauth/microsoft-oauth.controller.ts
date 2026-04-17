@@ -18,15 +18,7 @@ import {
   Res,
   UseGuards,
 } from '@nestjs/common';
-import {
-  ApiCookieAuth,
-  ApiExcludeEndpoint,
-  ApiOperation,
-  ApiResponse,
-  ApiTags,
-} from '@nestjs/swagger';
 
-@ApiTags('Microsoft OAuth')
 @Controller('microsoft-oauth')
 export class MicrosoftOauthController {
   constructor(
@@ -38,15 +30,6 @@ export class MicrosoftOauthController {
   @Get('login')
   @Redirect()
   @UseGuards(SessionGuard)
-  @ApiOperation({
-    summary: 'Initiate Microsoft OAuth login',
-    description: 'Start the Microsoft OAuth flow to connect a Microsoft account',
-  })
-  @ApiCookieAuth('connect.sid')
-  @ApiResponse({ status: 302, description: 'Redirect to Microsoft OAuth' })
-  @ApiResponse({ status: 400, description: 'Bad request - Account already connected' })
-  @ApiResponse({ status: 401, description: 'Unauthorized - User not authenticated' })
-  @ApiResponse({ status: 500, description: 'Internal server error' })
   async microsoftLogin(@CurrentUserId() userId: string) {
     const existingAccount = await this.microsoftService.accountExists(userId);
     if (existingAccount && existingAccount.status === 'connected') {
@@ -60,12 +43,10 @@ export class MicrosoftOauthController {
   }
 
   @Get('redirect')
-  @ApiExcludeEndpoint()
   @UseGuards(AuthGuard('microsoft'))
   async microsoftRedirect() {}
 
   @Get('callback')
-  @ApiExcludeEndpoint()
   @UseGuards(AuthGuard('microsoft'))
   async microsoftCallback(@CurrentUserId() userId: string, @Req() req: any, @Res() res: any) {
     const msAccount = req.user;
@@ -88,25 +69,6 @@ export class MicrosoftOauthController {
   }
 
   @Delete('disconnect')
-  @ApiOperation({
-    summary: 'Disconnect Microsoft account',
-    description: 'Disconnect the linked Microsoft account from the user profile',
-  })
-  @ApiCookieAuth('connect.sid')
-  @ApiResponse({
-    status: 200,
-    description: 'Account disconnected successfully',
-    schema: {
-      type: 'object',
-      properties: {
-        message: { type: 'string', example: 'Microsoft account disconnected successfully' },
-      },
-    },
-  })
-  @ApiResponse({ status: 401, description: 'Unauthorized - User not authenticated' })
-  @ApiResponse({ status: 400, description: 'Microsoft account already disconnected' })
-  @ApiResponse({ status: 404, description: 'Microsoft account not found' })
-  @ApiResponse({ status: 500, description: 'Internal server error' })
   @UseGuards(SessionGuard)
   async disconnect(@CurrentUserId() userId: string) {
     await this.microsoftService.disconnectMicrosoftAccount(userId);
@@ -114,7 +76,6 @@ export class MicrosoftOauthController {
   }
 
   @Get('outlook/webhook')
-  @ApiExcludeEndpoint()
   async validateWebhook(@Query('validationToken') validationToken: string, @Res() res) {
     if (validationToken) {
       return res.setHeader('Content-Type', 'text/plain').status(200).send(validationToken);
@@ -124,7 +85,6 @@ export class MicrosoftOauthController {
   }
 
   @Post('outlook/webhook')
-  @ApiExcludeEndpoint()
   async receiveNotifications(
     @Query('validationToken') validationToken: string,
     @Body() body: any,

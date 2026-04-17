@@ -10,7 +10,6 @@ import { ConfigService } from '@nestjs/config';
 import { NextFunction, Request, Response } from 'express';
 import { ValidationPipe } from '@nestjs/common';
 import { NestExpressApplication } from '@nestjs/platform-express';
-import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import { SecurityAuditInterceptor } from './interceptors/security-audit.interceptor';
 import { AuthenticatedResponseSecurityInterceptor } from './interceptors/authenticated-response-security.interceptor';
 
@@ -171,70 +170,8 @@ async function bootstrap() {
     new SecurityAuditInterceptor(), // structured audit log for authenticated requests
   );
 
-  const config = new DocumentBuilder()
-    .setTitle('DelightDesk API')
-    .setDescription(
-      'B2B SaaS API for AI-powered email automation and customer support. ' +
-        'Integrates with Gmail, Outlook, WooCommerce, and AI (OpenAI GPT-4o) for automated email responses. ' +
-        '\n\n**Authentication**: This API uses session-based authentication with HTTP-only cookies. ' +
-        'To test authenticated endpoints via Swagger UI, first login via the /auth/login endpoint, ' +
-        'then the session cookie will be automatically included in subsequent requests.',
-    )
-    .setVersion('1.0.0')
-    .addCookieAuth('connect.sid', {
-      type: 'apiKey',
-      in: 'cookie',
-      name: 'connect.sid',
-      description: 'Session cookie (automatically set after login)',
-    })
-    .addTag('Authentication', 'User signup, login, logout, and password reset')
-    .addTag('Users', 'User management and profile operations')
-    .addTag('Accounts', 'Account profile and settings management')
-    .addTag('Agents', 'AI agent configuration and system settings')
-    .addTag(
-      'AI Assistant',
-      'Escalation management, email signatures, and AI-powered response generation',
-    )
-    .addTag(
-      'AI Team Center - Identity',
-      'Configure AI agent identity, personality, and email signature for consistent customer communication',
-    )
-    .addTag(
-      'AI Team Center - Product Knowledge',
-      'Manage product knowledge sources and retrieval context for AI agents',
-    )
-    .addTag('Approval Queue', 'Human-in-the-loop approval workflow for AI actions')
-    .addTag('Google OAuth', 'Gmail OAuth integration')
-    .addTag('Microsoft OAuth', 'Outlook OAuth integration')
-    .addTag('WooCommerce', 'E-commerce store integration')
-    .addTag('Contact', 'Contact form submissions')
-    .addTag('System Settings', 'Fulfillment method and system configuration')
-    .addTag('Billing', 'Plans and subscription management')
-    .build();
-
-  // Hide API docs in production unless explicitly enabled (reduces attack surface).
-  const enableSwagger =
-    !isProd || configService.get<string>('ENABLE_SWAGGER_IN_PRODUCTION') === 'true';
-
-  if (enableSwagger) {
-    const document = SwaggerModule.createDocument(app, config);
-    SwaggerModule.setup('api-docs', app, document, {
-      customSiteTitle: 'DelightDesk API Documentation',
-      customCss: '.swagger-ui .topbar { display: none }',
-      swaggerOptions: {
-        persistAuthorization: true,
-        tagsSorter: 'alpha',
-        operationsSorter: 'alpha',
-      },
-    });
-  }
-
   const baseUrl = `http://localhost:${port}`;
   console.log(`🚀 Application is running on: ${baseUrl}`);
-  if (enableSwagger) {
-    console.log(`📚 Swagger UI available at: ${baseUrl}/api-docs`);
-    console.log(`📄 OpenAPI JSON available at: ${baseUrl}/api-docs-json`);
-  }
 
   app.enableShutdownHooks();
 

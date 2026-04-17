@@ -1,13 +1,17 @@
 import {
   BadRequestException,
+  ConflictException,
   ForbiddenException,
   Injectable,
+  MessageEvent,
   NotFoundException,
 } from '@nestjs/common';
+import { Observable } from 'rxjs';
 import { EscalationsRepository } from '../../database/repos/escalations.repository';
 import { AiAssistantEmailSignatureRepository } from '../../database/repos/ai-assistant-email-signature.repository';
 import { GoogleOauthService } from '../google-oauth/google-oauth.service';
 import { MicrosoftOauthService } from '../microsoft-oauth/microsoft-oauth.service';
+import { AiAssistantEventsService } from './ai-assistant-events.service';
 import {
   BulkUpdateEscalationStatusDto,
   BulkUpdateResult,
@@ -33,6 +37,21 @@ import { OpenAIService } from '../openai/openai.service';
 
 @Injectable()
 export class AiAssistantService {
+  /**
+   * In-flight `sendEscalationResponse` calls keyed by `escalationId`.
+   *
+   * Prevents a single escalation from being replied to twice
+   * concurrently — protects against frontend double-clicks, network
+   * retries, and replies from multiple open tabs. The frontend should
+   * still disable the button while a request is in flight for UX, but
+   * this is the authoritative guard.
+   *
+   * In-memory is sufficient because we run on a single backend instance
+   * (same assumption the SSE event bus already makes). If we ever go
+   * multi-instance this would need to move to Redis / a DB flag.
+   */
+  private readonly inFlightEscalationSends = new Set<string>();
+
   constructor(
     private readonly escalationsRepository: EscalationsRepository,
     private readonly emailSignatureRepository: AiAssistantEmailSignatureRepository,
@@ -41,10 +60,28 @@ export class AiAssistantService {
     private readonly emailThreadsRepository: EmailThreadsRepository,
     private readonly emailsRepository: EmailsRepository,
     private readonly openaiService: OpenAIService,
+    private readonly eventsService: AiAssistantEventsService,
   ) {}
 
+  /**
+   * Subscribe a user to the AI Assistant SSE feed. Used by the
+   * `@Sse('stream')` controller endpoint. Same delegation pattern as
+   * `ApprovalQueueService.streamQueueUpdates`.
+   */
+  streamEscalationUpdates(userId: string): Observable<MessageEvent> {
+    return this.eventsService.subscribe(userId);
+  }
+
+  getStreamStats() {
+    return this.eventsService.getStreamStats();
+  }
+
   async createEscalation(data: any) {
-    return await this.escalationsRepository.createEscalation(data);
+    const created = await this.escalationsRepository.createEscalation(data);
+    // Notify any open AI Assistant tabs for this user that the list
+    // changed so they can refetch the escalations-with-thread feed.
+    this.eventsService.emitEscalationsUpdated(data?.userId, 'escalation_created');
+    return created;
   }
 
   async getEscalations(userId: string, dto: GetEscalationsDto): Promise<EscalationListResponse> {
@@ -228,6 +265,8 @@ export class AiAssistantService {
 
     const updated = await this.escalationsRepository.updateEscalation(id, userId, updateData);
 
+    this.eventsService.emitEscalationsUpdated(userId, 'escalation_status_updated');
+
     return {
       id: updated.id,
       status: updated.status,
@@ -263,6 +302,10 @@ export class AiAssistantService {
       userId,
       status,
     );
+
+    if (updated.length > 0) {
+      this.eventsService.emitEscalationsUpdated(userId, 'escalations_bulk_status_updated');
+    }
 
     return {
       success: true,
@@ -355,133 +398,170 @@ export class AiAssistantService {
     escalationId: string,
     dto: SendEscalationResponseDto,
   ): Promise<{ success: boolean; message: string }> {
-    // Get escalation details
-    const escalation = await this.escalationsRepository.findByIdWithDetails(escalationId, userId);
-
-    if (!escalation) {
-      throw new NotFoundException('Escalation not found');
+    // Acquire the in-flight lock for this escalation BEFORE any work so
+    // concurrent requests (double-click, network retry, multiple tabs)
+    // fail fast with 409 Conflict instead of sending two emails.
+    if (this.inFlightEscalationSends.has(escalationId)) {
+      throw new ConflictException(
+        'A response is already being sent for this escalation. Please wait.',
+      );
     }
-
-    if (escalation.userId !== userId) {
-      throw new ForbiddenException('You do not have permission to respond to this escalation');
-    }
-
-    // Build the final message
-    let finalMessage = dto.message;
-
-    // Add email signature if requested
-    if (dto.includeEmailSignature) {
-      const signature = await this.emailSignatureRepository.findByUserId(userId);
-      const emailSignature = this.generateEmailSignature(signature);
-
-      if (emailSignature) {
-        // Check if signature is HTML
-        const isSignatureHtml = this.containsHtml(emailSignature);
-        const isMessageHtml = this.containsHtml(dto.message);
-
-        if (isSignatureHtml && !isMessageHtml) {
-          // Convert plain text message to HTML and append HTML signature
-          const messageHtml = dto.message.replace(/\n/g, '<br>');
-          finalMessage = `${messageHtml}<br><br>${emailSignature}`;
-        } else if (isSignatureHtml && isMessageHtml) {
-          // Both are HTML, just concatenate
-          finalMessage = `${dto.message}<br><br>${emailSignature}`;
-        } else {
-          // Plain text, use newlines
-          finalMessage = `${dto.message}\n\n${emailSignature}`;
-        }
-      }
-    }
-
-    // escalation.email.threadId points to email_threads.id (internal UUID).
-    // The thread row tells us which provider (Gmail vs Outlook) the
-    // conversation lives on so we can route the reply correctly.
-    // @ts-ignore - escalation.email is jsonb
-    const internalThreadId: string | undefined = escalation.email?.threadId;
-
-    if (!internalThreadId) {
-      throw new Error('Escalation has no associated email thread');
-    }
-
-    const emailThread = await this.emailThreadsRepository.findById(internalThreadId);
-
-    if (!emailThread) {
-      throw new Error(`Email thread not found: ${internalThreadId}`);
-    }
-
-    // Resolve the customer's email address (the original sender of the
-    // escalated email) and the reply subject.
-    // @ts-ignore - escalation.email is jsonb
-    const recipientEmail = extractEmail(escalation.email?.fromEmail) || escalation.email?.fromEmail;
-    // @ts-ignore - escalation.email is jsonb
-    const replySubject = `Re: ${escalation.email?.subject ?? ''}`;
-
-    if (!recipientEmail) {
-      throw new BadRequestException('Could not determine the customer email to reply to.');
-    }
-
-    const isMicrosoft = emailThread.provider === 'microsoft';
+    this.inFlightEscalationSends.add(escalationId);
 
     try {
-      if (isMicrosoft) {
-        // Outlook: try replying to the conversation. If it no longer exists,
-        // fall back to a standalone send so the agent can still reach the
-        // customer.
-        const conversationExists = await this.microsoftOauthService.checkConversationExists(
-          userId,
-          emailThread.threadId,
-        );
+      // Get escalation details
+      const escalation = await this.escalationsRepository.findByIdWithDetails(escalationId, userId);
 
-        if (conversationExists) {
-          // Pass the most recent provider-native message ID we have stored
-          // for this thread to avoid Graph's InefficientFilter error.
-          const lastMessageId =
-            await this.emailThreadsRepository.findLatestMessageIdByInternalThreadId(emailThread.id);
-          await this.microsoftOauthService.replyToOutlookThread(
-            userId,
-            emailThread.threadId,
-            finalMessage,
-            lastMessageId ?? undefined,
-          );
-        } else {
-          await this.microsoftOauthService.sendEmail(userId, {
-            to: recipientEmail,
-            subject: replySubject,
-            body: finalMessage,
-          });
-        }
-      } else {
-        // Gmail (default for legacy threads where provider may be null too)
-        const threadExists = await this.googleOauthService.checkThreadExists(
-          userId,
-          emailThread.threadId,
-        );
+      if (!escalation) {
+        throw new NotFoundException('Escalation not found');
+      }
 
-        if (threadExists) {
-          await this.googleOauthService.replyToGmailThread(
-            userId,
-            recipientEmail,
-            replySubject,
-            finalMessage,
-            emailThread.threadId,
-          );
-        } else {
-          await this.googleOauthService.sendStandaloneEmail(
-            userId,
-            recipientEmail,
-            replySubject,
-            finalMessage,
-          );
+      if (escalation.userId !== userId) {
+        throw new ForbiddenException('You do not have permission to respond to this escalation');
+      }
+
+      // Build the final message
+      let finalMessage = dto.message;
+
+      // Add email signature if requested
+      if (dto.includeEmailSignature) {
+        const signature = await this.emailSignatureRepository.findByUserId(userId);
+        const emailSignature = this.generateEmailSignature(signature);
+
+        if (emailSignature) {
+          // Check if signature is HTML
+          const isSignatureHtml = this.containsHtml(emailSignature);
+          const isMessageHtml = this.containsHtml(dto.message);
+
+          if (isSignatureHtml && !isMessageHtml) {
+            // Convert plain text message to HTML and append HTML signature
+            const messageHtml = dto.message.replace(/\n/g, '<br>');
+            finalMessage = `${messageHtml}<br><br>${emailSignature}`;
+          } else if (isSignatureHtml && isMessageHtml) {
+            // Both are HTML, just concatenate
+            finalMessage = `${dto.message}<br><br>${emailSignature}`;
+          } else {
+            // Plain text, use newlines
+            finalMessage = `${dto.message}\n\n${emailSignature}`;
+          }
         }
       }
-    } catch (e) {
-      throw new BadRequestException('Please reconnect your business email for this action.');
-    }
 
-    return {
-      success: true,
-      message: 'Response sent successfully',
-    };
+      // escalation.email.threadId points to email_threads.id (internal UUID).
+      // The thread row tells us which provider (Gmail vs Outlook) the
+      // conversation lives on so we can route the reply correctly.
+      // @ts-ignore - escalation.email is jsonb
+      const internalThreadId: string | undefined = escalation.email?.threadId;
+
+      if (!internalThreadId) {
+        throw new Error('Escalation has no associated email thread');
+      }
+
+      const emailThread = await this.emailThreadsRepository.findById(internalThreadId);
+
+      if (!emailThread) {
+        throw new Error(`Email thread not found: ${internalThreadId}`);
+      }
+
+      // Resolve the customer's email address (the original sender of the
+      // escalated email) and the reply subject. `escalation.email` is a
+      // joined `emails` row whose exact shape we cast through `any` because
+      // downstream helpers accept slightly looser types than the drizzle
+      // inferred type.
+      const escalatedEmail = escalation.email as any;
+      const rawFromEmail: string | null | undefined = escalatedEmail?.fromEmail;
+      const recipientEmail =
+        (rawFromEmail ? extractEmail(rawFromEmail) : null) || rawFromEmail || null;
+
+      // Avoid stacking "Re: Re: Re:" prefixes when the original subject is
+      // already itself a reply. Treat any leading "Re:" (case-insensitive,
+      // optional whitespace) as already prefixed.
+      const originalSubject: string = (escalatedEmail?.subject as string | null | undefined) ?? '';
+      const replySubject = /^\s*re\s*:/i.test(originalSubject)
+        ? originalSubject
+        : `Re: ${originalSubject}`;
+
+      if (!recipientEmail) {
+        throw new BadRequestException('Could not determine the customer email to reply to.');
+      }
+
+      const isMicrosoft = emailThread.provider === 'microsoft';
+
+      try {
+        if (isMicrosoft) {
+          // Outlook: try replying to the conversation. If it no longer exists,
+          // fall back to a standalone send so the agent can still reach the
+          // customer.
+          const conversationExists = await this.microsoftOauthService.checkConversationExists(
+            userId,
+            emailThread.threadId,
+          );
+
+          if (conversationExists) {
+            // Pass the most recent provider-native message ID we have stored
+            // for this thread to avoid Graph's InefficientFilter error.
+            const lastMessageId =
+              await this.emailThreadsRepository.findLatestMessageIdByInternalThreadId(
+                emailThread.id,
+              );
+            await this.microsoftOauthService.replyToOutlookThread(
+              userId,
+              emailThread.threadId,
+              finalMessage,
+              lastMessageId ?? undefined,
+            );
+          } else {
+            await this.microsoftOauthService.sendEmail(userId, {
+              to: recipientEmail,
+              subject: replySubject,
+              body: finalMessage,
+            });
+          }
+        } else {
+          // Gmail (default for legacy threads where provider may be null too)
+          const threadExists = await this.googleOauthService.checkThreadExists(
+            userId,
+            emailThread.threadId,
+          );
+
+          if (threadExists) {
+            await this.googleOauthService.replyToGmailThread(
+              userId,
+              recipientEmail,
+              replySubject,
+              finalMessage,
+              emailThread.threadId,
+            );
+          } else {
+            await this.googleOauthService.sendStandaloneEmail(
+              userId,
+              recipientEmail,
+              replySubject,
+              finalMessage,
+            );
+          }
+        }
+      } catch (e) {
+        throw new BadRequestException('Please reconnect your business email for this action.');
+      }
+
+      // Immediate feedback for the sender's open tab. The provider webhook
+      // (Gmail history / Outlook subscription) will also emit when the sent
+      // message echoes back into our DB, but that has provider-side latency
+      // — emitting here keeps the UI snappy and the second event becomes a
+      // harmless no-op refetch.
+      this.eventsService.emitEscalationsUpdated(userId, 'escalation_response_sent');
+
+      return {
+        success: true,
+        message: 'Response sent successfully',
+      };
+    } finally {
+      // Always release the lock — on success, on validation failure, on
+      // provider send failure, on unexpected error. Without this, a single
+      // failed send would block all future replies for that escalation.
+      this.inFlightEscalationSends.delete(escalationId);
+    }
   }
 
   // Generate AI Response with Custom Instructions

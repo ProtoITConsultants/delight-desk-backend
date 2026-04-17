@@ -1,4 +1,17 @@
-import { Body, Controller, Get, Param, Patch, Post, Put, Query, UseGuards } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Get,
+  MessageEvent,
+  Param,
+  Patch,
+  Post,
+  Put,
+  Query,
+  Sse,
+  UseGuards,
+} from '@nestjs/common';
+import { Observable } from 'rxjs';
 
 import { SessionGuard } from 'src/guards/session.guard';
 import { CurrentUserId } from 'src/decorators/current-user.decorator';
@@ -32,6 +45,16 @@ export class AiAssistantController {
   @Get('stats')
   getStats(@CurrentUserId() userId: string, @Query() dto: GetEscalationStatsDto) {
     return this.aiAssistantService.getStats(userId, dto);
+  }
+
+  @Sse('stream')
+  streamEscalations(@CurrentUserId() userId: string): Observable<MessageEvent> {
+    return this.aiAssistantService.streamEscalationUpdates(userId);
+  }
+
+  @Get('stream/stats')
+  getStreamStats() {
+    return this.aiAssistantService.getStreamStats();
   }
 
   // Email Signature Endpoints (must be before :id routes)

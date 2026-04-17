@@ -6,12 +6,14 @@ import { OpenAIModule } from '../openai/openai.module';
 import { RepositoriesModule } from '../../database/repositories.module';
 import { GoogleOauthModule } from '../google-oauth/google-oauth.module';
 import { MicrosoftOauthModule } from '../microsoft-oauth/microsoft-oauth.module';
+import { AiAssistantEventsModule } from './ai-assistant-events.module';
 
 @Module({
   imports: [
     DatabaseModule,
     OpenAIModule,
     RepositoriesModule,
+    AiAssistantEventsModule,
     forwardRef(() => GoogleOauthModule),
     forwardRef(() => MicrosoftOauthModule),
   ],

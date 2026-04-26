@@ -3,6 +3,7 @@ import { handleWismo } from './agents/wismo';
 import { handleOrderCancellation } from './agents/order-cancellation';
 import { handleAddressChange } from './agents/address-change';
 import { handleProduct } from './agents/product';
+import { handlePromoCode } from './agents/promo-code';
 import { WorkFlowInput } from './types';
 import { WORKFLOW_SIGNAL_NAMES } from '../workflow-signals.constants';
 
@@ -54,9 +55,11 @@ class EmailWorkflowOrchestrator {
       case 'product':
         return await handleProduct(input);
 
+      case 'promo_code':
+        return await handlePromoCode(input);
+
       case 'subscription':
       case 'returns':
-      case 'promo_code':
         wf.log.info(`${agentType} workflow not yet implemented`, { emailId: input.email.id });
         return `${agentType} workflow not yet implemented for email [${input.email.id}]`;
 

@@ -61,6 +61,13 @@ const ACTION_NAME_MAP: Record<string, string> = {
   retrieve_product_knowledge: 'Retrieve Product Knowledge',
   generate_product_response: 'Generate Product Response',
   send_product_response: 'Send Product Response',
+  pc_classify_intent: 'Classify Promo Code Intent',
+  pc_resolve_config: 'Resolve Promo Code Configuration',
+  pc_assess_first_time_customer: 'Assess First-Time Customer',
+  pc_check_refund_eligibility: 'Check Refund Eligibility',
+  pc_process_refund: 'Process Promo Code Refund',
+  pc_generate_response: 'Generate Promo Code Response',
+  pc_send_response: 'Send Promo Code Response',
 };
 
 function getActionName(type: WorkflowActionType): string {

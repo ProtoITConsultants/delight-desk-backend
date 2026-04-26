@@ -17,6 +17,13 @@ export enum EscalationType {
   ORDER_ALREADY_PROCESSED = 'order_already_processed',
   PRODUCT_KNOWLEDGE_NOT_FOUND = 'product_knowledge_not_found',
   PRODUCT_KNOWLEDGE_LOW_SIMILARITY = 'product_knowledge_low_similarity',
+  PROMO_CODE_NOT_CONFIGURED = 'promo_code_not_configured',
+  PROMO_CODE_NOT_FOUND_IN_EMAIL = 'promo_code_not_found_in_email',
+  PROMO_CODE_INACTIVE_OR_EXPIRED = 'promo_code_inactive_or_expired',
+  PROMO_CODE_REFUND_INELIGIBLE = 'promo_code_refund_ineligible',
+  PROMO_CODE_REFUND_FAILED = 'promo_code_refund_failed',
+  PROMO_CODE_INTENT_UNCLEAR = 'promo_code_intent_unclear',
+  PROMO_CODE_APPLICATION_GUIDANCE_NOT_FOUND = 'promo_code_application_guidance_not_found',
 }
 
 export enum HumanDecision {

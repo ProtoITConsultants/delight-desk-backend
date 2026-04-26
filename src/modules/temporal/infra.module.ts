@@ -17,6 +17,7 @@ import { WismoTrackingActivities } from './activities/agents/wismo/wismo-trackin
 import { OrderCancellationActivities } from './activities/agents/order-cancellation/order-cancellation.activities';
 import { AddressChangeActivities } from './activities/agents/address-change/address-change.activities';
 import { ProductActivities } from './activities/agents/product/product.activities';
+import { PromoCodeActivities } from './activities/agents/promo-code/promo-code.activities';
 
 import { RepositoriesModule } from '../../database/repositories.module';
 import { WooCommerceModule } from '../woocommerce/woocommerce.module';
@@ -34,6 +35,7 @@ import { ApprovalQueueEventsModule } from '../approval-queue/approval-queue-even
 import { ActivityLogEventsModule } from '../dashboard/activity-log/activity-log-events.module';
 import { ClassificationUtil } from './utils/classification.util';
 import { InfraService } from './infra.service';
+import { sentryActivityInterceptor } from '../../sentry/sentry-activity.interceptor';
 
 @Module({
   imports: [
@@ -88,8 +90,16 @@ import { InfraService } from './infra.service';
               OrderCancellationActivities,
               AddressChangeActivities,
               ProductActivities,
+              PromoCodeActivities,
             ],
             autoStart: true,
+            // Capture activity failures in Sentry. Workflow code cannot call Sentry directly
+            // (it must be deterministic), so reporting happens here at the activity boundary.
+            workerOptions: {
+              interceptors: {
+                activity: [sentryActivityInterceptor],
+              },
+            },
           },
         };
       },
@@ -109,6 +119,7 @@ import { InfraService } from './infra.service';
     OrderCancellationActivities,
     AddressChangeActivities,
     ProductActivities,
+    PromoCodeActivities,
     InfraService,
   ],
   exports: [TemporalModule, HttpModule, DatabaseModule, InfraService],

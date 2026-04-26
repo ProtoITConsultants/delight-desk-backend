@@ -71,11 +71,35 @@ export enum ProductActionType {
   SEND_PRODUCT_RESPONSE = 'send_product_response',
 }
 
+/**
+ * Action types emitted by the Promo Code Agent. The agent has four scenario branches
+ * (refund missed code, deny repeat use, application guidance, general inquiry) plus
+ * shared preparation + send-reply actions. Names are aligned with the action label
+ * map in workflow-action.helpers.ts so the approval queue UI displays human strings.
+ */
+export enum PromoCodeActionType {
+  MARK_EMAIL_READ = 'mark_email_read',
+  VERIFY_AI_CONFIDENCE = 'verify_ai_confidence',
+  DETECT_CUSTOMER_DISTRESS = 'detect_customer_distress',
+  CLASSIFY_PROMO_CODE_INTENT = 'pc_classify_intent',
+  RESOLVE_PROMO_CODE_CONFIG = 'pc_resolve_config',
+  ASSESS_FIRST_TIME_CUSTOMER = 'pc_assess_first_time_customer',
+  EXTRACT_ORDER_NUMBER = 'extract_order_number',
+  REQUEST_ORDER_INFO = 'request_order_info',
+  FETCH_ORDER_DETAILS = 'fetch_order_details',
+  CHECK_REFUND_ELIGIBILITY = 'pc_check_refund_eligibility',
+  PROCESS_PROMO_CODE_REFUND = 'pc_process_refund',
+  RETRIEVE_PRODUCT_KNOWLEDGE = 'retrieve_product_knowledge',
+  GENERATE_RESPONSE_MESSAGE = 'pc_generate_response',
+  SEND_RESPONSE_MESSAGE = 'pc_send_response',
+}
+
 export type WorkflowActionType =
   | WismoActionType
   | OrderCancellationActionType
   | AddressChangeActionType
-  | ProductActionType;
+  | ProductActionType
+  | PromoCodeActionType;
 
 /**
  * Action status enum for tracking approval queue items

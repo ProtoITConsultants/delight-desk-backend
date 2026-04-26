@@ -98,4 +98,9 @@ export class AgentsController {
   ) {
     return this.agentsService.deletePromoCodeConfiguration(userId, configId);
   }
+
+  @Post('/promo-code/configurations/sync')
+  syncPromoCodeConfigurations(@CurrentUserId() userId: string) {
+    return this.agentsService.syncPromoCodeConfigurations(userId);
+  }
 }

@@ -14,6 +14,7 @@ import {
   WismoPreviewResponse,
 } from './agents.dto';
 import { ProductAgentPreviewService } from './product-agent-preview.service';
+import { WooCommerceCouponSyncService } from './woocommerce-coupon-sync.service';
 import { UserAgentsRepository } from 'src/database/repos/user-agents.repository';
 import { SystemSettingsRepository } from 'src/database/repos/system-settings.repository';
 import { UserStoreConnectionsRepository } from 'src/database/repos/user-store-connections.repository';
@@ -50,6 +51,7 @@ export class AgentsService {
     private readonly userRepo: UserRepository,
     private readonly productAgentPreviewService: ProductAgentPreviewService,
     private readonly promoCodeConfigsRepo: PromoCodeConfigurationsRepository,
+    private readonly wooCommerceCouponSyncService: WooCommerceCouponSyncService,
   ) {}
 
   async getAgentsForUser(userId: string) {
@@ -227,7 +229,17 @@ export class AgentsService {
     dto: CreatePromoCodeConfigurationDto,
   ): Promise<PromoCodeConfigurationResponse> {
     this.validatePromoCodeConfig(dto);
-    return this.promoCodeConfigsRepo.create(this.mapPromoCodeConfigCreate(userId, dto));
+    const created = await this.promoCodeConfigsRepo.create(
+      this.mapPromoCodeConfigCreate(userId, dto),
+    );
+    // Best-effort one-way sync to WooCommerce. Failures are recorded on the row by
+    // the sync service so the UI can surface them; we never block creation on WC.
+    void this.wooCommerceCouponSyncService.syncOne(created);
+    return created;
+  }
+
+  async syncPromoCodeConfigurations(userId: string): Promise<{ synced: number; failed: number }> {
+    return this.wooCommerceCouponSyncService.syncAllForUser(userId);
   }
 
   async updatePromoCodeConfiguration(
@@ -271,15 +283,25 @@ export class AgentsService {
       throw new NotFoundException('Promo code configuration not found');
     }
 
+    void this.wooCommerceCouponSyncService.syncOne(updated);
     return updated;
   }
 
   async deletePromoCodeConfiguration(userId: string, configId: string): Promise<{ message: string }> {
+    const existing = await this.promoCodeConfigsRepo.findByIdAndUserId(configId, userId);
+    if (!existing) {
+      throw new NotFoundException('Promo code configuration not found');
+    }
+
     const deleted = await this.promoCodeConfigsRepo.delete(configId, userId);
     if (!deleted) {
       throw new NotFoundException('Promo code configuration not found');
     }
 
+    // Mirror the delete to WooCommerce so the storefront cannot keep redeeming a
+    // coupon Delight Desk no longer manages. Failures are non-fatal because the
+    // configuration is already gone from our system of record.
+    void this.wooCommerceCouponSyncService.deleteRemote(existing);
     return { message: 'Promo code configuration deleted successfully' };
   }
 
@@ -378,6 +400,11 @@ export class AgentsService {
       minimumOrderValue: this.toNullableString(dto.minimumOrderValue),
       maxUsageCount: dto.maxUsageCount ?? null,
       appliesToSubscriptions: dto.appliesToSubscriptions ?? false,
+      // Sync metadata starts empty; the WooCommerce coupon sync service populates these
+      // asynchronously after the row is created.
+      wooCommerceCouponId: null,
+      lastSyncedAt: null,
+      lastSyncError: null,
     };
   }
 

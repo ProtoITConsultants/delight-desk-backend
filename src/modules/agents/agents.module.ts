@@ -10,6 +10,7 @@ import { RateLimitGuard } from 'src/guards/rate-limit.guard';
 import { RateLimitInterceptor } from 'src/interceptors/rate-limit.interceptor';
 import { AiTeamCenterModule } from '../ai-team-center/ai-team-center.module';
 import { ProductAgentPreviewService } from './product-agent-preview.service';
+import { WooCommerceCouponSyncService } from './woocommerce-coupon-sync.service';
 import { ClassificationUtil } from '../temporal/utils/classification.util';
 import { MessageFormattingHelper } from '../temporal/activities/shared/message-formatting.helper';
 
@@ -26,11 +27,12 @@ import { MessageFormattingHelper } from '../temporal/activities/shared/message-f
   providers: [
     AgentsService,
     ProductAgentPreviewService,
+    WooCommerceCouponSyncService,
     ClassificationUtil,
     MessageFormattingHelper,
     RateLimitGuard,
     RateLimitInterceptor,
   ],
-  exports: [AgentsService, ProductAgentPreviewService],
+  exports: [AgentsService, ProductAgentPreviewService, WooCommerceCouponSyncService],
 })
 export class AgentsModule {}

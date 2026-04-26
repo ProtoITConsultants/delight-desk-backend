@@ -36,6 +36,7 @@
     "@nestjs/platform-express": "^11.0.1",
     "@nestjs/schedule": "^6.1.1",
     "@sendgrid/mail": "^8.1.6",
+    "@sentry/nestjs": "^10.49.0",
     "@temporalio/client": "^1.14.0",
     "@temporalio/common": "^1.14.0",
     "@temporalio/worker": "^1.14.0",

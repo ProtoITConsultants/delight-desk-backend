@@ -358,6 +358,20 @@
       "when": 1776178621140,
       "tag": "0051_warm_purifiers",
       "breakpoints": true
+    },
+    {
+      "idx": 51,
+      "version": "7",
+      "when": 1776497510474,
+      "tag": "0052_naive_logan",
+      "breakpoints": true
+    },
+    {
+      "idx": 52,
+      "version": "7",
+      "when": 1777040291030,
+      "tag": "0052_grey_mandrill",
+      "breakpoints": true
     }
   ]
 }

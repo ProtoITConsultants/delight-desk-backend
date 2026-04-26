@@ -1,0 +1,1 @@
+ALTER TABLE "system_settings" DROP COLUMN "promo_code_application_guidance";

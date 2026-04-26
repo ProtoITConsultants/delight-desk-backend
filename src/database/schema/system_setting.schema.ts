@@ -22,6 +22,15 @@ export const systemSettings = pgTable('system_settings', {
   shipbobChannelId: text('shipbob_channel_id'),
   shipstationApiKey: text('shipstation_api_key'),
 
+  // Promo Code Agent customization. Merchant-authored tone hint the Promo Code Agent
+  // injects into AI prompts when explaining to a returning customer why a first-time-only
+  // promo code did not apply for them (Scenario 2). Optional — when null the agent uses
+  // its default plain-spoken style.
+  //
+  // The previous `promoCodeApplicationGuidance` column was removed once the agent
+  // switched to grounding application-guidance replies in product knowledge retrieval.
+  promoCodeExistingCustomerDenialNote: text('promo_code_existing_customer_denial_note'),
+
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
 });

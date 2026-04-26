@@ -31,6 +31,13 @@ export const promoCodeConfigurations = pgTable('promo_code_configurations', {
   minimumOrderValue: numeric('minimum_order_value', { precision: 12, scale: 2 }),
   maxUsageCount: integer('max_usage_count'),
   appliesToSubscriptions: boolean('applies_to_subscriptions').default(false).notNull(),
+  // WooCommerce coupon sync metadata. Populated by the one-way Delight Desk -> WooCommerce
+  // sync. wooCommerceCouponId is the numeric coupon id returned by WooCommerce; lastSyncedAt
+  // tracks the most recent successful sync; lastSyncError captures the last failure (if any)
+  // so the UI can surface why a sync attempt did not propagate.
+  wooCommerceCouponId: integer('woocommerce_coupon_id'),
+  lastSyncedAt: timestamp('last_synced_at', { withTimezone: true }),
+  lastSyncError: text('last_sync_error'),
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
 });

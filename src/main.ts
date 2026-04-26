@@ -1,3 +1,7 @@
+// IMPORTANT: ./instrument MUST be the very first import so Sentry can wrap modules at load time.
+import './instrument';
+import * as Sentry from '@sentry/nestjs';
+
 import { existsSync, statSync } from 'fs';
 import { Pool } from 'pg';
 import morgan from 'morgan';
@@ -12,6 +16,7 @@ import { ValidationPipe } from '@nestjs/common';
 import { NestExpressApplication } from '@nestjs/platform-express';
 import { SecurityAuditInterceptor } from './interceptors/security-audit.interceptor';
 import { AuthenticatedResponseSecurityInterceptor } from './interceptors/authenticated-response-security.interceptor';
+import { createSentryUserMiddleware } from './sentry/sentry-user.middleware';
 
 /** Sliding-window limiter by route + IP (in-memory; per-process, not distributed). */
 function createPublicRateLimitMiddleware(limit: number, windowMs: number) {
@@ -124,12 +129,16 @@ async function bootstrap() {
       saveUninitialized: false,
       cookie: {
         httpOnly: true,
-        maxAge: Number(configService.get<string>('SESSION_MAX_AGE')) || 24 * 60 * 60 * 1000,
+        maxAge: Number(configService.get<string>('SESSION_MAX_AGE')),
         secure: isProd,
         sameSite: isProd ? 'none' : 'lax',
       },
     }),
   );
+
+  // Tag the active Sentry scope with the logged-in user. Must run AFTER session middleware
+  // so req.session is populated. Only the user ID is sent — never email or other PII.
+  app.use(createSentryUserMiddleware());
 
   app.useGlobalPipes(
     new ValidationPipe({
@@ -140,7 +149,7 @@ async function bootstrap() {
     }),
   );
 
-  app.use((req, res, next) => {
+  app.use((req: Request, res: Response, next: NextFunction) => {
     if (hasSensitiveQueryKey(req.query)) {
       return res.status(400).json({
         statusCode: 400,
@@ -160,10 +169,11 @@ async function bootstrap() {
   app.use('/contact', createPublicRateLimitMiddleware(20, 60 * 1000));
 
   // Omit query string from access logs to reduce accidental capture of sensitive params.
-  morgan.token('clean-url', (req) => (((req as any).originalUrl || req.url || '') as string).split('?')[0]);
-  app.use(
-    morgan(isProd ? ':remote-addr - :method :clean-url :status :response-time ms' : 'dev'),
+  morgan.token(
+    'clean-url',
+    (req) => (((req as any).originalUrl || req.url || '') as string).split('?')[0],
   );
+  app.use(morgan(isProd ? ':remote-addr - :method :clean-url :status :response-time ms' : 'dev'));
 
   app.useGlobalInterceptors(
     new AuthenticatedResponseSecurityInterceptor(), // no-store for session-backed responses
@@ -178,7 +188,21 @@ async function bootstrap() {
   await app.listen(port);
 }
 
-void bootstrap().catch((err) => {
+// Catch background failures that escape Nest/Temporal handlers so they reach Sentry.
+process.on('unhandledRejection', (reason) => {
+  console.error('Unhandled promise rejection:', reason);
+  Sentry.captureException(reason, { tags: { source: 'unhandledRejection' } });
+});
+
+process.on('uncaughtException', (err) => {
+  console.error('Uncaught exception:', err);
+  Sentry.captureException(err, { tags: { source: 'uncaughtException' } });
+});
+
+void bootstrap().catch(async (err) => {
   console.error('❌ Failed to start application:', err);
+  Sentry.captureException(err, { tags: { source: 'bootstrap' } });
+  // Best-effort flush so the event isn't lost when the process exits.
+  await Sentry.close(2000).catch(() => undefined);
   process.exit(1);
 });

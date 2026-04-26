@@ -2,6 +2,33 @@ import WooCommerceRestApi from '@woocommerce/woocommerce-rest-api';
 import { Injectable, InternalServerErrorException, NotFoundException } from '@nestjs/common';
 import { UserStoreConnectionsRepository } from '../../database/repos/user-store-connections.repository';
 
+/**
+ * Mirrors the subset of WooCommerce REST coupon properties the Delight Desk Promo Code
+ * Agent uses to keep WC coupons aligned with promo configurations. Marked partial because
+ * syncOne routinely sends only the fields that meaningfully changed.
+ */
+export interface WooCommerceCouponPayload {
+  code?: string;
+  discount_type?: 'percent' | 'fixed_cart' | 'fixed_product';
+  amount?: string;
+  description?: string;
+  date_expires?: string | null;
+  individual_use?: boolean;
+  exclude_sale_items?: boolean;
+  minimum_amount?: string;
+  maximum_amount?: string;
+  email_restrictions?: string[];
+  usage_limit?: number | null;
+  usage_limit_per_user?: number | null;
+  limit_usage_to_x_items?: number | null;
+  free_shipping?: boolean;
+  product_ids?: number[];
+  excluded_product_ids?: number[];
+  product_categories?: number[];
+  excluded_product_categories?: number[];
+  meta_data?: Array<{ key: string; value: string | number | boolean }>;
+}
+
 @Injectable()
 export class WooCommerceRestApiService {
   constructor(private readonly storeConnectionsRepo: UserStoreConnectionsRepository) {}
@@ -104,6 +131,60 @@ export class WooCommerceRestApiService {
       const response = await api.put(`orders/${orderId}`, {
         shipping,
       });
+      return response.data;
+    } catch (error) {
+      throw new InternalServerErrorException(error.response?.data || error.message);
+    }
+  }
+
+  async listCoupons(
+    userId: string,
+    options: { code?: string; page?: number; perPage?: number } = {},
+  ) {
+    try {
+      const api = await this.initWooCommerceClient(userId);
+      const { code, page = 1, perPage = 20 } = options;
+      const params: Record<string, string | number> = { page, per_page: perPage };
+      if (code) params.code = code;
+      const response = await api.get('coupons', params);
+      return response.data;
+    } catch (error) {
+      throw new InternalServerErrorException(error.response?.data || error.message);
+    }
+  }
+
+  async findCouponByCode(userId: string, code: string) {
+    const coupons = await this.listCoupons(userId, { code, perPage: 1 });
+    const match = coupons?.[0];
+    if (!match) return null;
+    if ((match.code || '').toLowerCase() !== code.toLowerCase()) return null;
+    return match;
+  }
+
+  async createCoupon(userId: string, payload: WooCommerceCouponPayload) {
+    try {
+      const api = await this.initWooCommerceClient(userId);
+      const response = await api.post('coupons', payload);
+      return response.data;
+    } catch (error) {
+      throw new InternalServerErrorException(error.response?.data || error.message);
+    }
+  }
+
+  async updateCoupon(userId: string, couponId: number, payload: WooCommerceCouponPayload) {
+    try {
+      const api = await this.initWooCommerceClient(userId);
+      const response = await api.put(`coupons/${couponId}`, payload);
+      return response.data;
+    } catch (error) {
+      throw new InternalServerErrorException(error.response?.data || error.message);
+    }
+  }
+
+  async deleteCoupon(userId: string, couponId: number, force: boolean = true) {
+    try {
+      const api = await this.initWooCommerceClient(userId);
+      const response = await api.delete(`coupons/${couponId}`, { force });
       return response.data;
     } catch (error) {
       throw new InternalServerErrorException(error.response?.data || error.message);

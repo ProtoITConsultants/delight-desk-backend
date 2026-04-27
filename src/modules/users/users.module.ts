@@ -5,6 +5,7 @@ import { DatabaseModule } from 'src/database/database.module';
 import { UserRepository } from '../../database/repos/users.repository';
 import { GoogleOauthRepository } from '../../database/repos/google-oauth.repository';
 import { MicrosoftOauthRepository } from '../../database/repos/microsoft-oauth.repository';
+import { SystemSettingsRepository } from '../../database/repos/system-settings.repository';
 import { UserStoreConnectionsRepository } from '../../database/repos/user-store-connections.repository';
 
 @Module({
@@ -15,6 +16,7 @@ import { UserStoreConnectionsRepository } from '../../database/repos/user-store-
     UserRepository,
     GoogleOauthRepository,
     MicrosoftOauthRepository,
+    SystemSettingsRepository,
     UserStoreConnectionsRepository,
   ],
   exports: [UsersService],

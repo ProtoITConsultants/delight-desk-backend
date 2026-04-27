@@ -50,3 +50,26 @@ export interface MeResponse {
   firstName: string;
   lastName: string;
 }
+
+export type ConnectionStatus = 'connected' | 'disconnected';
+
+export interface ConnectionsDetailResponse {
+  wooCommerce: {
+    status: ConnectionStatus;
+    storeUrl: string | null;
+  } | null;
+  gmail: {
+    status: string;
+    email: string;
+  } | null;
+  outlook: {
+    status: string;
+    email: string;
+  } | null;
+  shipbob: {
+    status: ConnectionStatus;
+  };
+  shipstation: {
+    status: ConnectionStatus;
+  };
+}

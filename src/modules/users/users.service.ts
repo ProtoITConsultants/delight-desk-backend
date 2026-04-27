@@ -4,8 +4,11 @@ import { ForbiddenException, Injectable } from '@nestjs/common';
 import { UserRepository } from '../../database/repos/users.repository';
 import { GoogleOauthRepository } from '../../database/repos/google-oauth.repository';
 import { MicrosoftOauthRepository } from '../../database/repos/microsoft-oauth.repository';
+import { SystemSettingsRepository } from '../../database/repos/system-settings.repository';
 import { UserStoreConnectionsRepository } from '../../database/repos/user-store-connections.repository';
 import type {
+  ConnectionsDetailResponse,
+  ConnectionStatus,
   DeleteUserResponse,
   GetUsersResponse,
   MeResponse,
@@ -19,6 +22,7 @@ export class UsersService {
     private readonly msOauthRepo: MicrosoftOauthRepository,
     private readonly googleOauthRepo: GoogleOauthRepository,
     private readonly storeRepo: UserStoreConnectionsRepository,
+    private readonly systemSettingsRepo: SystemSettingsRepository,
   ) {}
 
   create(createUserDto: CreateUserDto) {
@@ -130,12 +134,25 @@ export class UsersService {
     return { total, page, limit, items };
   }
 
-  async getConnectionsDetail(userId: string) {
-    const gmailConnectionDetail = await this.googleOauthRepo.getGoogleAccount(userId);
-    const outlookConnectionDetail = await this.msOauthRepo.getMicrosoftAccount(userId);
-    const wooConnection = await this.storeRepo.findByPlatform(userId, 'woocommerce');
+  async getConnectionsDetail(userId: string): Promise<ConnectionsDetailResponse> {
+    const [gmailConnectionDetail, outlookConnectionDetail, wooConnection, systemSettings] =
+      await Promise.all([
+        this.googleOauthRepo.getGoogleAccount(userId),
+        this.msOauthRepo.getMicrosoftAccount(userId),
+        this.storeRepo.findByPlatform(userId, 'woocommerce'),
+        this.systemSettingsRepo.findByUser(userId),
+      ]);
 
-    const connectionsDetailTemplate = {
+    const shipbobStatus: ConnectionStatus =
+      systemSettings?.fulfillmentMethod === 'shipbob' && systemSettings.shipbobPersonalAccessToken
+        ? 'connected'
+        : 'disconnected';
+    const shipstationStatus: ConnectionStatus =
+      systemSettings?.fulfillmentMethod === 'shipstation' && systemSettings.shipstationApiKey
+        ? 'connected'
+        : 'disconnected';
+
+    const connectionsDetailTemplate: ConnectionsDetailResponse = {
       wooCommerce: wooConnection
         ? {
             status: wooConnection.isActive ? 'connected' : 'disconnected',
@@ -148,8 +165,12 @@ export class UsersService {
       outlook: outlookConnectionDetail
         ? { status: outlookConnectionDetail.status, email: outlookConnectionDetail.email }
         : null,
-      shipbob: null,
-      shipstation: null,
+      shipbob: {
+        status: shipbobStatus,
+      },
+      shipstation: {
+        status: shipstationStatus,
+      },
     };
 
     return connectionsDetailTemplate;

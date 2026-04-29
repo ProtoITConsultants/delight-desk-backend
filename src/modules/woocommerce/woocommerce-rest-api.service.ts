@@ -139,18 +139,74 @@ export class WooCommerceRestApiService {
 
   async listCoupons(
     userId: string,
-    options: { code?: string; page?: number; perPage?: number } = {},
+    options: {
+      code?: string;
+      page?: number;
+      perPage?: number;
+      orderby?: 'date' | 'modified' | 'id' | 'title' | 'slug';
+      order?: 'asc' | 'desc';
+    } = {},
   ) {
     try {
       const api = await this.initWooCommerceClient(userId);
-      const { code, page = 1, perPage = 20 } = options;
+      const { code, page = 1, perPage = 20, orderby, order } = options;
       const params: Record<string, string | number> = { page, per_page: perPage };
       if (code) params.code = code;
+      if (orderby) params.orderby = orderby;
+      if (order) params.order = order;
       const response = await api.get('coupons', params);
       return response.data;
     } catch (error) {
       throw new InternalServerErrorException(error.response?.data || error.message);
     }
+  }
+
+  /**
+   * Iterates every coupon on the merchant's WooCommerce store, page by page, and
+   * yields raw coupon objects to the supplied callback. Returns when WooCommerce
+   * returns an empty page.
+   *
+   * The async iterator pattern keeps memory bounded for stores with thousands of
+   * coupons (we never hold the full list in RAM) and lets the caller short-circuit
+   * by throwing inside `onCoupon`.
+   *
+   * Throttles between pages to stay polite with hosts that impose undocumented rate
+   * limits (Kinsta, WP Engine, Cloudways have all been seen to throttle in the wild).
+   */
+  async iterateAllCoupons(
+    userId: string,
+    onCoupon: (coupon: any) => Promise<void> | void,
+    options: { perPage?: number; throttleMs?: number } = {},
+  ): Promise<{ pagesFetched: number; couponsSeen: number }> {
+    const perPage = Math.min(options.perPage ?? 100, 100);
+    const throttleMs = options.throttleMs ?? 200;
+
+    let page = 1;
+    let pagesFetched = 0;
+    let couponsSeen = 0;
+
+    while (true) {
+      const coupons: any[] = await this.listCoupons(userId, {
+        page,
+        perPage,
+        orderby: 'date',
+        order: 'desc',
+      });
+      pagesFetched += 1;
+
+      if (!Array.isArray(coupons) || coupons.length === 0) break;
+
+      for (const coupon of coupons) {
+        couponsSeen += 1;
+        await onCoupon(coupon);
+      }
+
+      if (coupons.length < perPage) break;
+      page += 1;
+      if (throttleMs > 0) await new Promise((resolve) => setTimeout(resolve, throttleMs));
+    }
+
+    return { pagesFetched, couponsSeen };
   }
 
   async findCouponByCode(userId: string, code: string) {
@@ -185,6 +241,49 @@ export class WooCommerceRestApiService {
     try {
       const api = await this.initWooCommerceClient(userId);
       const response = await api.delete(`coupons/${couponId}`, { force });
+      return response.data;
+    } catch (error) {
+      throw new InternalServerErrorException(error.response?.data || error.message);
+    }
+  }
+
+  /**
+   * Registers a webhook on the merchant's WooCommerce store. Returns the WC-assigned
+   * numeric webhook id that we persist so we can delete the registration later.
+   *
+   * `secret` is the per-user random string WooCommerce will use to HMAC-sign every
+   * delivery; we verify that signature on receipt to confirm the event came from
+   * the configured store and not a forged request.
+   */
+  async createWebhook(
+    userId: string,
+    payload: {
+      topic: string;
+      delivery_url: string;
+      secret: string;
+      name?: string;
+      status?: 'active' | 'paused' | 'disabled';
+    },
+  ) {
+    try {
+      const api = await this.initWooCommerceClient(userId);
+      const response = await api.post('webhooks', {
+        name: payload.name ?? `Delight Desk – ${payload.topic}`,
+        topic: payload.topic,
+        delivery_url: payload.delivery_url,
+        secret: payload.secret,
+        status: payload.status ?? 'active',
+      });
+      return response.data;
+    } catch (error) {
+      throw new InternalServerErrorException(error.response?.data || error.message);
+    }
+  }
+
+  async deleteWebhook(userId: string, webhookId: number, force: boolean = true) {
+    try {
+      const api = await this.initWooCommerceClient(userId);
+      const response = await api.delete(`webhooks/${webhookId}`, { force });
       return response.data;
     } catch (error) {
       throw new InternalServerErrorException(error.response?.data || error.message);

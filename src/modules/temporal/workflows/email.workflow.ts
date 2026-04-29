@@ -63,6 +63,15 @@ class EmailWorkflowOrchestrator {
         wf.log.info(`${agentType} workflow not yet implemented`, { emailId: input.email.id });
         return `${agentType} workflow not yet implemented for email [${input.email.id}]`;
 
+      case 'out_of_scope':
+        // Belt-and-suspenders: InfraService should never start a workflow for
+        // out_of_scope emails, but if a stale workflow somehow signals this
+        // category we exit cleanly instead of routing to a real agent.
+        wf.log.info('Out-of-scope email reached workflow router; exiting without action', {
+          emailId: input.email.id,
+        });
+        return `Out-of-scope email [${input.email.id}] - no agent action taken`;
+
       default:
         wf.log.warn('Unknown agent category', { agentType });
         return `Unknown agent category found: ${agentType}, so the workflow is completed here!`;

@@ -62,7 +62,8 @@ export interface ClassificationResult {
     | 'returns'
     | 'promo_code'
     | 'address_change'
-    | 'order_cancellation';
+    | 'order_cancellation'
+    | 'out_of_scope';
   confidence: number;
   reasoning: string;
   priority: 'low' | 'medium' | 'high' | 'urgent';

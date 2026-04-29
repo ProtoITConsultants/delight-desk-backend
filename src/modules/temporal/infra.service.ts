@@ -97,6 +97,19 @@ export class InfraService {
 
     // New thread - classify the email and start a workflow if the agent is enabled.
     const classification = await this.classificationService.classify(email);
+
+    // Drop emails that aren't real WooCommerce customer-support messages
+    // (B2B sales pitches, marketing, vendor outreach, personal mail, etc.).
+    // The row stays in `emails` for audit, but no workflow runs and nothing
+    // is escalated to the AI Assistant queue.
+    if (classification.category === 'out_of_scope') {
+      this.logger.log(
+        `Skipping out_of_scope email ${email.id} from ${email.fromEmail} ` +
+          `(reason: ${classification.reasoning || 'not a customer support email'})`,
+      );
+      return;
+    }
+
     const executionAgentType: AgentType = classification.category;
     const { isEnabled } = await this.agentsService.getAgentSettings(executionAgentType, email);
 

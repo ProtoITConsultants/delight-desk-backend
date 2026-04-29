@@ -4,6 +4,8 @@ import { WooCommerceRestApiService } from '../woocommerce/woocommerce-rest-api.s
 import { AgentsRepository } from 'src/database/repos/agents.repository';
 import {
   CreatePromoCodeConfigurationDto,
+  ListPromoCodeConfigurationsDto,
+  PaginatedPromoCodeConfigurationsResponse,
   ProductPreviewDto,
   ProductPreviewResponse,
   PromoCodeConfigurationResponse,
@@ -15,6 +17,7 @@ import {
 } from './agents.dto';
 import { ProductAgentPreviewService } from './product-agent-preview.service';
 import { WooCommerceCouponSyncService } from './woocommerce-coupon-sync.service';
+import { WooCommerceCouponWebhookService } from './woocommerce-coupon-webhook.service';
 import { UserAgentsRepository } from 'src/database/repos/user-agents.repository';
 import { SystemSettingsRepository } from 'src/database/repos/system-settings.repository';
 import { UserStoreConnectionsRepository } from 'src/database/repos/user-store-connections.repository';
@@ -25,6 +28,7 @@ import {
   ConflictException,
   Injectable,
   InternalServerErrorException,
+  Logger,
   NotFoundException,
 } from '@nestjs/common';
 import { EmailEntity } from '../../database/schema';
@@ -39,6 +43,8 @@ import {
 
 @Injectable()
 export class AgentsService {
+  private readonly logger = new Logger(AgentsService.name);
+
   constructor(
     private readonly openaiService: OpenAIService,
     private readonly agentsRepo: AgentsRepository,
@@ -52,6 +58,7 @@ export class AgentsService {
     private readonly productAgentPreviewService: ProductAgentPreviewService,
     private readonly promoCodeConfigsRepo: PromoCodeConfigurationsRepository,
     private readonly wooCommerceCouponSyncService: WooCommerceCouponSyncService,
+    private readonly wooCommerceCouponWebhookService: WooCommerceCouponWebhookService,
   ) {}
 
   async getAgentsForUser(userId: string) {
@@ -78,11 +85,70 @@ export class AgentsService {
       }
     }
 
+    // Snapshot the agent's current state BEFORE applying the update so we can detect
+    // an off->on transition for the Promo Code agent and kick off the WooCommerce ->
+    // Delight Desk backfill exactly once.
+    const previousUserAgent = await this.userAgentsRepo.findByUserAndAgent(userId, agentId);
+    const wasEnabled = previousUserAgent?.isEnabled === true;
+
     const updates: Partial<UpdateUserAgentDto> = {};
     if (isEnabled !== undefined) updates.isEnabled = isEnabled;
     if (requiresModeration !== undefined) updates.requiresModeration = requiresModeration;
 
     await this.userAgentsRepo.update(userId, agentId, updates);
+
+    // Promo Code Agent specific: orchestrate the WooCommerce two-way sync lifecycle
+    // when the agent's enabled state flips. All side effects are fire-and-forget so
+    // the API response is not blocked.
+    if (agent.type === AgentTypes.PROMO_CODE) {
+      // ON enable: kick off the one-shot WC -> DD backfill (idempotent; no-ops if
+      // `promoCodeAgentInitializedAt` is already set) AND register the WC webhooks
+      // so subsequent merchant edits propagate in real time. registerCouponWebhooks
+      // is itself idempotent — it skips topics that are already subscribed.
+      if (isEnabled === true && !wasEnabled) {
+        this.wooCommerceCouponSyncService.runFullBackfillOnEnable(userId).catch((error) =>
+          // Backfill swallows errors internally and leaves the agent uninitialized so
+          // a future enable retries. This catch only handles unexpected throws (e.g.
+          // a database outage during the dedup map setup) so they don't surface as
+          // unhandled promise rejections in the Node process.
+          this.logger.error(
+            `Promo code backfill kickoff failed for user ${userId}`,
+            (error as Error).stack,
+          ),
+        );
+
+        this.wooCommerceCouponWebhookService
+          .registerCouponWebhooks(userId)
+          .then((stats) =>
+            this.logger.log(
+              `Coupon webhook registration for user ${userId}: registered=${stats.registered}, skipped=${stats.skipped}, failed=${stats.failed}`,
+            ),
+          )
+          .catch((error) =>
+            this.logger.error(
+              `Coupon webhook registration kickoff failed for user ${userId}`,
+              (error as Error).stack,
+            ),
+          );
+      }
+
+      // ON disable: tear down the registered WC webhooks so the merchant's store
+      // doesn't keep firing deliveries to an agent that's no longer reacting to
+      // them. Local subscription rows are removed regardless of WC's response (a
+      // stale row is harmless; an orphan WC webhook is something the operator can
+      // clean up via the WP admin if WC was unreachable). We keep imported DD
+      // configurations untouched so re-enabling later resumes from the same state.
+      if (isEnabled === false && wasEnabled) {
+        this.wooCommerceCouponWebhookService
+          .unregisterCouponWebhooks(userId)
+          .catch((error) =>
+            this.logger.error(
+              `Coupon webhook teardown failed for user ${userId}`,
+              (error as Error).stack,
+            ),
+          );
+      }
+    }
 
     return { message: 'Agent settings updated successfully' };
   }
@@ -220,8 +286,48 @@ export class AgentsService {
     return this.productAgentPreviewService.previewProductResponse(userId, dto);
   }
 
+  /**
+   * Returns every promo code configuration for the user as a flat array. This is the
+   * original endpoint contract the production frontend depends on; do not change its
+   * response shape. New consumers that need pagination should call
+   * `getPaginatedPromoCodeConfigurations` (exposed at /promo-code/configurations/paginated).
+   */
   async getPromoCodeConfigurations(userId: string): Promise<PromoCodeConfigurationResponse[]> {
     return this.promoCodeConfigsRepo.listByUserId(userId);
+  }
+
+  /**
+   * Paginated variant of getPromoCodeConfigurations. Lives on a separate route so the
+   * existing /promo-code/configurations endpoint can keep returning a flat array
+   * without breaking the production frontend. Mirrors the pagination envelope used
+   * by the approval queue (`{ data, pagination }`).
+   */
+  async getPaginatedPromoCodeConfigurations(
+    userId: string,
+    dto: ListPromoCodeConfigurationsDto = {},
+  ): Promise<PaginatedPromoCodeConfigurationsResponse> {
+    const page = dto.page ?? 1;
+    const limit = dto.limit ?? 20;
+    const offset = (page - 1) * limit;
+
+    const { items, totalItems } = await this.promoCodeConfigsRepo.listByUserIdPaginated(userId, {
+      offset,
+      limit,
+    });
+
+    const totalPages = totalItems > 0 ? Math.ceil(totalItems / limit) : 0;
+
+    return {
+      data: items,
+      pagination: {
+        currentPage: page,
+        totalPages,
+        totalItems,
+        itemsPerPage: limit,
+        hasNextPage: page < totalPages,
+        hasPreviousPage: page > 1,
+      },
+    };
   }
 
   async createPromoCodeConfiguration(
@@ -248,7 +354,9 @@ export class AgentsService {
     dto: UpdatePromoCodeConfigurationDto,
   ): Promise<PromoCodeConfigurationResponse> {
     if (Object.keys(dto).length === 0) {
-      throw new BadRequestException('At least one field must be provided to update promo code config.');
+      throw new BadRequestException(
+        'At least one field must be provided to update promo code config.',
+      );
     }
 
     const existing = await this.promoCodeConfigsRepo.findByIdAndUserId(configId, userId);
@@ -287,7 +395,10 @@ export class AgentsService {
     return updated;
   }
 
-  async deletePromoCodeConfiguration(userId: string, configId: string): Promise<{ message: string }> {
+  async deletePromoCodeConfiguration(
+    userId: string,
+    configId: string,
+  ): Promise<{ message: string }> {
     const existing = await this.promoCodeConfigsRepo.findByIdAndUserId(configId, userId);
     if (!existing) {
       throw new NotFoundException('Promo code configuration not found');
@@ -378,7 +489,9 @@ export class AgentsService {
     }
 
     if (dto.discountType === 'percentage' && dto.discountPercentage === null) {
-      throw new BadRequestException('discountPercentage cannot be null when discountType is percentage');
+      throw new BadRequestException(
+        'discountPercentage cannot be null when discountType is percentage',
+      );
     }
   }
 
@@ -405,6 +518,10 @@ export class AgentsService {
       wooCommerceCouponId: null,
       lastSyncedAt: null,
       lastSyncError: null,
+      // Restrictions blob is only populated for rows imported FROM WooCommerce that
+      // carry features Delight Desk does not fully model. Manually-created rows always
+      // start null since the merchant authored them with DD-native fields.
+      wcRestrictionsRaw: null,
     };
   }
 
@@ -423,7 +540,9 @@ export class AgentsService {
       ...(dto.maxRefundAmount !== undefined
         ? { maxRefundAmount: this.toNullableString(dto.maxRefundAmount) }
         : {}),
-      ...(dto.validFrom !== undefined ? { validFrom: dto.validFrom ? new Date(dto.validFrom) : null } : {}),
+      ...(dto.validFrom !== undefined
+        ? { validFrom: dto.validFrom ? new Date(dto.validFrom) : null }
+        : {}),
       ...(dto.validUntil !== undefined
         ? { validUntil: dto.validUntil ? new Date(dto.validUntil) : null }
         : {}),

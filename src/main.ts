@@ -64,7 +64,13 @@ function hasSensitiveQueryKey(query: Request['query']): boolean {
 }
 
 async function bootstrap() {
-  const app = await NestFactory.create<NestExpressApplication>(AppModule);
+  // rawBody=true exposes `req.rawBody: Buffer` on every request, which the
+  // WooCommerce webhooks controller needs to verify the HMAC-SHA256 signature
+  // against the exact bytes WooCommerce signed. Other handlers ignore it, so
+  // enabling globally has no functional effect outside the webhook receiver.
+  const app = await NestFactory.create<NestExpressApplication>(AppModule, {
+    rawBody: true,
+  });
 
   const configService = app.get(ConfigService);
   const isProd = configService.get<string>('NODE_ENV') === 'production';

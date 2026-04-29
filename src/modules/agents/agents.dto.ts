@@ -197,3 +197,32 @@ export class UpdatePromoCodeConfigurationDto {
 }
 
 export type PromoCodeConfigurationResponse = PromoCodeConfigurationEntity;
+
+/**
+ * Query parameters for listing promo code configurations. Mirrors the pagination
+ * shape used by the approval queue and other list endpoints so frontend list views
+ * can reuse the same hooks.
+ */
+export class ListPromoCodeConfigurationsDto {
+  @IsOptional()
+  @Type(() => Number)
+  @Min(1)
+  page?: number = 1;
+
+  @IsOptional()
+  @Type(() => Number)
+  @Min(1)
+  limit?: number = 20;
+}
+
+export interface PaginatedPromoCodeConfigurationsResponse {
+  data: PromoCodeConfigurationResponse[];
+  pagination: {
+    currentPage: number;
+    totalPages: number;
+    totalItems: number;
+    itemsPerPage: number;
+    hasNextPage: boolean;
+    hasPreviousPage: boolean;
+  };
+}

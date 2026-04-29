@@ -1,6 +1,7 @@
 import { AgentsService } from './agents.service';
 import {
   CreatePromoCodeConfigurationDto,
+  ListPromoCodeConfigurationsDto,
   ProductPreviewDto,
   UpdateSystemSettingsDto,
   UpdatePromoCodeConfigurationDto,
@@ -18,6 +19,7 @@ import {
   Param,
   Patch,
   Post,
+  Query,
   UseGuards,
   UseInterceptors,
   Delete,
@@ -69,9 +71,26 @@ export class AgentsController {
     return this.agentsService.generateProductPreview(userId, dto);
   }
 
+  /**
+   * Original list endpoint — returns a flat array of every promo code configuration
+   * for the user. Kept stable because the production frontend consumes this shape.
+   * New consumers that need pagination should call /promo-code/configurations/paginated.
+   */
   @Get('/promo-code/configurations')
   getPromoCodeConfigurations(@CurrentUserId() userId: string) {
     return this.agentsService.getPromoCodeConfigurations(userId);
+  }
+
+  /**
+   * Paginated list endpoint. Returns `{ data, pagination }` matching the shape used
+   * by the approval queue. Frontend integration is tracked separately on the backlog.
+   */
+  @Get('/promo-code/configurations/paginated')
+  getPaginatedPromoCodeConfigurations(
+    @CurrentUserId() userId: string,
+    @Query() dto: ListPromoCodeConfigurationsDto,
+  ) {
+    return this.agentsService.getPaginatedPromoCodeConfigurations(userId, dto);
   }
 
   @Post('/promo-code/configurations')

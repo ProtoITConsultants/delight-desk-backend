@@ -1,5 +1,14 @@
 import { InferSelectModel } from 'drizzle-orm';
-import { boolean, integer, numeric, pgTable, text, timestamp, uuid } from 'drizzle-orm/pg-core';
+import {
+  boolean,
+  integer,
+  jsonb,
+  numeric,
+  pgTable,
+  text,
+  timestamp,
+  uuid,
+} from 'drizzle-orm/pg-core';
 import { users } from './user.schema';
 
 export const promoCodeUsageTypes = [
@@ -38,6 +47,12 @@ export const promoCodeConfigurations = pgTable('promo_code_configurations', {
   wooCommerceCouponId: integer('woocommerce_coupon_id'),
   lastSyncedAt: timestamp('last_synced_at', { withTimezone: true }),
   lastSyncError: text('last_sync_error'),
+  // Raw WooCommerce restrictions snapshot for coupons whose features Delight Desk does
+  // not fully model (free_shipping, email_restrictions, product/category restrictions).
+  // When non-null, the row was imported with `isActive=false` so the agent never
+  // refunds a coupon whose redemption rules it cannot reason about. Merchants can
+  // review the restrictions in the DD UI and decide whether to enable the row.
+  wcRestrictionsRaw: jsonb('wc_restrictions_raw').$type<Record<string, unknown> | null>(),
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
 });

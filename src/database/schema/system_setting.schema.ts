@@ -31,6 +31,15 @@ export const systemSettings = pgTable('system_settings', {
   // switched to grounding application-guidance replies in product knowledge retrieval.
   promoCodeExistingCustomerDenialNote: text('promo_code_existing_customer_denial_note'),
 
+  // Timestamp of the first successful WooCommerce -> Delight Desk backfill triggered
+  // when the merchant initially enabled the Promo Code Agent. Once this is set, the
+  // backfill never runs again — the live webhook + reconciliation cron handle ongoing
+  // updates. NULL means the agent has never been enabled, OR an enable was attempted
+  // but the backfill failed before completing.
+  promoCodeAgentInitializedAt: timestamp('promo_code_agent_initialized_at', {
+    withTimezone: true,
+  }),
+
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
 });

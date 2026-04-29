@@ -22,6 +22,7 @@ import { ProductKnowledgeSourcesRepository } from './repos/product-knowledge-sou
 import { ProductKnowledgeChunksRepository } from './repos/product-knowledge-chunks.repository';
 import { ProductKnowledgeEmbeddingsRepository } from './repos/product-knowledge-embeddings.repository';
 import { PromoCodeConfigurationsRepository } from './repos/promo-code-configurations.repository';
+import { WooCommerceWebhookSubscriptionsRepository } from './repos/woocommerce-webhook-subscriptions.repository';
 import { DashboardAnalyticsRepository } from './repos/dashboard-analytics.repository';
 import { ActivityLogRepository } from './repos/activity-log.repository';
 
@@ -51,6 +52,7 @@ import { ActivityLogRepository } from './repos/activity-log.repository';
     ProductKnowledgeChunksRepository,
     ProductKnowledgeEmbeddingsRepository,
     PromoCodeConfigurationsRepository,
+    WooCommerceWebhookSubscriptionsRepository,
     DashboardAnalyticsRepository,
     ActivityLogRepository,
   ],
@@ -78,6 +80,7 @@ import { ActivityLogRepository } from './repos/activity-log.repository';
     ProductKnowledgeChunksRepository,
     ProductKnowledgeEmbeddingsRepository,
     PromoCodeConfigurationsRepository,
+    WooCommerceWebhookSubscriptionsRepository,
     DashboardAnalyticsRepository,
     ActivityLogRepository,
   ],

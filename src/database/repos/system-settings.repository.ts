@@ -29,4 +29,14 @@ export class SystemSettingsRepository {
         set: { ...dto, updatedAt: sql`now()` },
       });
   }
+
+  /**
+   * Stamps the row with the moment the WooCommerce -> Delight Desk promo code backfill
+   * completed. Used by `WooCommerceCouponSyncService.runFullBackfillOnEnable` to make
+   * the backfill idempotent — once set, re-enabling the agent will not re-import.
+   * Uses upsert so we never crash if a system_settings row hasn't been created yet.
+   */
+  async markPromoCodeAgentInitialized(userId: string, when: Date = new Date()) {
+    await this.upsert(userId, { promoCodeAgentInitializedAt: when });
+  }
 }

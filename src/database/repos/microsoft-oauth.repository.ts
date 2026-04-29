@@ -18,6 +18,31 @@ export class MicrosoftOauthRepository {
     return result.length > 0;
   }
 
+  /**
+   * Find any Microsoft account by mailbox email regardless of which Delight Desk user owns it.
+   * Used during connect to detect mailboxes that are currently linked to a different user
+   * so we can reassign them (last-write-wins).
+   */
+  async getMicrosoftAccountByEmail(email: string) {
+    const [account] = await this.db
+      .select()
+      .from(userOAuthAccounts)
+      .where(
+        and(eq(userOAuthAccounts.email, email), eq(userOAuthAccounts.provider, 'microsoft')),
+      );
+
+    return account;
+  }
+
+  async removeAccountById(id: string) {
+    const result = await this.db
+      .delete(userOAuthAccounts)
+      .where(eq(userOAuthAccounts.id, id))
+      .returning({ id: userOAuthAccounts.id });
+
+    return result.length > 0;
+  }
+
   async accountExists(userId: string): Promise<{ status: string } | undefined> {
     const [exists] = await this.db
       .select({ status: userOAuthAccounts.status })

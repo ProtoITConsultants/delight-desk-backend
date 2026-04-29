@@ -112,6 +112,52 @@ export class SendgridService {
     return this.sendMail(to, `Action Required: Reconnect Your ${providerName} Account`, html);
   }
 
+  /**
+   * Notify a user that their connected Gmail/Outlook mailbox was just reconnected
+   * to a different Delight Desk account, and has therefore been disconnected from
+   * theirs (last-write-wins).
+   *
+   * We deliberately do NOT name the other Delight Desk account in the email — two
+   * unrelated tenants must not be able to discover each other's identities by
+   * connecting the same provider mailbox.
+   */
+  async sendOAuthAccountReassignedEmail(
+    to: string,
+    provider: 'google' | 'microsoft',
+    mailboxEmail: string,
+  ) {
+    const frontendUrl =
+      this.configService.get<string>('FRONTEND_CONNECTIONS_PAGE_URL') ||
+      'https://delightdesk.vercel.app/connections';
+    const providerName = provider === 'google' ? 'Gmail' : 'Microsoft Outlook';
+    const safeFrontendUrl = this.escapeHtml(frontendUrl);
+    const safeMailbox = this.escapeHtml(mailboxEmail);
+
+    const html = this.renderBrandedEmail({
+      eyebrow: 'Delight Desk',
+      title: `${providerName} Mailbox Moved`,
+      intro: `Your ${providerName} mailbox (${safeMailbox}) was just connected to a different Delight Desk account and has been removed from this one.`,
+      body: `
+        <p style="margin:0 0 10px;font-size:14px;line-height:1.7;color:#d8dcff;">
+          Automated responses and notifications for this mailbox are now <strong style="color:#ffffff;">paused</strong> on this Delight Desk account.
+        </p>
+        <p style="margin:0 0 8px;font-size:13px;line-height:1.7;color:#aeb6ef;"><strong style="color:#ffffff;">If this was you</strong> (for example, you reconnected the mailbox under a different login email), no action is needed.</p>
+        <p style="margin:0 0 12px;font-size:13px;line-height:1.7;color:#aeb6ef;"><strong style="color:#ffffff;">If this was not you</strong>, please reconnect ${providerName} below to take ownership back, and consider rotating your ${providerName} password.</p>
+        <p style="margin:0;font-size:13px;line-height:1.7;color:#9ea6df;">
+          Need help? Contact support.
+        </p>
+      `,
+      ctaText: `Reconnect ${providerName}`,
+      ctaUrl: safeFrontendUrl,
+    });
+
+    return this.sendMail(
+      to,
+      `Your ${providerName} Mailbox Was Moved to a Different Delight Desk Account`,
+      html,
+    );
+  }
+
   private renderBrandedEmail(params: {
     eyebrow: string;
     title: string;

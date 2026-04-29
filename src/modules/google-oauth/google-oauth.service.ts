@@ -37,15 +37,105 @@ export class GoogleOauthService {
   }
 
   /**
-   * Connect a Google account to user profile
+   * Connect a Google account to user profile.
+   *
+   * If the same Gmail mailbox is currently linked to a *different* Delight Desk user,
+   * the previous link is removed first so the new user takes ownership (last-write-wins).
+   * Without this, the unique constraint on `user_oauth_accounts.email` rejects the new
+   * INSERT, the previous owner stays connected, and the new user appears disconnected
+   * in `GET /users/connections` even though the OAuth flow looked successful.
    */
   async connectGoogleAccount(
     userId: string,
     googleAccount: GoogleAccount,
     scopes: [],
   ): Promise<void> {
+    await this.reassignFromOtherUserIfExists(userId, googleAccount.email);
+
     await this.repo.removeExistingAccount(userId);
     await this.repo.addGoogleAccount(userId, googleAccount, scopes);
+  }
+
+  /**
+   * If the given mailbox is already connected to a different Delight Desk user,
+   * detach it from that user before the new INSERT, and notify them out-of-band.
+   *
+   * Note: we deliberately do not call `gmail.users.stop()` for the previous owner.
+   * Google replaces any existing watch when the new owner calls `users.watch()` after
+   * connect, so leaving the old watch in place for a moment is harmless. Trying to
+   * stop it would require refreshing the previous owner's tokens, which may already
+   * be invalid.
+   */
+  private async reassignFromOtherUserIfExists(
+    newUserId: string,
+    mailboxEmail: string,
+  ): Promise<void> {
+    const existing = await this.repo.getGoogleAccountByEmail(mailboxEmail);
+    if (!existing || existing.userId === newUserId) return;
+
+    this.logger.warn({
+      event: 'gmail_account_reassigned',
+      mailboxEmail,
+      fromUserId: existing.userId,
+      toUserId: newUserId,
+      timestamp: new Date().toISOString(),
+    });
+
+    const removed = await this.repo.removeAccountById(existing.id);
+    if (!removed) {
+      this.logger.warn({
+        event: 'gmail_account_reassign_delete_noop',
+        mailboxEmail,
+        previousUserId: existing.userId,
+      });
+      return;
+    }
+
+    void this.notifyPreviousOwnerOfReassignment(
+      existing.userId,
+      mailboxEmail,
+      'google',
+    ).catch((err) => {
+      this.logger.warn({
+        event: 'gmail_reassignment_notification_failed',
+        previousUserId: existing.userId,
+        error: err?.message,
+      });
+    });
+  }
+
+  /**
+   * Best-effort SendGrid notification to the user who just lost ownership of a mailbox.
+   * Failures are swallowed by the caller so the connect flow is not blocked.
+   */
+  private async notifyPreviousOwnerOfReassignment(
+    previousUserId: string,
+    mailboxEmail: string,
+    provider: 'google' | 'microsoft',
+  ): Promise<void> {
+    const previousOwner = await this.usersRepository.findById(previousUserId);
+    if (!previousOwner?.email) {
+      this.logger.warn({
+        event: 'oauth_reassignment_notification_skipped_no_email',
+        previousUserId,
+        provider,
+      });
+      return;
+    }
+
+    await this.sendgridService.sendOAuthAccountReassignedEmail(
+      previousOwner.email,
+      provider,
+      mailboxEmail,
+    );
+
+    this.logger.log({
+      event: 'oauth_reassignment_notification_sent',
+      previousUserId,
+      to: previousOwner.email,
+      mailboxEmail,
+      provider,
+    });
   }
 
   /**

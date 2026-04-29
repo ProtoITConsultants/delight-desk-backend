@@ -11,6 +11,7 @@ import {
   Get,
   HttpCode,
   HttpStatus,
+  Logger,
   Post,
   Redirect,
   Req,
@@ -20,6 +21,8 @@ import {
 
 @Controller('google-oauth')
 export class GoogleOauthController {
+  private readonly logger = new Logger(GoogleOauthController.name);
+
   constructor(
     private readonly configService: ConfigService,
     private readonly googleService: GoogleOauthService,
@@ -61,6 +64,10 @@ export class GoogleOauthController {
     const GOOGLE_SUCCESS_STAGING_REDIRECT = this.configService.get(
       'GOOGLE_SUCCESS_STAGING_REDIRECT',
     );
+    const GOOGLE_FAILURE_LOCAL_REDIRECT =
+      this.configService.get('GOOGLE_FAILURE_LOCAL_REDIRECT') || GOOGLE_SUCCESS_LOCAL_REDIRECT;
+    const GOOGLE_FAILURE_STAGING_REDIRECT =
+      this.configService.get('GOOGLE_FAILURE_STAGING_REDIRECT') || GOOGLE_SUCCESS_STAGING_REDIRECT;
     const seeOtherStatusCode = 303;
 
     try {
@@ -70,10 +77,22 @@ export class GoogleOauthController {
       return isRequestFromLocal
         ? res.redirect(GOOGLE_SUCCESS_LOCAL_REDIRECT)
         : res.redirect(GOOGLE_SUCCESS_STAGING_REDIRECT);
-    } catch (err) {
+    } catch (err: any) {
+      // Surface the real error in logs/Sentry — previously this was silently swallowed
+      // and the user was redirected to the SUCCESS URL on failure, which masked bugs
+      // like the unique-email constraint rejecting the INSERT when the same Gmail
+      // mailbox was already linked to another Delight Desk account.
+      this.logger.error({
+        event: 'google_oauth_callback_failed',
+        userId,
+        email: googleAccount?.email,
+        error: err?.message || 'Unknown error',
+        stack: err?.stack,
+      });
+
       return isRequestFromLocal
-        ? res.redirect(seeOtherStatusCode, GOOGLE_SUCCESS_LOCAL_REDIRECT)
-        : res.redirect(seeOtherStatusCode, GOOGLE_SUCCESS_STAGING_REDIRECT);
+        ? res.redirect(seeOtherStatusCode, GOOGLE_FAILURE_LOCAL_REDIRECT)
+        : res.redirect(seeOtherStatusCode, GOOGLE_FAILURE_STAGING_REDIRECT);
     }
   }
 

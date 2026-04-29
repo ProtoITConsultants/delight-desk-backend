@@ -18,6 +18,15 @@ export class GoogleOauthRepository {
     return result.length > 0;
   }
 
+  async removeAccountById(id: string) {
+    const result = await this.db
+      .delete(userOAuthAccounts)
+      .where(eq(userOAuthAccounts.id, id))
+      .returning({ id: userOAuthAccounts.id });
+
+    return result.length > 0;
+  }
+
   async addGoogleAccount(userId: string, account: GoogleAccount, scopes: []) {
     return this.db.insert(userOAuthAccounts).values({
       userId,

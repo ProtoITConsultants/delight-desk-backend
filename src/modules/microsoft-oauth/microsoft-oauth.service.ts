@@ -4,6 +4,8 @@ import { Cron, CronExpression } from '@nestjs/schedule';
 import { ConfigService } from '@nestjs/config';
 import { Client } from '@microsoft/microsoft-graph-client';
 import { MicrosoftOauthRepository } from 'src/database/repos/microsoft-oauth.repository';
+import { SendgridService } from '../sendgrid/sendgrid.service';
+import { UserRepository } from 'src/database/repos/users.repository';
 
 /** Buffer before expiry (ms) to consider token "expiring soon" for auto-refresh. 24 hours. */
 const TOKEN_EXPIRY_BUFFER_MS = 24 * 60 * 60 * 1000;
@@ -15,13 +17,26 @@ export class MicrosoftOauthService {
   constructor(
     private readonly configService: ConfigService,
     private readonly repo: MicrosoftOauthRepository,
+    private readonly sendgridService: SendgridService,
+    private readonly usersRepository: UserRepository,
   ) {}
 
   async accountExists(userId: string) {
     return await this.repo.accountExists(userId);
   }
 
+  /**
+   * Connect a Microsoft account to a user profile.
+   *
+   * If the same Outlook mailbox is currently linked to a *different* Delight Desk user,
+   * the previous link is removed first so the new user takes ownership (last-write-wins).
+   * Without this, the unique constraint on `user_oauth_accounts.email` rejects the new
+   * INSERT and the new user appears disconnected in `GET /users/connections` even though
+   * the OAuth flow looked successful, while the previous owner stays connected.
+   */
   async connectMicrosoftAccount(userId: string, microsoftAccount: any) {
+    await this.reassignFromOtherUserIfExists(userId, microsoftAccount.email);
+
     await this.repo.removeExistingAccount(userId);
     await this.repo.addMicrosoftAccount(userId, microsoftAccount);
 
@@ -37,6 +52,91 @@ export class MicrosoftOauthService {
         hint: 'Ensure MICROSOFT_OUTLOOK_WEBHOOK_URL is set to a public HTTPS URL. Retry via POST /microsoft-oauth/subscribe.',
       });
     }
+  }
+
+  /**
+   * If the given Outlook mailbox is already connected to a different Delight Desk user,
+   * tear down their Graph subscriptions, delete their row, and notify them.
+   *
+   * Microsoft Graph subscriptions do NOT auto-replace each other (unlike Gmail's watch),
+   * so we must explicitly delete the previous owner's subscriptions or webhook deliveries
+   * will keep firing under their tokens until the subscription expires.
+   */
+  private async reassignFromOtherUserIfExists(
+    newUserId: string,
+    mailboxEmail: string,
+  ): Promise<void> {
+    const existing = await this.repo.getMicrosoftAccountByEmail(mailboxEmail);
+    if (!existing || existing.userId === newUserId) return;
+
+    this.logger.warn({
+      event: 'outlook_account_reassigned',
+      mailboxEmail,
+      fromUserId: existing.userId,
+      toUserId: newUserId,
+      timestamp: new Date().toISOString(),
+    });
+
+    try {
+      const client = await this.getGraphClientForUser(existing.userId);
+      await this.deleteAllGraphSubscriptions(client, existing.userId);
+    } catch (err: any) {
+      this.logger.warn({
+        event: 'outlook_subscription_cleanup_failed_on_reassign',
+        previousUserId: existing.userId,
+        error: err?.message,
+        hint: 'Proceeding with reassignment anyway',
+      });
+    }
+
+    const removed = await this.repo.removeAccountById(existing.id);
+    if (!removed) {
+      this.logger.warn({
+        event: 'outlook_account_reassign_delete_noop',
+        mailboxEmail,
+        previousUserId: existing.userId,
+      });
+      return;
+    }
+
+    void this.notifyPreviousOwnerOfReassignment(existing.userId, mailboxEmail).catch((err) => {
+      this.logger.warn({
+        event: 'outlook_reassignment_notification_failed',
+        previousUserId: existing.userId,
+        error: err?.message,
+      });
+    });
+  }
+
+  /**
+   * Best-effort SendGrid notification to the user who just lost ownership of the mailbox.
+   * Failures are swallowed by the caller so the connect flow is not blocked.
+   */
+  private async notifyPreviousOwnerOfReassignment(
+    previousUserId: string,
+    mailboxEmail: string,
+  ): Promise<void> {
+    const previousOwner = await this.usersRepository.findById(previousUserId);
+    if (!previousOwner?.email) {
+      this.logger.warn({
+        event: 'outlook_reassignment_notification_skipped_no_email',
+        previousUserId,
+      });
+      return;
+    }
+
+    await this.sendgridService.sendOAuthAccountReassignedEmail(
+      previousOwner.email,
+      'microsoft',
+      mailboxEmail,
+    );
+
+    this.logger.log({
+      event: 'outlook_reassignment_notification_sent',
+      previousUserId,
+      to: previousOwner.email,
+      mailboxEmail,
+    });
   }
 
   async disconnectMicrosoftAccount(userId: string): Promise<void> {

@@ -1,0 +1,1 @@
+DROP TABLE "woocommerce_oauth_attempts" CASCADE;

@@ -1,0 +1,2 @@
+ALTER TABLE "system_settings" ADD COLUMN "promo_code_agent_initialized_at" timestamp with time zone;--> statement-breakpoint
+ALTER TABLE "promo_code_configurations" ADD COLUMN "wc_restrictions_raw" jsonb;

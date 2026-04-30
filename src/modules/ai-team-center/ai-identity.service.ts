@@ -4,6 +4,10 @@ import { CreateAiIdentityDto, GeneratedNameDto, UpdateAiIdentityDto } from './dt
 import { AiIdentityEntity } from '../../database/schema';
 import { OpenAIService } from '../openai/openai.service';
 
+type AiIdentityUpdateData = Partial<
+  Omit<AiIdentityEntity, 'id' | 'userId' | 'createdAt' | 'updatedAt'>
+>;
+
 @Injectable()
 export class AiIdentityService {
   constructor(
@@ -37,20 +41,53 @@ export class AiIdentityService {
   }
 
   async updateIdentity(userId: string, dto: UpdateAiIdentityDto): Promise<AiIdentityEntity> {
-    return await this.aiIdentityRepository.upsert({
+    const updateData: AiIdentityUpdateData = {};
+
+    if (dto.aiAgentName !== undefined) updateData.aiAgentName = dto.aiAgentName;
+    if (dto.businessType !== undefined) updateData.businessType = dto.businessType || null;
+    if (dto.aiAgentTitle !== undefined) updateData.aiAgentTitle = dto.aiAgentTitle || null;
+    if (dto.emailSalutation !== undefined) updateData.emailSalutation = dto.emailSalutation;
+    if (dto.companyNameForEmailSignature !== undefined) {
+      updateData.companyNameForEmailSignature = dto.companyNameForEmailSignature || null;
+    }
+    if (dto.signatureFooter !== undefined) updateData.signatureFooter = dto.signatureFooter || null;
+    if (dto.brandVoice !== undefined) updateData.brandVoice = dto.brandVoice;
+    if (dto.customBrandVoice !== undefined) {
+      updateData.customBrandVoice = dto.customBrandVoice || null;
+    }
+    if (dto.industrySpecificGuidance !== undefined) {
+      updateData.industrySpecificGuidance = dto.industrySpecificGuidance;
+    }
+    if (dto.thankLoyalCustomers !== undefined) {
+      updateData.thankLoyalCustomers = dto.thankLoyalCustomers;
+    }
+    if (dto.allowEmojiInResponses !== undefined) {
+      updateData.allowEmojiInResponses = dto.allowEmojiInResponses;
+    }
+    if (dto.customInstructions !== undefined) {
+      updateData.customInstructions = dto.customInstructions || null;
+    }
+
+    const existing = await this.aiIdentityRepository.findByUserId(userId);
+
+    if (existing) {
+      return this.aiIdentityRepository.update(userId, updateData);
+    }
+
+    return this.aiIdentityRepository.create({
       userId,
-      aiAgentName: dto.aiAgentName as any,
-      businessType: dto.businessType || null,
-      aiAgentTitle: dto.aiAgentTitle || null,
-      emailSalutation: dto.emailSalutation as any,
-      companyNameForEmailSignature: dto.companyNameForEmailSignature || null,
-      signatureFooter: dto.signatureFooter || null,
-      brandVoice: dto.brandVoice || 'professional',
-      customBrandVoice: dto.customBrandVoice || null,
-      industrySpecificGuidance: dto.industrySpecificGuidance ?? false,
-      thankLoyalCustomers: dto.thankLoyalCustomers ?? false,
-      allowEmojiInResponses: dto.allowEmojiInResponses ?? false,
-      customInstructions: dto.customInstructions || null,
+      aiAgentName: updateData.aiAgentName ?? null,
+      businessType: updateData.businessType ?? null,
+      aiAgentTitle: updateData.aiAgentTitle ?? null,
+      emailSalutation: updateData.emailSalutation ?? 'Hi',
+      companyNameForEmailSignature: updateData.companyNameForEmailSignature ?? null,
+      signatureFooter: updateData.signatureFooter ?? null,
+      brandVoice: updateData.brandVoice ?? 'professional',
+      customBrandVoice: updateData.customBrandVoice ?? null,
+      industrySpecificGuidance: updateData.industrySpecificGuidance ?? false,
+      thankLoyalCustomers: updateData.thankLoyalCustomers ?? false,
+      allowEmojiInResponses: updateData.allowEmojiInResponses ?? false,
+      customInstructions: updateData.customInstructions ?? null,
     });
   }
 

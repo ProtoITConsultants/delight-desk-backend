@@ -267,18 +267,18 @@ async function handleMissedPromoRefund(
   const lookupEmailForFirstTimeCheck =
     (wooOrder as any)?.billing?.email?.trim().toLowerCase() || inboundEmail;
 
-  // Step 6: First-time-customer assessment. For first_time_customer_discount or the
-  // mixed refund_and_new_customer_offer usage types, we will not refund a returning
-  // customer because the promo only applied to first-timers in the first place.
+  // Step 6: First-time-customer assessment. For first_time_customer_discount usage
+  // type, we will not refund a returning customer because the promo only applied to
+  // first-timers in the first place.
   //
   // IMPORTANT: We look up history by the ORDER'S billing email — not the inbound
   // sender. A customer who placed prior orders under a different email but is now
   // emailing from a new address still counts as returning, because identity is tied
   // to the order, not the sender.
-  if (
-    config.usageType === 'first_time_customer_discount' ||
-    config.usageType === 'refund_and_new_customer_offer'
-  ) {
+  const configUsageTypes = Array.isArray(config.usageType)
+    ? config.usageType
+    : [config.usageTypeLegacy ?? 'first_time_customer_discount'];
+  if (configUsageTypes.includes('first_time_customer_discount')) {
     const firstTimeResult = await executeWorkflowAction(
       {
         type: PromoCodeActionType.ASSESS_FIRST_TIME_CUSTOMER,
@@ -829,7 +829,9 @@ async function handleGeneralInquiry(
       // though the Drizzle type still claims `Date`. We coerce through `new Date(...)`
       // to handle both shapes safely (works on Date instances and on ISO strings).
       validUntil: c.validUntil ? new Date(c.validUntil as unknown as string).toISOString() : null,
-      usageType: c.usageType,
+      usageType: Array.isArray(c.usageType)
+        ? c.usageType
+        : [c.usageTypeLegacy ?? 'first_time_customer_discount'],
     })),
     aiIdentity,
   });

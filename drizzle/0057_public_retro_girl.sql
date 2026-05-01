@@ -1,0 +1,1 @@
+ALTER TABLE "promo_code_configurations" ADD COLUMN "usage_types" text[];

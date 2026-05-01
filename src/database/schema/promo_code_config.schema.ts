@@ -14,8 +14,6 @@ import { users } from './user.schema';
 export const promoCodeUsageTypes = [
   'refund_only',
   'first_time_customer_discount',
-  'general_discount_inquiry',
-  'refund_and_new_customer_offer',
 ] as const;
 
 export type PromoCodeUsageType = (typeof promoCodeUsageTypes)[number];
@@ -31,7 +29,11 @@ export const promoCodeConfigurations = pgTable('promo_code_configurations', {
   promoCode: text('promo_code').notNull(),
   description: text('description'),
   isActive: boolean('is_active').default(true).notNull(),
-  usageType: text('usage_type').notNull().default('first_time_customer_discount'),
+  // Legacy single-select usage type column retained for backward-compatible reads
+  // during migration to multi-select.
+  usageTypeLegacy: text('usage_type').notNull().default('first_time_customer_discount'),
+  // New multi-select usage types column.
+  usageType: text('usage_types').array(),
   discountType: text('discount_type').notNull().default('percentage'),
   discountPercentage: numeric('discount_percentage', { precision: 5, scale: 2 }),
   maxRefundAmount: numeric('max_refund_amount', { precision: 12, scale: 2 }),

@@ -728,7 +728,7 @@ ${voiceContext}
       discountPercentage: string | null;
       maxRefundAmount: string | null;
       validUntil: string | null;
-      usageType: string;
+      usageType: string[];
     }>;
     aiIdentity?: any;
   }): Promise<string> {
@@ -736,8 +736,8 @@ ${voiceContext}
     const voiceContext = this.messageFormattingHelper.buildVoiceAndSettingsContext(aiIdentity);
 
     const eligibleCodes = activePromoCodes.filter((c) => {
-      if (c.usageType === 'refund_only') return false;
-      if (c.usageType === 'first_time_customer_discount') return isFirstTime;
+      if (c.usageType.includes('refund_only')) return false;
+      if (c.usageType.includes('first_time_customer_discount')) return isFirstTime;
       return true;
     });
 

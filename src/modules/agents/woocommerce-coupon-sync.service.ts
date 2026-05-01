@@ -250,6 +250,7 @@ export class WooCommerceCouponSyncService {
    */
   private buildCouponPayload(config: PromoCodeConfigurationEntity): WooCommerceCouponPayload {
     const discountType = config.discountType === 'fixed_amount' ? 'fixed_cart' : 'percent';
+    const usageTypes = this.normalizeUsageTypes(config.usageType);
 
     const amount =
       discountType === 'percent'
@@ -257,10 +258,7 @@ export class WooCommerceCouponSyncService {
         : (this.numericString(config.maxRefundAmount) ?? '0');
 
     const enforcedUsageLimitPerUser =
-      config.usageType === 'first_time_customer_discount' ||
-      config.usageType === 'refund_and_new_customer_offer'
-        ? 1
-        : null;
+      usageTypes.includes('first_time_customer_discount') ? 1 : null;
 
     return {
       code: config.promoCode,
@@ -281,7 +279,10 @@ export class WooCommerceCouponSyncService {
       meta_data: [
         { key: '_delightdesk_managed', value: 'true' },
         { key: '_delightdesk_config_id', value: config.id },
-        { key: '_delightdesk_usage_type', value: config.usageType },
+        // Keep the legacy single-value key while also writing the new list key so
+        // existing tooling that still reads `_delightdesk_usage_type` stays compatible.
+        { key: '_delightdesk_usage_type', value: usageTypes[0] ?? 'refund_only' },
+        { key: '_delightdesk_usage_types', value: JSON.stringify(usageTypes) },
         {
           key: '_delightdesk_applies_to_subscriptions',
           value: config.appliesToSubscriptions ? 'true' : 'false',
@@ -513,7 +514,7 @@ export class WooCommerceCouponSyncService {
    *
    * Defaults applied for DD-only fields:
    *   - usageType: inferred from `usage_limit_per_user` (1 -> first_time_customer_discount,
-   *     else general_discount_inquiry — the most permissive default).
+   *     else refund_only — the safer default now that only two usage types are allowed).
    *   - maxRefundAmount: copied from the discount value when discountType=fixed_amount,
    *     else null (no cap; merchant can edit in DD UI).
    *   - appliesToSubscriptions: false. Merchant must opt-in explicitly in DD UI to
@@ -539,7 +540,7 @@ export class WooCommerceCouponSyncService {
     const usageLimitPerUser =
       typeof coupon.usage_limit_per_user === 'number' ? coupon.usage_limit_per_user : null;
     const usageType =
-      usageLimitPerUser === 1 ? 'first_time_customer_discount' : 'general_discount_inquiry';
+      usageLimitPerUser === 1 ? ['first_time_customer_discount'] : ['refund_only'];
 
     const restrictions = this.extractUnsupportedRestrictions(coupon);
     const isActive = restrictions === null;
@@ -568,6 +569,7 @@ export class WooCommerceCouponSyncService {
           ? coupon.description
           : null,
       isActive,
+      usageTypeLegacy: usageType[0],
       usageType,
       discountType,
       discountPercentage,
@@ -826,5 +828,13 @@ export class WooCommerceCouponSyncService {
     // otherwise look like "minimum order value: $0" or "max usage: 0 = exhausted").
     if (asNumber === 0) return null;
     return asNumber.toString();
+  }
+
+  private normalizeUsageTypes(value: unknown): string[] {
+    if (!Array.isArray(value)) return ['first_time_customer_discount'];
+    const usageTypes = value
+      .map((entry) => (typeof entry === 'string' ? entry.trim() : ''))
+      .filter((entry) => entry.length > 0);
+    return usageTypes.length > 0 ? usageTypes : ['first_time_customer_discount'];
   }
 }

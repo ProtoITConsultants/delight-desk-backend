@@ -37,6 +37,7 @@ import { OrderDetails, OrderExtractionResult } from '../temporal/workflows/types
 import { AftershipService } from '../aftership/aftership.service';
 import {
   promoCodeDiscountTypes,
+  PromoCodeUsageType,
   promoCodeUsageTypes,
   PromoCodeConfigurationEntity,
 } from 'src/database/schema';
@@ -293,7 +294,8 @@ export class AgentsService {
    * `getPaginatedPromoCodeConfigurations` (exposed at /promo-code/configurations/paginated).
    */
   async getPromoCodeConfigurations(userId: string): Promise<PromoCodeConfigurationResponse[]> {
-    return this.promoCodeConfigsRepo.listByUserId(userId);
+    const rows = await this.promoCodeConfigsRepo.listByUserId(userId);
+    return rows.map((row) => this.toPromoCodeConfigurationResponse(row));
   }
 
   /**
@@ -318,7 +320,7 @@ export class AgentsService {
     const totalPages = totalItems > 0 ? Math.ceil(totalItems / limit) : 0;
 
     return {
-      data: items,
+      data: items.map((row) => this.toPromoCodeConfigurationResponse(row)),
       pagination: {
         currentPage: page,
         totalPages,
@@ -341,7 +343,7 @@ export class AgentsService {
     // Best-effort one-way sync to WooCommerce. Failures are recorded on the row by
     // the sync service so the UI can surface them; we never block creation on WC.
     void this.wooCommerceCouponSyncService.syncOne(created);
-    return created;
+    return this.toPromoCodeConfigurationResponse(created);
   }
 
   async syncPromoCodeConfigurations(userId: string): Promise<{ synced: number; failed: number }> {
@@ -368,7 +370,7 @@ export class AgentsService {
       promoCode: existing.promoCode,
       description: existing.description ?? undefined,
       isActive: existing.isActive,
-      usageType: existing.usageType as (typeof promoCodeUsageTypes)[number],
+      usageType: this.normalizeUsageTypes(existing.usageType, existing.usageTypeLegacy),
       discountType: existing.discountType as (typeof promoCodeDiscountTypes)[number],
       discountPercentage: this.toNullableNumber(existing.discountPercentage),
       maxRefundAmount: this.toNullableNumber(existing.maxRefundAmount),
@@ -392,7 +394,7 @@ export class AgentsService {
     }
 
     void this.wooCommerceCouponSyncService.syncOne(updated);
-    return updated;
+    return this.toPromoCodeConfigurationResponse(updated);
   }
 
   async deletePromoCodeConfiguration(
@@ -480,6 +482,10 @@ export class AgentsService {
   private validatePromoCodeConfig(
     dto: CreatePromoCodeConfigurationDto | UpdatePromoCodeConfigurationDto,
   ): void {
+    if (dto.usageType !== undefined && dto.usageType.length === 0) {
+      throw new BadRequestException('usageType must include at least one usage type');
+    }
+
     if (dto.validFrom && dto.validUntil) {
       const validFromDate = new Date(dto.validFrom);
       const validUntilDate = new Date(dto.validUntil);
@@ -504,7 +510,8 @@ export class AgentsService {
       promoCode: dto.promoCode.trim(),
       description: dto.description ?? null,
       isActive: dto.isActive ?? true,
-      usageType: dto.usageType ?? 'first_time_customer_discount',
+      usageTypeLegacy: this.normalizeUsageTypes(dto.usageType)[0],
+      usageType: this.normalizeUsageTypes(dto.usageType),
       discountType: dto.discountType ?? 'percentage',
       discountPercentage: this.toNullableString(dto.discountPercentage),
       maxRefundAmount: this.toNullableString(dto.maxRefundAmount),
@@ -532,7 +539,12 @@ export class AgentsService {
       ...(dto.promoCode !== undefined ? { promoCode: dto.promoCode.trim() } : {}),
       ...(dto.description !== undefined ? { description: dto.description } : {}),
       ...(dto.isActive !== undefined ? { isActive: dto.isActive } : {}),
-      ...(dto.usageType !== undefined ? { usageType: dto.usageType } : {}),
+      ...(dto.usageType !== undefined
+        ? {
+            usageTypeLegacy: this.normalizeUsageTypes(dto.usageType)[0],
+            usageType: this.normalizeUsageTypes(dto.usageType),
+          }
+        : {}),
       ...(dto.discountType !== undefined ? { discountType: dto.discountType } : {}),
       ...(dto.discountPercentage !== undefined
         ? { discountPercentage: this.toNullableString(dto.discountPercentage) }
@@ -568,5 +580,56 @@ export class AgentsService {
       return null;
     }
     return Number(value);
+  }
+
+  private normalizeUsageTypes(
+    usageType: readonly string[] | undefined | null,
+    fallbackSingleType?: string | null,
+  ): PromoCodeUsageType[] {
+    if (!usageType || usageType.length === 0) {
+      if (
+        fallbackSingleType &&
+        (promoCodeUsageTypes as readonly string[]).includes(fallbackSingleType)
+      ) {
+        return [fallbackSingleType as PromoCodeUsageType];
+      }
+      return ['first_time_customer_discount'];
+    }
+
+    const normalized = usageType
+      .map((value) => value?.trim())
+      .filter(
+        (value): value is PromoCodeUsageType =>
+          !!value && (promoCodeUsageTypes as readonly string[]).includes(value),
+      );
+
+    return normalized.length > 0 ? normalized : ['first_time_customer_discount'];
+  }
+
+  private toPromoCodeConfigurationResponse(
+    row: PromoCodeConfigurationEntity,
+  ): PromoCodeConfigurationResponse {
+    return {
+      id: row.id,
+      userId: row.userId,
+      promoCode: row.promoCode,
+      description: row.description,
+      isActive: row.isActive,
+      usageType: this.normalizeUsageTypes(row.usageType, row.usageTypeLegacy),
+      discountType: row.discountType,
+      discountPercentage: row.discountPercentage,
+      maxRefundAmount: row.maxRefundAmount,
+      validFrom: row.validFrom,
+      validUntil: row.validUntil,
+      minimumOrderValue: row.minimumOrderValue,
+      maxUsageCount: row.maxUsageCount,
+      appliesToSubscriptions: row.appliesToSubscriptions,
+      wooCommerceCouponId: row.wooCommerceCouponId,
+      lastSyncedAt: row.lastSyncedAt,
+      lastSyncError: row.lastSyncError,
+      wcRestrictionsRaw: row.wcRestrictionsRaw ?? null,
+      createdAt: row.createdAt,
+      updatedAt: row.updatedAt,
+    };
   }
 }

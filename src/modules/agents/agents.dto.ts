@@ -1,8 +1,10 @@
 import {
+  ArrayNotEmpty,
   IsBoolean,
   IsDateString,
   IsEmail,
   IsEnum,
+  IsArray,
   IsInt,
   IsNotEmpty,
   IsNumber,
@@ -13,11 +15,11 @@ import {
   ValidateIf,
 } from 'class-validator';
 
-import { Type } from 'class-transformer';
+import { Transform, Type } from 'class-transformer';
 import {
   promoCodeDiscountTypes,
   promoCodeUsageTypes,
-  PromoCodeConfigurationEntity,
+  PromoCodeUsageType,
 } from 'src/database/schema';
 
 export class UpdateUserAgentDto {
@@ -83,8 +85,14 @@ export class CreatePromoCodeConfigurationDto {
   isActive?: boolean;
 
   @IsOptional()
-  @IsEnum(promoCodeUsageTypes)
-  usageType?: (typeof promoCodeUsageTypes)[number];
+  @Transform(({ value }) => {
+    if (value === undefined || value === null) return value;
+    return Array.isArray(value) ? value : [value];
+  })
+  @IsArray()
+  @ArrayNotEmpty()
+  @IsEnum(promoCodeUsageTypes, { each: true })
+  usageType?: (typeof promoCodeUsageTypes)[number][];
 
   @IsOptional()
   @IsEnum(promoCodeDiscountTypes)
@@ -105,10 +113,12 @@ export class CreatePromoCodeConfigurationDto {
   maxRefundAmount?: number | null;
 
   @IsOptional()
+  @Transform(({ value }) => (value === '' ? null : value))
   @IsDateString()
   validFrom?: string | null;
 
   @IsOptional()
+  @Transform(({ value }) => (value === '' ? null : value))
   @IsDateString()
   validUntil?: string | null;
 
@@ -148,8 +158,14 @@ export class UpdatePromoCodeConfigurationDto {
   isActive?: boolean;
 
   @IsOptional()
-  @IsEnum(promoCodeUsageTypes)
-  usageType?: (typeof promoCodeUsageTypes)[number];
+  @Transform(({ value }) => {
+    if (value === undefined || value === null) return value;
+    return Array.isArray(value) ? value : [value];
+  })
+  @IsArray()
+  @ArrayNotEmpty()
+  @IsEnum(promoCodeUsageTypes, { each: true })
+  usageType?: (typeof promoCodeUsageTypes)[number][];
 
   @IsOptional()
   @IsEnum(promoCodeDiscountTypes)
@@ -170,10 +186,12 @@ export class UpdatePromoCodeConfigurationDto {
   maxRefundAmount?: number | null;
 
   @IsOptional()
+  @Transform(({ value }) => (value === '' ? null : value))
   @IsDateString()
   validFrom?: string | null;
 
   @IsOptional()
+  @Transform(({ value }) => (value === '' ? null : value))
   @IsDateString()
   validUntil?: string | null;
 
@@ -196,7 +214,28 @@ export class UpdatePromoCodeConfigurationDto {
   appliesToSubscriptions?: boolean;
 }
 
-export type PromoCodeConfigurationResponse = PromoCodeConfigurationEntity;
+export interface PromoCodeConfigurationResponse {
+  id: string;
+  userId: string;
+  promoCode: string;
+  description: string | null;
+  isActive: boolean;
+  usageType: PromoCodeUsageType[];
+  discountType: string;
+  discountPercentage: string | null;
+  maxRefundAmount: string | null;
+  validFrom: Date | null;
+  validUntil: Date | null;
+  minimumOrderValue: string | null;
+  maxUsageCount: number | null;
+  appliesToSubscriptions: boolean;
+  wooCommerceCouponId: number | null;
+  lastSyncedAt: Date | null;
+  lastSyncError: string | null;
+  wcRestrictionsRaw: Record<string, unknown> | null;
+  createdAt: Date;
+  updatedAt: Date;
+}
 
 /**
  * Query parameters for listing promo code configurations. Mirrors the pagination

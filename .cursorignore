@@ -1,0 +1,19 @@
+# Extra exclusions for Cursor indexing / AI context (gitignore-style syntax).
+# Cursor already respects .gitignore and skips many paths by default (lockfiles, .env*,
+# binary/media types, etc.). See: https://cursor.com/docs/reference/ignore-file
+#
+# Listed below: obvious bulky dirs plus repo-specific generated JSON you still commit.
+
+node_modules/
+
+dist/
+build/
+
+coverage/
+
+# Drizzle: keep migration *.sql searchable; snapshots are large generated JSON.
+drizzle/meta/*_snapshot.json
+
+# Generated local reports from npm scripts (also in .gitignore)
+security-dns-report.json
+report.[0-9]*.[0-9]*.[0-9]*.[0-9]*.json

@@ -102,20 +102,20 @@ The application now uses **GitHub Actions** to build the application and deploy 
 
 ## Deployment Triggers
 
-Automatic deployment happens when you push to:
-- `dev` branch
+Automatic deployment runs when new commits land on **`main`**, including when a pull request is **merged** into `main` (merge creates a push event). Pushes to contributor branches (`dev/nabeel`, `dev/remy`) do **not** deploy.
 
 ## Manual Deployment
 
-If you need to manually deploy:
+**Option A — GitHub Actions UI (recommended)**  
+Repo → **Actions** → **Delight Desk Deployment** → **Run workflow** → choose branch **`main`** → Run workflow.
+
+**Option B — Git**
 
 ```bash
-# Trigger a deployment
-git push origin dev
-
-# Or force a deployment with an empty commit
-git commit --allow-empty -m "Trigger deployment"
-git push origin dev
+git checkout main
+git pull origin main
+git commit --allow-empty -m "chore: trigger deployment"
+git push origin main
 ```
 
 ## Monitoring Deployment
@@ -325,9 +325,9 @@ Make sure these are set on your EC2 server in `~/.bashrc` or `~/.profile`:
 To rollback to a previous version:
 
 ```bash
-# On your local machine
+# On your local machine (requires permission to force-push main — use with care)
 git log  # Find the commit hash
-git push origin <commit-hash>:dev --force
+git push origin <commit-hash>:main --force
 
 # Or SSH into server and manually rollback
 ssh ubuntu@your-ec2-ip

@@ -1,5 +1,8 @@
 # Documentation
 
+- **[Git workflow — Remy](git-setup/GIT_WORKFLOW_REMY.md)** — Remy only (`dev/remy` → `main`).
+- **[Git workflow — Nabeel](git-setup/GIT_WORKFLOW_NABEEL.md)** — Nabeel only (`dev/nabeel` → `main`).
+
 This folder holds diagrams, video scripts, and supporting docs for the Delight Desk backend. Use the structure below so everything stays easy to find as you add more agents and artifacts.
 
 ---

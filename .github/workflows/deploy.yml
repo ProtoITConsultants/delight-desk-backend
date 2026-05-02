@@ -1,9 +1,12 @@
 name: Delight Desk Deployment
 
+# Production deploy: runs when commits land on `main` (including merges from PRs).
+# Contributor branches (`dev/nabeel`, `dev/remy`) do not trigger this workflow.
 on:
   push:
     branches:
-      - dev
+      - main
+  workflow_dispatch:
 
 permissions:
   contents: read
@@ -12,7 +15,7 @@ jobs:
   build-and-deploy:
     runs-on: ubuntu-latest
     concurrency:
-      group: delight-desk-deploy-dev
+      group: delight-desk-deploy-main
       cancel-in-progress: true
 
     steps:

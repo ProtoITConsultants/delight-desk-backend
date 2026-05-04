@@ -120,29 +120,30 @@ export class OrderCancellationActivities {
     const voiceContext = this.messageFormattingHelper.buildVoiceAndSettingsContext(aiIdentity);
 
     const prompt = `
-      Generate a customer update email for a cancellation request that has just been processed.
+Generate a customer update email for a cancellation request that has just been processed.
 
-      Order Number: ${orderNumber}
-      Partial Fulfillment Detected: ${partialFulfillmentDetected ? 'yes' : 'no'}
-      ${aiIdentity?.aiAgentName ? `AI Agent Name: ${aiIdentity.aiAgentName}` : ''}
-      ${aiIdentity?.aiAgentTitle ? `AI Agent Title: ${aiIdentity.aiAgentTitle}` : ''}
+Order Number: ${orderNumber}
+Partial Fulfillment Detected: ${partialFulfillmentDetected ? 'yes' : 'no'}
 
-      Write a response that:
-      1. Confirms the cancellation step has been completed
-      2. If partial fulfillment is detected, clearly mention only remaining eligible items were cancelled
-      3. States that refund processing is the next step and a separate refund update will follow
-      4. Keeps tone empathetic and professional
-      5. Keeps it under 120 tokens
-      6. Do not include a salutation (like "Hi" or "Hello") at the beginning — a personalised greeting is added automatically
-      7. Do not address or refer to the customer by name anywhere in the body — the greeting already handles personalisation
-      8. Do not include a signature or sign-off at the end
+Write a response that:
+1. Confirms the cancellation step has been completed
+2. If partial fulfillment is detected, clearly mention only remaining eligible items were cancelled
+3. States that refund processing is the next step and a separate refund update will follow
+4. Keeps it under 120 tokens
+5. Do not include a salutation (like "Hi" or "Hello") at the beginning — a personalised greeting is added automatically
+6. Do not address or refer to the customer by name anywhere in the body — the greeting already handles personalisation
+7. Do not include a signature or sign-off at the end
 ${voiceContext}
     `;
 
     const messages = [
       {
         role: 'system',
-        content: `You are ${aiIdentity?.aiAgentName || 'a helpful customer service agent'}${aiIdentity?.aiAgentTitle ? `, ${aiIdentity.aiAgentTitle},` : ''} sending a cancellation progress update.`,
+        content:
+          `You are ${aiIdentity?.aiAgentName || 'a customer service rep'}${aiIdentity?.aiAgentTitle ? `, ${aiIdentity.aiAgentTitle},` : ''} writing a cancellation confirmation. ` +
+          'Your replies are short, plain-spoken, and conversational — like a quick note from a real person, not a corporate template. ' +
+          'Get to the point in the first sentence. Use contractions. Skip apology theatrics, gratitude rituals, and FAQ-style boilerplate. ' +
+          'Brand voice and merchant overrides may layer on top of this baseline, but the baseline is always: brief, natural, helpful.',
       },
       {
         role: 'user',
@@ -150,7 +151,7 @@ ${voiceContext}
       },
     ];
 
-    const response = await this.agentsService['openaiService'].createChatCompletion(messages, 0.6);
+    const response = await this.agentsService['openaiService'].createChatCompletion(messages, 0.4);
     const rawContent = response.choices[0].message.content || '';
     const messageContent = this.messageFormattingHelper.stripMarkdownLinks(rawContent);
 
@@ -170,28 +171,29 @@ ${voiceContext}
     const voiceContext = this.messageFormattingHelper.buildVoiceAndSettingsContext(aiIdentity);
 
     const prompt = `
-      Generate a customer acknowledgement email for an order cancellation request that requires warehouse confirmation.
+Generate a customer acknowledgement email for an order cancellation request that requires warehouse confirmation.
 
-      Order Number: ${orderNumber}
-      ${aiIdentity?.aiAgentName ? `AI Agent Name: ${aiIdentity.aiAgentName}` : ''}
-      ${aiIdentity?.aiAgentTitle ? `AI Agent Title: ${aiIdentity.aiAgentTitle}` : ''}
+Order Number: ${orderNumber}
 
-      Write a response that:
-      1. Confirms we received the cancellation request for order #${orderNumber}
-      2. Clearly states we are now coordinating with the warehouse team
-      3. Sets expectation that we will share an update as soon as warehouse confirms
-      4. Uses a calm and reassuring tone
-      5. Keeps it under 100 tokens
-      6. Do not include a salutation (like "Hi" or "Hello") at the beginning — a personalised greeting is added automatically
-      7. Do not address or refer to the customer by name anywhere in the body — the greeting already handles personalisation
-      8. Do not include a signature or sign-off at the end
+Write a response that:
+1. Confirms we received the cancellation request for order #${orderNumber}
+2. Clearly states we are now coordinating with the warehouse team
+3. Sets expectation that we will share an update as soon as warehouse confirms
+4. Keeps it under 100 tokens
+5. Do not include a salutation (like "Hi" or "Hello") at the beginning — a personalised greeting is added automatically
+6. Do not address or refer to the customer by name anywhere in the body — the greeting already handles personalisation
+7. Do not include a signature or sign-off at the end
 ${voiceContext}
     `;
 
     const messages = [
       {
         role: 'system',
-        content: `You are ${aiIdentity?.aiAgentName || 'a helpful customer service agent'}${aiIdentity?.aiAgentTitle ? `, ${aiIdentity.aiAgentTitle},` : ''} sending a warehouse-coordination acknowledgement for a cancellation request.`,
+        content:
+          `You are ${aiIdentity?.aiAgentName || 'a customer service rep'}${aiIdentity?.aiAgentTitle ? `, ${aiIdentity.aiAgentTitle},` : ''} writing a warehouse-coordination acknowledgement for a cancellation. ` +
+          'Your replies are short, plain-spoken, and conversational — like a quick note from a real person, not a corporate template. ' +
+          'Get to the point in the first sentence. Use contractions. Skip apology theatrics, gratitude rituals, and FAQ-style boilerplate. ' +
+          'Brand voice and merchant overrides may layer on top of this baseline, but the baseline is always: brief, natural, helpful.',
       },
       {
         role: 'user',
@@ -199,7 +201,7 @@ ${voiceContext}
       },
     ];
 
-    const response = await this.agentsService['openaiService'].createChatCompletion(messages, 0.6);
+    const response = await this.agentsService['openaiService'].createChatCompletion(messages, 0.4);
     const rawContent = response.choices[0].message.content || '';
     const messageContent = this.messageFormattingHelper.stripMarkdownLinks(rawContent);
 
@@ -220,29 +222,30 @@ ${voiceContext}
     const voiceContext = this.messageFormattingHelper.buildVoiceAndSettingsContext(aiIdentity);
 
     const prompt = `
-      Generate a customer response for a cancellation request that can no longer be processed because of the current order status.
+Generate a customer response for a cancellation request that can no longer be processed because of the current order status.
 
-      Order Number: ${orderNumber}
-      Current Order Status: ${orderStatus}
-      ${aiIdentity?.aiAgentName ? `AI Agent Name: ${aiIdentity.aiAgentName}` : ''}
-      ${aiIdentity?.aiAgentTitle ? `AI Agent Title: ${aiIdentity.aiAgentTitle}` : ''}
+Order Number: ${orderNumber}
+Current Order Status: ${orderStatus}
 
-      Write a response that:
-      1. Acknowledges the customer cancellation request for order #${orderNumber}
-      2. Clearly explains cancellation is no longer possible because the order is already in "${orderStatus}" status
-      3. Advises the customer to reply for return instructions once the package arrives
-      4. Uses a professional and empathetic tone
-      5. Keeps it under 120 tokens
-      6. Do not include a salutation (like "Hi" or "Hello") at the beginning — a personalised greeting is added automatically
-      7. Do not address or refer to the customer by name anywhere in the body — the greeting already handles personalisation
-      8. Do not include a signature or sign-off at the end
+Write a response that:
+1. Acknowledges the cancellation request for order #${orderNumber}
+2. Clearly explains cancellation is no longer possible because the order is already in "${orderStatus}" status
+3. Advises the customer to reply for return instructions once the package arrives
+4. Keeps it under 120 tokens
+5. Do not include a salutation (like "Hi" or "Hello") at the beginning — a personalised greeting is added automatically
+6. Do not address or refer to the customer by name anywhere in the body — the greeting already handles personalisation
+7. Do not include a signature or sign-off at the end
 ${voiceContext}
     `;
 
     const messages = [
       {
         role: 'system',
-        content: `You are ${aiIdentity?.aiAgentName || 'a helpful customer service agent'}${aiIdentity?.aiAgentTitle ? `, ${aiIdentity.aiAgentTitle},` : ''} responding when cancellation is no longer possible.`,
+        content:
+          `You are ${aiIdentity?.aiAgentName || 'a customer service rep'}${aiIdentity?.aiAgentTitle ? `, ${aiIdentity.aiAgentTitle},` : ''} writing a cancellation-not-possible response. ` +
+          'Your replies are short, plain-spoken, and conversational — like a quick note from a real person, not a corporate template. ' +
+          'Get to the point in the first sentence. Use contractions. Skip apology theatrics, gratitude rituals, and FAQ-style boilerplate. ' +
+          'Brand voice and merchant overrides may layer on top of this baseline, but the baseline is always: brief, natural, helpful.',
       },
       {
         role: 'user',
@@ -250,7 +253,7 @@ ${voiceContext}
       },
     ];
 
-    const response = await this.agentsService['openaiService'].createChatCompletion(messages, 0.6);
+    const response = await this.agentsService['openaiService'].createChatCompletion(messages, 0.4);
     const rawContent = response.choices[0].message.content || '';
     const messageContent = this.messageFormattingHelper.stripMarkdownLinks(rawContent);
 
@@ -270,28 +273,29 @@ ${voiceContext}
     const voiceContext = this.messageFormattingHelper.buildVoiceAndSettingsContext(aiIdentity);
 
     const prompt = `
-      Generate a customer update email for an order cancellation request that is currently being processed with ShipBob fulfillment.
+Generate a customer update email for an order cancellation request that is currently being processed with ShipBob fulfillment.
 
-      Order Number: ${orderNumber}
-      ${aiIdentity?.aiAgentName ? `AI Agent Name: ${aiIdentity.aiAgentName}` : ''}
-      ${aiIdentity?.aiAgentTitle ? `AI Agent Title: ${aiIdentity.aiAgentTitle}` : ''}
+Order Number: ${orderNumber}
 
-      Write a response that:
-      1. Confirms the cancellation request for order #${orderNumber} is being processed now
-      2. States we are coordinating directly with our fulfillment partner to stop shipment
-      3. Sets expectation that a refund update follows once cancellation is completed
-      4. Uses a calm and reassuring tone
-      5. Keeps it under 100 tokens
-      6. Do not include a salutation (like "Hi" or "Hello") at the beginning — a personalised greeting is added automatically
-      7. Do not address or refer to the customer by name anywhere in the body — the greeting already handles personalisation
-      8. Do not include a signature or sign-off at the end
+Write a response that:
+1. Confirms the cancellation request for order #${orderNumber} is being processed now
+2. States we are coordinating directly with our fulfillment partner to stop shipment
+3. Sets expectation that a refund update follows once cancellation is completed
+4. Keeps it under 100 tokens
+5. Do not include a salutation (like "Hi" or "Hello") at the beginning — a personalised greeting is added automatically
+6. Do not address or refer to the customer by name anywhere in the body — the greeting already handles personalisation
+7. Do not include a signature or sign-off at the end
 ${voiceContext}
     `;
 
     const messages = [
       {
         role: 'system',
-        content: `You are ${aiIdentity?.aiAgentName || 'a helpful customer service agent'}${aiIdentity?.aiAgentTitle ? `, ${aiIdentity.aiAgentTitle},` : ''} updating a customer about ShipBob cancellation processing.`,
+        content:
+          `You are ${aiIdentity?.aiAgentName || 'a customer service rep'}${aiIdentity?.aiAgentTitle ? `, ${aiIdentity.aiAgentTitle},` : ''} writing a ShipBob cancellation processing update. ` +
+          'Your replies are short, plain-spoken, and conversational — like a quick note from a real person, not a corporate template. ' +
+          'Get to the point in the first sentence. Use contractions. Skip apology theatrics, gratitude rituals, and FAQ-style boilerplate. ' +
+          'Brand voice and merchant overrides may layer on top of this baseline, but the baseline is always: brief, natural, helpful.',
       },
       {
         role: 'user',
@@ -299,7 +303,7 @@ ${voiceContext}
       },
     ];
 
-    const response = await this.agentsService['openaiService'].createChatCompletion(messages, 0.6);
+    const response = await this.agentsService['openaiService'].createChatCompletion(messages, 0.4);
     const rawContent = response.choices[0].message.content || '';
     const messageContent = this.messageFormattingHelper.stripMarkdownLinks(rawContent);
 
@@ -320,29 +324,30 @@ ${voiceContext}
     const voiceContext = this.messageFormattingHelper.buildVoiceAndSettingsContext(aiIdentity);
 
     const prompt = `
-      Generate a customer response for a cancellation request that cannot be completed in ShipBob.
+Generate a customer response for a cancellation request that cannot be completed in ShipBob.
 
-      Order Number: ${orderNumber}
-      ShipBob Reason: ${reason}
-      ${aiIdentity?.aiAgentName ? `AI Agent Name: ${aiIdentity.aiAgentName}` : ''}
-      ${aiIdentity?.aiAgentTitle ? `AI Agent Title: ${aiIdentity.aiAgentTitle}` : ''}
+Order Number: ${orderNumber}
+ShipBob Reason: ${reason}
 
-      Write a response that:
-      1. Acknowledges the cancellation request for order #${orderNumber}
-      2. Clearly states cancellation can no longer be completed because fulfillment/shipping is already in progress
-      3. Mentions the customer can reply for return guidance if shipment is delivered
-      4. Uses a professional and empathetic tone
-      5. Keeps it under 120 tokens
-      6. Do not include a salutation (like "Hi" or "Hello") at the beginning — a personalised greeting is added automatically
-      7. Do not address or refer to the customer by name anywhere in the body — the greeting already handles personalisation
-      8. Do not include a signature or sign-off at the end
+Write a response that:
+1. Acknowledges the cancellation request for order #${orderNumber}
+2. Clearly states cancellation can no longer be completed because fulfillment/shipping is already in progress
+3. Mentions the customer can reply for return guidance if shipment is delivered
+4. Keeps it under 120 tokens
+5. Do not include a salutation (like "Hi" or "Hello") at the beginning — a personalised greeting is added automatically
+6. Do not address or refer to the customer by name anywhere in the body — the greeting already handles personalisation
+7. Do not include a signature or sign-off at the end
 ${voiceContext}
     `;
 
     const messages = [
       {
         role: 'system',
-        content: `You are ${aiIdentity?.aiAgentName || 'a helpful customer service agent'}${aiIdentity?.aiAgentTitle ? `, ${aiIdentity.aiAgentTitle},` : ''} communicating a ShipBob cancellation limitation.`,
+        content:
+          `You are ${aiIdentity?.aiAgentName || 'a customer service rep'}${aiIdentity?.aiAgentTitle ? `, ${aiIdentity.aiAgentTitle},` : ''} writing a ShipBob cancellation-not-possible response. ` +
+          'Your replies are short, plain-spoken, and conversational — like a quick note from a real person, not a corporate template. ' +
+          'Get to the point in the first sentence. Use contractions. Skip apology theatrics, gratitude rituals, and FAQ-style boilerplate. ' +
+          'Brand voice and merchant overrides may layer on top of this baseline, but the baseline is always: brief, natural, helpful.',
       },
       {
         role: 'user',
@@ -350,7 +355,7 @@ ${voiceContext}
       },
     ];
 
-    const response = await this.agentsService['openaiService'].createChatCompletion(messages, 0.6);
+    const response = await this.agentsService['openaiService'].createChatCompletion(messages, 0.4);
     const rawContent = response.choices[0].message.content || '';
     const messageContent = this.messageFormattingHelper.stripMarkdownLinks(rawContent);
 
@@ -370,28 +375,29 @@ ${voiceContext}
     const voiceContext = this.messageFormattingHelper.buildVoiceAndSettingsContext(aiIdentity);
 
     const prompt = `
-      Generate a customer update email for an order cancellation request that is currently being processed with ShipStation fulfillment.
+Generate a customer update email for an order cancellation request that is currently being processed with ShipStation fulfillment.
 
-      Order Number: ${orderNumber}
-      ${aiIdentity?.aiAgentName ? `AI Agent Name: ${aiIdentity.aiAgentName}` : ''}
-      ${aiIdentity?.aiAgentTitle ? `AI Agent Title: ${aiIdentity.aiAgentTitle}` : ''}
+Order Number: ${orderNumber}
 
-      Write a response that:
-      1. Confirms the cancellation request for order #${orderNumber} is being processed now
-      2. States we are coordinating directly with our fulfillment partner to stop shipment
-      3. Sets expectation that a refund update follows once cancellation is completed
-      4. Uses a calm and reassuring tone
-      5. Keeps it under 100 tokens
-      6. Do not include a salutation (like "Hi" or "Hello") at the beginning — a personalised greeting is added automatically
-      7. Do not address or refer to the customer by name anywhere in the body — the greeting already handles personalisation
-      8. Do not include a signature or sign-off at the end
+Write a response that:
+1. Confirms the cancellation request for order #${orderNumber} is being processed now
+2. States we are coordinating directly with our fulfillment partner to stop shipment
+3. Sets expectation that a refund update follows once cancellation is completed
+4. Keeps it under 100 tokens
+5. Do not include a salutation (like "Hi" or "Hello") at the beginning — a personalised greeting is added automatically
+6. Do not address or refer to the customer by name anywhere in the body — the greeting already handles personalisation
+7. Do not include a signature or sign-off at the end
 ${voiceContext}
     `;
 
     const messages = [
       {
         role: 'system',
-        content: `You are ${aiIdentity?.aiAgentName || 'a helpful customer service agent'}${aiIdentity?.aiAgentTitle ? `, ${aiIdentity.aiAgentTitle},` : ''} updating a customer about ShipStation cancellation processing.`,
+        content:
+          `You are ${aiIdentity?.aiAgentName || 'a customer service rep'}${aiIdentity?.aiAgentTitle ? `, ${aiIdentity.aiAgentTitle},` : ''} writing a ShipStation cancellation processing update. ` +
+          'Your replies are short, plain-spoken, and conversational — like a quick note from a real person, not a corporate template. ' +
+          'Get to the point in the first sentence. Use contractions. Skip apology theatrics, gratitude rituals, and FAQ-style boilerplate. ' +
+          'Brand voice and merchant overrides may layer on top of this baseline, but the baseline is always: brief, natural, helpful.',
       },
       {
         role: 'user',
@@ -399,7 +405,7 @@ ${voiceContext}
       },
     ];
 
-    const response = await this.agentsService['openaiService'].createChatCompletion(messages, 0.6);
+    const response = await this.agentsService['openaiService'].createChatCompletion(messages, 0.4);
     const rawContent = response.choices[0].message.content || '';
     const messageContent = this.messageFormattingHelper.stripMarkdownLinks(rawContent);
 
@@ -420,29 +426,30 @@ ${voiceContext}
     const voiceContext = this.messageFormattingHelper.buildVoiceAndSettingsContext(aiIdentity);
 
     const prompt = `
-      Generate a customer response for a cancellation request that cannot be completed in ShipStation.
+Generate a customer response for a cancellation request that cannot be completed in ShipStation.
 
-      Order Number: ${orderNumber}
-      ShipStation Reason: ${reason}
-      ${aiIdentity?.aiAgentName ? `AI Agent Name: ${aiIdentity.aiAgentName}` : ''}
-      ${aiIdentity?.aiAgentTitle ? `AI Agent Title: ${aiIdentity.aiAgentTitle}` : ''}
+Order Number: ${orderNumber}
+ShipStation Reason: ${reason}
 
-      Write a response that:
-      1. Acknowledges the cancellation request for order #${orderNumber}
-      2. Clearly states cancellation can no longer be completed because fulfillment/shipping is already in progress
-      3. Mentions the customer can reply for return guidance if shipment is delivered
-      4. Uses a professional and empathetic tone
-      5. Keeps it under 120 tokens
-      6. Do not include a salutation (like "Hi" or "Hello") at the beginning — a personalised greeting is added automatically
-      7. Do not address or refer to the customer by name anywhere in the body — the greeting already handles personalisation
-      8. Do not include a signature or sign-off at the end
+Write a response that:
+1. Acknowledges the cancellation request for order #${orderNumber}
+2. Clearly states cancellation can no longer be completed because fulfillment/shipping is already in progress
+3. Mentions the customer can reply for return guidance if shipment is delivered
+4. Keeps it under 120 tokens
+5. Do not include a salutation (like "Hi" or "Hello") at the beginning — a personalised greeting is added automatically
+6. Do not address or refer to the customer by name anywhere in the body — the greeting already handles personalisation
+7. Do not include a signature or sign-off at the end
 ${voiceContext}
     `;
 
     const messages = [
       {
         role: 'system',
-        content: `You are ${aiIdentity?.aiAgentName || 'a helpful customer service agent'}${aiIdentity?.aiAgentTitle ? `, ${aiIdentity.aiAgentTitle},` : ''} communicating a ShipStation cancellation limitation.`,
+        content:
+          `You are ${aiIdentity?.aiAgentName || 'a customer service rep'}${aiIdentity?.aiAgentTitle ? `, ${aiIdentity.aiAgentTitle},` : ''} writing a ShipStation cancellation-not-possible response. ` +
+          'Your replies are short, plain-spoken, and conversational — like a quick note from a real person, not a corporate template. ' +
+          'Get to the point in the first sentence. Use contractions. Skip apology theatrics, gratitude rituals, and FAQ-style boilerplate. ' +
+          'Brand voice and merchant overrides may layer on top of this baseline, but the baseline is always: brief, natural, helpful.',
       },
       {
         role: 'user',
@@ -450,7 +457,7 @@ ${voiceContext}
       },
     ];
 
-    const response = await this.agentsService['openaiService'].createChatCompletion(messages, 0.6);
+    const response = await this.agentsService['openaiService'].createChatCompletion(messages, 0.4);
     const rawContent = response.choices[0].message.content || '';
     const messageContent = this.messageFormattingHelper.stripMarkdownLinks(rawContent);
 
@@ -470,29 +477,30 @@ ${voiceContext}
     const voiceContext = this.messageFormattingHelper.buildVoiceAndSettingsContext(aiIdentity);
 
     const prompt = `
-      Generate a final customer response after warehouse review confirmed the order can no longer be cancelled.
+Generate a final customer response after warehouse review confirmed the order can no longer be cancelled.
 
-      Order Number: ${orderNumber}
-      Warehouse Outcome: cannot_cancel
-      ${aiIdentity?.aiAgentName ? `AI Agent Name: ${aiIdentity.aiAgentName}` : ''}
-      ${aiIdentity?.aiAgentTitle ? `AI Agent Title: ${aiIdentity.aiAgentTitle}` : ''}
+Order Number: ${orderNumber}
+Warehouse Outcome: cannot_cancel
 
-      Write a response that:
-      1. Confirms we checked with the warehouse team
-      2. Clearly states the order can no longer be cancelled because it already entered shipping flow
-      3. Advises the customer to reply for return instructions if delivery still happens
-      4. Uses a supportive and clear tone
-      5. Keeps it under 120 tokens
-      6. Do not include a salutation (like "Hi" or "Hello") at the beginning — a personalised greeting is added automatically
-      7. Do not address or refer to the customer by name anywhere in the body — the greeting already handles personalisation
-      8. Do not include a signature or sign-off at the end
+Write a response that:
+1. Confirms we checked with the warehouse team
+2. Clearly states the order can no longer be cancelled because it already entered shipping flow
+3. Advises the customer to reply for return instructions if delivery still happens
+4. Keeps it under 120 tokens
+5. Do not include a salutation (like "Hi" or "Hello") at the beginning — a personalised greeting is added automatically
+6. Do not address or refer to the customer by name anywhere in the body — the greeting already handles personalisation
+7. Do not include a signature or sign-off at the end
 ${voiceContext}
     `;
 
     const messages = [
       {
         role: 'system',
-        content: `You are ${aiIdentity?.aiAgentName || 'a helpful customer service agent'}${aiIdentity?.aiAgentTitle ? `, ${aiIdentity.aiAgentTitle},` : ''} sharing final cancellation limitation guidance after warehouse confirmation.`,
+        content:
+          `You are ${aiIdentity?.aiAgentName || 'a customer service rep'}${aiIdentity?.aiAgentTitle ? `, ${aiIdentity.aiAgentTitle},` : ''} writing a final warehouse-confirmed cancellation-not-possible response. ` +
+          'Your replies are short, plain-spoken, and conversational — like a quick note from a real person, not a corporate template. ' +
+          'Get to the point in the first sentence. Use contractions. Skip apology theatrics, gratitude rituals, and FAQ-style boilerplate. ' +
+          'Brand voice and merchant overrides may layer on top of this baseline, but the baseline is always: brief, natural, helpful.',
       },
       {
         role: 'user',
@@ -500,7 +508,7 @@ ${voiceContext}
       },
     ];
 
-    const response = await this.agentsService['openaiService'].createChatCompletion(messages, 0.6);
+    const response = await this.agentsService['openaiService'].createChatCompletion(messages, 0.4);
     const rawContent = response.choices[0].message.content || '';
     const messageContent = this.messageFormattingHelper.stripMarkdownLinks(rawContent);
 
@@ -603,30 +611,31 @@ Internal Reference Id: [DD-OC-WF:${workflowId}]`;
     const voiceContext = this.messageFormattingHelper.buildVoiceAndSettingsContext(aiIdentity);
 
     const prompt = `
-      Generate a final refund confirmation email after order cancellation has been completed.
+Generate a final refund confirmation email after order cancellation has been completed.
 
-      Order Number: ${orderNumber}
-      Refunded Amount: ${refundedAmount ?? 'not specified'}
-      Refund Timeline: ${refundTimelineBusinessDays}
-      ${aiIdentity?.aiAgentName ? `AI Agent Name: ${aiIdentity.aiAgentName}` : ''}
-      ${aiIdentity?.aiAgentTitle ? `AI Agent Title: ${aiIdentity.aiAgentTitle}` : ''}
+Order Number: ${orderNumber}
+Refunded Amount: ${refundedAmount ?? 'not specified'}
+Refund Timeline: ${refundTimelineBusinessDays}
 
-      Write a response that:
-      1. Confirms the refund has been processed for order #${orderNumber}
-      2. Mentions refunded amount if provided
-      3. Sets expectation that funds typically appear within ${refundTimelineBusinessDays}
-      4. Uses a clear and reassuring tone
-      5. Keeps it under 120 tokens
-      6. Do not include a salutation (like "Hi" or "Hello") at the beginning — a personalised greeting is added automatically
-      7. Do not address or refer to the customer by name anywhere in the body — the greeting already handles personalisation
-      8. Do not include a signature or sign-off at the end
+Write a response that:
+1. Confirms the refund has been processed for order #${orderNumber}
+2. Mentions the refunded amount if provided
+3. Sets expectation that funds typically appear within ${refundTimelineBusinessDays}
+4. Keeps it under 120 tokens
+5. Do not include a salutation (like "Hi" or "Hello") at the beginning — a personalised greeting is added automatically
+6. Do not address or refer to the customer by name anywhere in the body — the greeting already handles personalisation
+7. Do not include a signature or sign-off at the end
 ${voiceContext}
     `;
 
     const messages = [
       {
         role: 'system',
-        content: `You are ${aiIdentity?.aiAgentName || 'a helpful customer service agent'}${aiIdentity?.aiAgentTitle ? `, ${aiIdentity.aiAgentTitle},` : ''} sending a refund completion confirmation.`,
+        content:
+          `You are ${aiIdentity?.aiAgentName || 'a customer service rep'}${aiIdentity?.aiAgentTitle ? `, ${aiIdentity.aiAgentTitle},` : ''} writing a refund confirmation. ` +
+          'Your replies are short, plain-spoken, and conversational — like a quick note from a real person, not a corporate template. ' +
+          'Get to the point in the first sentence. Use contractions. Skip apology theatrics, gratitude rituals, and FAQ-style boilerplate. ' +
+          'Brand voice and merchant overrides may layer on top of this baseline, but the baseline is always: brief, natural, helpful.',
       },
       {
         role: 'user',
@@ -634,7 +643,7 @@ ${voiceContext}
       },
     ];
 
-    const response = await this.agentsService['openaiService'].createChatCompletion(messages, 0.6);
+    const response = await this.agentsService['openaiService'].createChatCompletion(messages, 0.4);
     const rawContent = response.choices[0].message.content || '';
     const messageContent = this.messageFormattingHelper.stripMarkdownLinks(rawContent);
 

@@ -1,13 +1,17 @@
 import { IsBoolean, IsIn, IsNotEmpty, IsOptional, IsString } from 'class-validator';
 
+/**
+ * Brand voice presets supported by the AI agents. The message formatter maps each
+ * preset to a specific phrasing style — see `MessageFormattingHelper`. The previous
+ * 'custom' option (free-text override) was removed to keep tone behavior predictable.
+ */
+export const BRAND_VOICES = ['friendly', 'professional', 'sophisticated'] as const;
+export type BrandVoice = (typeof BRAND_VOICES)[number];
+
 export class CreateAiIdentityDto {
   @IsNotEmpty()
   @IsString()
   aiAgentName: string;
-
-  @IsOptional()
-  @IsString()
-  businessType?: string;
 
   @IsOptional()
   @IsString()
@@ -27,16 +31,8 @@ export class CreateAiIdentityDto {
 
   // Voice & Settings Fields
   @IsOptional()
-  @IsIn(['friendly', 'professional', 'sophisticated', 'custom'])
-  brandVoice?: 'friendly' | 'professional' | 'sophisticated' | 'custom';
-
-  @IsOptional()
-  @IsString()
-  customBrandVoice?: string;
-
-  @IsOptional()
-  @IsBoolean()
-  industrySpecificGuidance?: boolean;
+  @IsIn(BRAND_VOICES)
+  brandVoice?: BrandVoice;
 
   @IsOptional()
   @IsBoolean()
@@ -58,10 +54,6 @@ export class UpdateAiIdentityDto {
 
   @IsOptional()
   @IsString()
-  businessType?: string;
-
-  @IsOptional()
-  @IsString()
   aiAgentTitle?: string;
 
   @IsOptional()
@@ -78,16 +70,8 @@ export class UpdateAiIdentityDto {
 
   // Voice & Settings Fields
   @IsOptional()
-  @IsIn(['friendly', 'professional', 'sophisticated', 'custom'])
-  brandVoice?: 'friendly' | 'professional' | 'sophisticated' | 'custom';
-
-  @IsOptional()
-  @IsString()
-  customBrandVoice?: string;
-
-  @IsOptional()
-  @IsBoolean()
-  industrySpecificGuidance?: boolean;
+  @IsIn(BRAND_VOICES)
+  brandVoice?: BrandVoice;
 
   @IsOptional()
   @IsBoolean()
@@ -115,8 +99,6 @@ export class AiIdentityResponseDto {
 
   aiAgentName: string;
 
-  businessType?: string;
-
   aiAgentTitle?: string;
 
   emailSalutation: string;
@@ -126,11 +108,7 @@ export class AiIdentityResponseDto {
   signatureFooter?: string;
 
   // Voice & Settings Fields
-  brandVoice?: string;
-
-  customBrandVoice?: string;
-
-  industrySpecificGuidance: boolean;
+  brandVoice?: BrandVoice;
 
   thankLoyalCustomers: boolean;
 

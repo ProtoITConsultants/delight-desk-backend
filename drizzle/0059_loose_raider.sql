@@ -1,0 +1,1 @@
+ALTER TABLE "ai_identity" DROP COLUMN "business_type";

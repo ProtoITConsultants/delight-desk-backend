@@ -210,25 +210,69 @@ export class WooCommerceCouponSyncService {
   }
 
   /**
-   * Periodic reconciliation. Runs every 15 minutes and only retries rows that either
-   * never finished syncing (no wooCommerceCouponId) or recorded an error on their last
-   * attempt. This keeps the cron cheap and self-limiting in healthy steady state.
+   * Periodic reconciliation. Runs every 30 minutes and performs two cheap passes:
+   *   1. Retry rows that never finished syncing (no wooCommerceCouponId) or recorded
+   *      an error on their last sync attempt.
+   *   2. Auto-reactivate rows that were previously imported as inactive ONLY because
+   *      their WC coupon had product-id restrictions Delight Desk didn't yet enforce.
+   *      Now that the eligibility check handles those restrictions per-refund, those
+   *      rows can be safely flipped active. The check is conservative: a row is only
+   *      reactivated if `wcRestrictionsRaw` contains nothing but `productIds` and/or
+   *      `excludedProductIds` — any other unsupported feature (free_shipping, email
+   *      restrictions, category restrictions, limit_usage_to_x_items) keeps it inactive.
+   *
+   * Both passes are idempotent: pass 1 no-ops once a row is healthy; pass 2 no-ops
+   * once a row has been reactivated and its restriction snapshot cleared. So this
+   * cron stays cheap in steady state.
    */
   @Cron(CronExpression.EVERY_30_MINUTES)
   async reconcileFailedSyncs(): Promise<void> {
     try {
       const all = await this.promoCodeConfigsRepo.listAll();
+
+      // Pass 1: retry stale syncs.
       const stale = all.filter((config) => !config.wooCommerceCouponId || !!config.lastSyncError);
+      if (stale.length) {
+        this.logger.log(`Reconciling ${stale.length} promo code configurations with WooCommerce`);
+        for (const config of stale) {
+          await this.syncOne(config);
+        }
+      }
 
-      if (!stale.length) return;
-      this.logger.log(`Reconciling ${stale.length} promo code configurations with WooCommerce`);
-
-      for (const config of stale) {
-        await this.syncOne(config);
+      // Pass 2: auto-reactivate previously-imported product-restricted coupons.
+      const reactivationCandidates = all.filter((config) => this.shouldAutoReactivate(config));
+      if (reactivationCandidates.length) {
+        this.logger.log(
+          `Auto-reactivating ${reactivationCandidates.length} promo code configurations whose only "unsupported" feature was product-id restrictions (now handled by Guard 6)`,
+        );
+        for (const config of reactivationCandidates) {
+          await this.promoCodeConfigsRepo.update(config.id, config.userId, {
+            isActive: true,
+            // Clear the snapshot — keeping it would mislead the UI into thinking
+            // the row is still flagged as having unsupported features.
+            wcRestrictionsRaw: null,
+          });
+        }
       }
     } catch (error) {
       this.logger.error('Coupon reconciliation cron failed', (error as Error).stack);
     }
+  }
+
+  /**
+   * True when a promo code row was deactivated by an earlier import because of WC
+   * product-id restrictions, and the agent now handles those restrictions natively.
+   * Conservative: any other unsupported feature (free_shipping, email_restrictions,
+   * product_categories, excluded_product_categories, limit_usage_to_x_items) keeps
+   * the row inactive — those still require manual merchant attention.
+   */
+  private shouldAutoReactivate(config: PromoCodeConfigurationEntity): boolean {
+    if (config.isActive) return false;
+    if (!config.wcRestrictionsRaw) return false;
+    const restrictions = config.wcRestrictionsRaw as Record<string, unknown>;
+    const keys = Object.keys(restrictions);
+    if (keys.length === 0) return false;
+    return keys.every((key) => key === 'productIds' || key === 'excludedProductIds');
   }
 
   private async userHasWooCommerceConnection(userId: string): Promise<boolean> {
@@ -257,8 +301,9 @@ export class WooCommerceCouponSyncService {
         ? (this.numericString(config.discountPercentage) ?? '0')
         : (this.numericString(config.maxRefundAmount) ?? '0');
 
-    const enforcedUsageLimitPerUser =
-      usageTypes.includes('first_time_customer_discount') ? 1 : null;
+    const enforcedUsageLimitPerUser = usageTypes.includes('first_time_customer_discount')
+      ? 1
+      : null;
 
     return {
       code: config.promoCode,
@@ -539,8 +584,7 @@ export class WooCommerceCouponSyncService {
 
     const usageLimitPerUser =
       typeof coupon.usage_limit_per_user === 'number' ? coupon.usage_limit_per_user : null;
-    const usageType =
-      usageLimitPerUser === 1 ? ['first_time_customer_discount'] : ['refund_only'];
+    const usageType = usageLimitPerUser === 1 ? ['first_time_customer_discount'] : ['refund_only'];
 
     const restrictions = this.extractUnsupportedRestrictions(coupon);
     const isActive = restrictions === null;
@@ -759,6 +803,13 @@ export class WooCommerceCouponSyncService {
    * a JSON blob of the restriction fields when at least one is set; otherwise null.
    * The agent treats coupons with non-null restrictions as `isActive=false` so it
    * never auto-refunds a code whose redemption rules it cannot evaluate.
+   *
+   * `product_ids` and `excluded_product_ids` are intentionally NOT flagged here —
+   * the eligibility check (Guard 6 in pcCheckRefundEligibility) reasons about them
+   * directly by reading the live coupon at decision time, so coupons restricted to
+   * specific products can be imported as active and the agent enforces the
+   * restrictions per refund. Category restrictions and the other features below
+   * remain unsupported and force isActive=false until a future PR adds handling.
    */
   private extractUnsupportedRestrictions(coupon: any): Record<string, unknown> | null {
     const out: Record<string, unknown> = {};
@@ -766,12 +817,6 @@ export class WooCommerceCouponSyncService {
     if (coupon?.free_shipping === true) out.freeShipping = true;
     if (Array.isArray(coupon?.email_restrictions) && coupon.email_restrictions.length > 0) {
       out.emailRestrictions = coupon.email_restrictions;
-    }
-    if (Array.isArray(coupon?.product_ids) && coupon.product_ids.length > 0) {
-      out.productIds = coupon.product_ids;
-    }
-    if (Array.isArray(coupon?.excluded_product_ids) && coupon.excluded_product_ids.length > 0) {
-      out.excludedProductIds = coupon.excluded_product_ids;
     }
     if (Array.isArray(coupon?.product_categories) && coupon.product_categories.length > 0) {
       out.productCategories = coupon.product_categories;

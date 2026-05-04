@@ -71,6 +71,7 @@ const {
   pcGenerateGeneralInquiryMessage,
   pcGenerateSubscriptionExcludedMessage,
   pcGenerateAlreadyRefundedMessage,
+  pcGenerateProductNotEligibleMessage,
 } = promoActivities;
 
 /**
@@ -344,13 +345,21 @@ async function handleMissedPromoRefund(
       );
       context.state.refundEligibility = eligibility;
 
-      // Soft refusals (currently only `subscription_excluded`) do NOT throw here. The
-      // resolution sub-workflow detects them after this action returns and answers the
-      // customer directly with a polite policy reply instead of escalating.
+      // Soft refusals do NOT throw here. The resolution sub-workflow detects them
+      // after this action returns and answers the customer directly with a polite
+      // policy reply instead of escalating. See SOFT_REFUSAL_KINDS for the current
+      // set (subscription_excluded, already_refunded, product_not_eligible).
       if (!eligibility.eligible && !SOFT_REFUSAL_KINDS.has(eligibility.kind ?? 'other')) {
-        throw new EscalationError(EscalationType.PROMO_CODE_REFUND_INELIGIBLE, eligibility.reason, {
-          eligibility,
-        });
+        // partial_refund_required is the agent's signal that an order has a mix of
+        // eligible/ineligible items under the coupon's product restrictions. Use a
+        // dedicated escalation type so the AI Team Center reviewer can recognize
+        // the partial-refund scenario at a glance instead of digging through the
+        // metadata blob.
+        const escalationType =
+          eligibility.kind === 'partial_refund_required'
+            ? EscalationType.PROMO_CODE_PARTIAL_REFUND_REQUIRES_REVIEW
+            : EscalationType.PROMO_CODE_REFUND_INELIGIBLE;
+        throw new EscalationError(escalationType, eligibility.reason, { eligibility });
       }
 
       // Hard ceiling defense in depth (see PROMO_CODE_HARD_REFUND_CEILING). Only meaningful
@@ -378,15 +387,18 @@ async function handleMissedPromoRefund(
   const eligibility = context.state.refundEligibility!;
 
   // Soft refusal branch: send a polite, scenario-specific reply to the customer and
-  // complete the workflow normally. Currently only `subscription_excluded` ships;
-  // additional kinds (already_refunded, outside_validity_window, etc.) can be added
-  // by extending the SOFT_REFUSAL_KINDS set and adding a case to this branch.
+  // complete the workflow normally. Each soft-refusal kind needs a handler here AND
+  // an entry in SOFT_REFUSAL_KINDS — the eligibility executor only suppresses the
+  // EscalationError for kinds in that set.
   if (!eligibility.eligible) {
     if (eligibility.kind === 'subscription_excluded') {
       return await sendSubscriptionExcludedReply(context, config, eligibility);
     }
     if (eligibility.kind === 'already_refunded') {
       return await sendAlreadyRefundedReply(context, config, eligibility);
+    }
+    if (eligibility.kind === 'product_not_eligible') {
+      return await sendProductNotEligibleReply(context, config, eligibility);
     }
     // Defensive: any soft kind without a handler falls back to escalation rather than
     // silently dropping the customer email.
@@ -599,6 +611,81 @@ async function sendAlreadyRefundedReply(
     promoCode: config.promoCode,
     orderId: context.state.resolvedOrderId,
     alreadyRefundedAmount: eligibility.alreadyRefundedAmount,
+  });
+
+  return { success: true, state: context.state, responseSent: true, refundProcessed: false };
+}
+
+/**
+ * Soft-refusal handler: customer asked us to apply a promo code on an order whose
+ * line items don't qualify under the coupon's WooCommerce product restrictions
+ * (`product_ids` / `excluded_product_ids`). Instead of escalating, the agent sends
+ * a polite reply naming what the customer ordered and explaining that the code
+ * doesn't cover those items.
+ *
+ * Mixed orders (some items eligible, some not) are NOT handled here — those flow
+ * through the regular escalation path with EscalationType.PROMO_CODE_PARTIAL_REFUND_REQUIRES_REVIEW
+ * so a human can decide on a partial refund.
+ */
+async function sendProductNotEligibleReply(
+  context: ActionExecutionContext<PromoCodeWorkflowState>,
+  config: PromoCodeConfigurationEntity,
+  eligibility: PromoCodeRefundEligibility,
+): Promise<PromoCodeResolutionResult> {
+  const customerName = extractCustomerName(context.email.fromEmail);
+  const inboundEmail = extractEmailAddress(context.email.fromEmail);
+  const aiIdentity = await getAiIdentity(context.userId);
+
+  const ineligibleLineItems = eligibility.productRestriction?.ineligibleLineItems ?? [];
+
+  const message = await pcGenerateProductNotEligibleMessage({
+    customerName,
+    promoCode: config.promoCode,
+    orderNumber: context.state.resolvedOrderId!,
+    ineligibleLineItems,
+    aiIdentity,
+  });
+  context.state.generatedResponse = message;
+
+  const sendResult = await executeWorkflowAction(
+    {
+      type: PromoCodeActionType.SEND_RESPONSE_MESSAGE,
+      step: 8,
+      description: `Notify customer that promo "${config.promoCode}" does not apply to items in order #${context.state.resolvedOrderId}`,
+      actionDetails: `None of the items in order #${context.state.resolvedOrderId} qualify under promo code "${config.promoCode}"'s product restrictions. Sending a polite explanation to the customer instead of escalating to a human.`,
+      proposedEmailBody: message,
+      metadata: {
+        promoCode: config.promoCode,
+        orderId: context.state.resolvedOrderId,
+        ineligibilityKind: eligibility.kind,
+        ineligibilityReason: eligibility.reason,
+        ineligibleLineItems: ineligibleLineItems.map((li) => ({
+          name: li.name,
+          productId: li.productId,
+        })),
+      },
+    },
+    async (humanResponse) => {
+      const finalMessage = humanResponse?.modifiedData?.message ?? message;
+      await sendCustomerNotificationViaThread(
+        context.email.userId,
+        inboundEmail,
+        context.email.subject ?? '',
+        finalMessage,
+        context.email.threadId,
+      );
+      return { sent: true };
+    },
+    context,
+  );
+
+  const sendFailure = buildPromoCodeFailureResult(context.state, sendResult);
+  if (sendFailure) return { ...sendFailure, responseSent: false, refundProcessed: false };
+
+  log.info('Product-not-eligible reply sent successfully', {
+    promoCode: config.promoCode,
+    orderId: context.state.resolvedOrderId,
+    ineligibleItemCount: ineligibleLineItems.length,
   });
 
   return { success: true, state: context.state, responseSent: true, refundProcessed: false };

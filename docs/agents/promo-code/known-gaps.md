@@ -1,7 +1,7 @@
 # Promo Code Agent — Known Gaps & Future Hardening
 
 Tracks anti-abuse and correctness gaps that are NOT yet implemented but should be tackled
-in subsequent iterations. The five critical guards are enforced in
+in subsequent iterations. The six critical guards are enforced in
 `pcCheckRefundEligibility` (see `promo-code.activities.ts`):
 
 1. ✅ **Order status whitelist** — only `completed`, `processing`, `on-hold` are eligible.
@@ -11,6 +11,17 @@ in subsequent iterations. The five critical guards are enforced in
    (parent / renewal / resubscribe / switch) AND the promo's `appliesToSubscriptions=false`.
 5. ✅ **Order date within validity window** — refused if `order.date_created_gmt` is
    outside `[validFrom, validUntil]`.
+6. ✅ **WooCommerce product restrictions** — fetches the live coupon and classifies
+   each line item against `product_ids` / `excluded_product_ids`:
+   - All eligible → proceed with full discount.
+   - None eligible → SOFT REFUSAL (`product_not_eligible`); polite reply naming the
+     items the customer ordered, no refund.
+   - Mixed → ESCALATES with `PROMO_CODE_PARTIAL_REFUND_REQUIRES_REVIEW`. Per merchant
+     policy the agent never auto-issues partial refunds; a human reviewer decides.
+   - **Note:** category-based restrictions (`product_categories`,
+     `excluded_product_categories`) are NOT yet enforced — they require an extra
+     `GET /products/{id}` per line item and remain in the unsupported list, keeping
+     such coupons inactive on import. Tracked as a follow-up.
 
 For first-time-only promos, an additional check runs in step 6 of the resolution
 sub-workflow: `pcAssessFirstTimeCustomer` looks up prior orders by the **order's
@@ -91,6 +102,10 @@ place. Implemented soft refusals so far:
 - ✅ `already_refunded` — customer asked us (often a second time) for a refund on an
   order that already has an agent-issued promo refund. The reply confirms the prior
   refund and amount. Sent via `pcGenerateAlreadyRefundedMessage`.
+- ✅ `product_not_eligible` — the order's items don't qualify under the coupon's
+  WooCommerce product restrictions. The reply names the customer's items and explains
+  the mismatch. Sent via `pcGenerateProductNotEligibleMessage`. Mixed orders (some
+  eligible, some not) deliberately escalate instead of soft-refusing — see Guard 6.
 
 Each ineligibility case carries a `kind` discriminator on `PromoCodeRefundEligibility`.
 Soft kinds are listed in `SOFT_REFUSAL_KINDS` (in `promo-code.constants.ts`); the

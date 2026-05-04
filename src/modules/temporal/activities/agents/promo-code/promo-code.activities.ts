@@ -71,7 +71,28 @@ export type PromoCodeRefundIneligibilityKind =
   | 'below_minimum'
   | 'zero_amount'
   | 'order_not_found'
+  // The order contains zero line items eligible under the coupon's product
+  // restrictions. Treated as a SOFT REFUSAL — the agent sends a polite reply
+  // explaining that the promo doesn't apply to anything in this order.
+  | 'product_not_eligible'
+  // The order contains a mix of eligible and ineligible items under the coupon's
+  // product restrictions. Treated as a HARD REFUSAL — the merchant's policy is to
+  // never auto-issue partial refunds; a human reviewer in the AI Team Center
+  // decides whether/how to refund.
+  | 'partial_refund_required'
   | 'other';
+
+/**
+ * Snapshot of which line items would have qualified under the coupon's product
+ * restrictions, populated by Guard 6 in pcCheckRefundEligibility. Carried on the
+ * eligibility result so the soft-refusal handler can name the ineligible items
+ * in the customer reply, and so the AI Team Center can show the human reviewer
+ * the breakdown when escalating mixed orders.
+ */
+export interface PromoCodeProductRestrictionBreakdown {
+  eligibleLineItems: Array<{ name: string; productId: number }>;
+  ineligibleLineItems: Array<{ name: string; productId: number }>;
+}
 
 export interface PromoCodeRefundEligibility {
   eligible: boolean;
@@ -87,6 +108,12 @@ export interface PromoCodeRefundEligibility {
   orderTotal: string;
   orderSubtotal: string;
   promoCode: string;
+  /**
+   * Populated only when the matched coupon has product_ids / excluded_product_ids
+   * set in WooCommerce. Drives the customer reply for the `product_not_eligible`
+   * soft refusal and the escalation context for `partial_refund_required`.
+   */
+  productRestriction?: PromoCodeProductRestrictionBreakdown;
 }
 
 export interface PromoCodeAgentSettings {
@@ -497,6 +524,74 @@ Return JSON ONLY:
       );
     }
 
+    // Guard 6: WooCommerce coupon product restrictions. We fetch the live coupon
+    // here (rather than relying on a snapshot on the DD row) so any merchant edits
+    // made in WP admin since the last sync are reflected at decision time.
+    //
+    // Three outcomes drive the rest of the workflow:
+    //   - all_eligible / no_restrictions: continue with the full order subtotal.
+    //   - none_eligible: SOFT REFUSAL — agent sends a polite reply explaining the
+    //     promo doesn't apply to any items in this order.
+    //   - mixed: HARD REFUSAL (escalates) — per merchant policy the agent never
+    //     auto-issues partial refunds; a human reviewer in the AI Team Center
+    //     decides what to do with the partial-eligibility scenario.
+    //
+    // If the live coupon fetch fails (transient WC error, deleted coupon), we log
+    // a warning and proceed without restriction enforcement. This is the same
+    // lenient stance other guards take for transient failures: surfacing a 5xx
+    // to the customer feels worse than refunding a coupon whose restrictions we
+    // briefly couldn't read.
+    let wcCoupon: any = null;
+    if (config.wooCommerceCouponId) {
+      try {
+        wcCoupon = await this.wooCommerceRestApiService.getCouponById(
+          userId,
+          config.wooCommerceCouponId,
+        );
+      } catch (error) {
+        this.logger.warn(
+          `Could not fetch WooCommerce coupon ${config.wooCommerceCouponId} for product-restriction check on order #${orderId}: ${(error as Error).message}; proceeding without restriction enforcement`,
+        );
+      }
+    }
+    const productEligibility = this.computeProductRestrictionEligibility(wcCoupon, order);
+
+    if (productEligibility.status === 'none_eligible') {
+      return this.refundIneligible(
+        config.promoCode,
+        `Promo code "${config.promoCode}" does not apply to any items in order #${orderId}`,
+        'product_not_eligible',
+        '0',
+        orderTotal.toFixed(2),
+        subtotal.toFixed(2),
+        alreadyRefunded.toFixed(2),
+        {
+          productRestriction: {
+            eligibleLineItems: [],
+            ineligibleLineItems: productEligibility.ineligibleLineItems,
+          },
+        },
+      );
+    }
+
+    if (productEligibility.status === 'mixed') {
+      return this.refundIneligible(
+        config.promoCode,
+        `Order #${orderId} contains a mix of items eligible (${productEligibility.eligibleLineItems.map((li) => li.name).join(', ')}) and ineligible (${productEligibility.ineligibleLineItems.map((li) => li.name).join(', ')}) under promo code "${config.promoCode}"; per merchant policy the agent escalates partial refunds for human review`,
+        'partial_refund_required',
+        '0',
+        orderTotal.toFixed(2),
+        subtotal.toFixed(2),
+        alreadyRefunded.toFixed(2),
+        {
+          productRestriction: {
+            eligibleLineItems: productEligibility.eligibleLineItems,
+            ineligibleLineItems: productEligibility.ineligibleLineItems,
+          },
+        },
+      );
+    }
+
     const minimumOrderValue = config.minimumOrderValue ? parseFloat(config.minimumOrderValue) : 0;
     if (minimumOrderValue > 0 && subtotal < minimumOrderValue) {
       return this.refundIneligible(
@@ -818,6 +913,55 @@ ${voiceContext}
   }
 
   /**
+   * Generates a customer-facing reply for the soft-refusal "product_not_eligible"
+   * case: the customer asked us to apply a promo code, but the order contains zero
+   * line items that match the coupon's product restrictions. The reply names the
+   * customer's actual items so they understand why the discount can't apply, and
+   * leaves the door open to check a different order.
+   */
+  @ActivityMethod({ name: 'pcGenerateProductNotEligibleMessage' })
+  async pcGenerateProductNotEligibleMessage(input: {
+    customerName: string;
+    promoCode: string;
+    orderNumber: string;
+    ineligibleLineItems: Array<{ name: string; productId: number }>;
+    aiIdentity?: any;
+  }): Promise<string> {
+    const { customerName, promoCode, orderNumber, ineligibleLineItems, aiIdentity } = input;
+    const voiceContext = this.messageFormattingHelper.buildVoiceAndSettingsContext(aiIdentity);
+
+    const itemsList =
+      ineligibleLineItems.length > 0
+        ? ineligibleLineItems.map((item) => item.name).join(', ')
+        : 'the items in your order';
+
+    const prompt = `
+A customer asked us to apply promo code ${promoCode} to order #${orderNumber}, but ${promoCode} is configured (in WooCommerce) to apply only to specific products, and none of the items in this order qualify. The items in their order were: ${itemsList}.
+
+Write a short, plain-spoken reply that:
+1. In the FIRST sentence, say ${promoCode} doesn't apply to the items in order #${orderNumber}, and name what they ordered (use the items list above; keep it brief — if there are more than three, say "the items you ordered").
+2. Briefly mention the code is for a different selection of products. Do NOT speculate about WHICH products it covers (you don't have that list); just acknowledge the mismatch.
+3. Optionally invite them to reply if they have another order in mind, or to keep an eye out for promotions that match the items they want.
+4. Maximum 70 tokens. Aim shorter rather than longer.
+5. No salutation, no signature, no customer name (the formatter adds those).
+
+Style rules — DO NOT VIOLATE:
+- Sound like a real person delivering an honest answer, not apologizing or reading a script.
+- Use contractions naturally.
+- BANNED phrases: "we apologize", "unfortunately", "we're sorry for any inconvenience", "thank you for your patience", "thank you for your understanding", "please don't hesitate".
+- Don't be defensive or condescending. The customer just picked the wrong promo for their order — make it easy.
+${voiceContext}
+`.trim();
+
+    return this.runAiAndFormat(
+      prompt,
+      customerName,
+      aiIdentity,
+      'product-not-eligible promo notice',
+    );
+  }
+
+  /**
    * Generates a customer-facing reply for the soft-refusal subscription case: the
    * customer asked us to apply a promo code on a subscription order, but the
    * promo's `appliesToSubscriptions=false` setting excludes them. Instead of
@@ -993,6 +1137,7 @@ ${voiceContext}
     orderTotal: string,
     orderSubtotal: string,
     alreadyRefundedAmount: string = '0',
+    extras: Partial<PromoCodeRefundEligibility> = {},
   ): PromoCodeRefundEligibility {
     return {
       eligible: false,
@@ -1004,6 +1149,69 @@ ${voiceContext}
       orderTotal,
       orderSubtotal,
       promoCode,
+      ...extras,
     };
+  }
+
+  /**
+   * Compares a WooCommerce coupon's product restrictions against an order's line
+   * items. Returns a four-way classification:
+   *   - 'no_restrictions': coupon has no product_ids / excluded_product_ids set
+   *   - 'all_eligible': every line item passes both the whitelist and blacklist
+   *   - 'none_eligible': zero line items pass (soft refusal in the workflow)
+   *   - 'mixed': some pass, some don't (escalation in the workflow per merchant policy)
+   *
+   * Operates on `product_id` (numeric WC id) — SKUs are display-only. Categories are
+   * intentionally NOT checked here; that's a separate follow-up because category
+   * resolution requires extra GET /products/{id} calls per line item.
+   */
+  private computeProductRestrictionEligibility(
+    wcCoupon: any,
+    order: WooCommerceOrderLite,
+  ): {
+    status: 'no_restrictions' | 'all_eligible' | 'none_eligible' | 'mixed';
+    eligibleLineItems: Array<{ name: string; productId: number }>;
+    ineligibleLineItems: Array<{ name: string; productId: number }>;
+  } {
+    if (!wcCoupon) {
+      return { status: 'no_restrictions', eligibleLineItems: [], ineligibleLineItems: [] };
+    }
+
+    const productIds: number[] = Array.isArray(wcCoupon.product_ids) ? wcCoupon.product_ids : [];
+    const excludedProductIds: number[] = Array.isArray(wcCoupon.excluded_product_ids)
+      ? wcCoupon.excluded_product_ids
+      : [];
+
+    if (productIds.length === 0 && excludedProductIds.length === 0) {
+      return { status: 'no_restrictions', eligibleLineItems: [], ineligibleLineItems: [] };
+    }
+
+    const lineItems = Array.isArray((order as any).line_items) ? (order as any).line_items : [];
+    const eligible: Array<{ name: string; productId: number }> = [];
+    const ineligible: Array<{ name: string; productId: number }> = [];
+
+    for (const item of lineItems) {
+      const productId = typeof item?.product_id === 'number' ? item.product_id : null;
+      if (productId === null) continue;
+
+      const passesWhitelist = productIds.length === 0 || productIds.includes(productId);
+      const passesBlacklist = !excludedProductIds.includes(productId);
+      const isEligible = passesWhitelist && passesBlacklist;
+
+      const entry = {
+        name: typeof item.name === 'string' ? item.name : `Product #${productId}`,
+        productId,
+      };
+      (isEligible ? eligible : ineligible).push(entry);
+    }
+
+    if (eligible.length === 0 && ineligible.length === 0) {
+      // Coupon has restrictions but the order had no line items with numeric
+      // product ids (corrupt order data). Treat as none_eligible to be safe.
+      return { status: 'none_eligible', eligibleLineItems: [], ineligibleLineItems: [] };
+    }
+    if (eligible.length === 0) return { status: 'none_eligible', eligibleLineItems: [], ineligibleLineItems: ineligible };
+    if (ineligible.length === 0) return { status: 'all_eligible', eligibleLineItems: eligible, ineligibleLineItems: [] };
+    return { status: 'mixed', eligibleLineItems: eligible, ineligibleLineItems: ineligible };
   }
 }

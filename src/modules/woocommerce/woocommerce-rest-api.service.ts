@@ -209,6 +209,22 @@ export class WooCommerceRestApiService {
     return { pagesFetched, couponsSeen };
   }
 
+  /**
+   * Fetches a single coupon by its WooCommerce id. Used by the Promo Code Agent's
+   * eligibility check to read the live `product_ids` / `excluded_product_ids` set
+   * at refund time — that way the agent reflects any merchant edits made in WP
+   * admin since the coupon was last synced into Delight Desk.
+   */
+  async getCouponById(userId: string, couponId: number) {
+    try {
+      const api = await this.initWooCommerceClient(userId);
+      const response = await api.get(`coupons/${couponId}`);
+      return response.data;
+    } catch (error) {
+      throw new InternalServerErrorException(error.response?.data || error.message);
+    }
+  }
+
   async findCouponByCode(userId: string, code: string) {
     const coupons = await this.listCoupons(userId, { code, perPage: 1 });
     const match = coupons?.[0];

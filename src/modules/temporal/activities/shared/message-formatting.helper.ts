@@ -10,63 +10,58 @@ import { Injectable } from '@nestjs/common';
 @Injectable()
 export class MessageFormattingHelper {
   /**
-   * Build voice & settings instructions for AI prompts
-   * This is deterministic - same input always produces same output
+   * Build voice & settings instructions for AI prompts. Deterministic — same input
+   * always produces the same output, so this is safe to call from inside Temporal
+   * activities.
+   *
+   * Brand voice presets steer phrasing rather than content. Each preset spells out
+   * concrete vocabulary, sentence shape, and example openers because the model
+   * otherwise reverts to a generic "polite customer service rep" voice and the
+   * three options end up sounding identical. Examples are kept short so they shape
+   * tone without bleeding into the actual reply.
    */
   buildVoiceAndSettingsContext(aiIdentity?: any): string {
     if (!aiIdentity) return '';
 
     const parts: string[] = [];
 
-    // Brand Voice
+    // ---- Brand Voice ----
     if (aiIdentity.brandVoice) {
       let voiceInstruction = '';
       switch (aiIdentity.brandVoice) {
         case 'friendly':
           voiceInstruction =
-            'Use a warm, approachable, and conversational tone. Be personable and relatable while maintaining professionalism.';
+            'Brand voice: FRIENDLY. Write in first person ("I"), like a real person doing the customer a small favor. Use natural contractions ("I\'ve", "you\'ll", "that\'s"). Open with phrases like "I\'ve gone ahead and...", "I\'ve taken care of...", "I\'ve got you covered". Keep it warm, casual, and unfussy. Avoid corporate phrasing like "we have processed", "kindly note", "please be advised". Avoid sales language and avoid being effusive.';
           break;
         case 'professional':
           voiceInstruction =
-            'Use a polished, business-appropriate tone. Be clear, concise, and respectful while maintaining warmth.';
+            'Brand voice: PROFESSIONAL. Write in a polished, neutral, business-appropriate voice. Prefer "we" and the passive structure for actions taken on the customer\'s behalf — e.g., "Your refund has been issued", "We\'ve applied the code to your order", "The promotion has been honored". Be clear, concise, and respectful. Do NOT use casual filler ("no worries", "super easy", "happy to help"), do NOT use overly warm first-person phrasing ("I\'ve got you covered"), and do NOT be effusive or apologetic.';
           break;
         case 'sophisticated':
           voiceInstruction =
-            'Use an elevated, refined tone. Be articulate and well-composed while remaining accessible and helpful.';
-          break;
-        case 'custom':
-          if (aiIdentity.customBrandVoice) {
-            voiceInstruction = `Brand Voice: ${aiIdentity.customBrandVoice}`;
-          }
+            'Brand voice: SOPHISTICATED. Write in an elevated, refined voice without being stiff or pretentious. Use precise word choices and measured phrasing — like a thoughtful concierge at a premium brand. Acceptable openers: "I\'ve applied your discount and processed the corresponding adjustment", "We\'ve taken care of the refund on your behalf". Use full sentences; avoid casual contractions in formal positions; avoid both overly basic phrasing ("got it", "all set") and corporate boilerplate ("kindly note", "please be advised"). Keep it composed, never breezy.';
           break;
       }
       if (voiceInstruction) parts.push(voiceInstruction);
     }
 
-    // Industry-specific guidance
-    if (aiIdentity.industrySpecificGuidance && aiIdentity.businessType) {
-      parts.push(
-        `Apply ${aiIdentity.businessType} industry best practices and terminology in your response.`,
-      );
-    }
-
-    // Thank loyal customers
+    // ---- Thank loyal customers ----
     if (aiIdentity.thankLoyalCustomers) {
       parts.push(
-        'If this appears to be a repeat customer or loyal customer, acknowledge and thank them for their continued business.',
+        'If this appears to be a repeat or loyal customer, acknowledge and thank them for their continued business — keep the acknowledgement to one short clause that fits the brand voice above.',
       );
     }
 
-    // Emoji policy
+    // ---- Emoji policy ----
     if (aiIdentity.allowEmojiInResponses) {
       parts.push('You may use appropriate emojis sparingly to add warmth and personality.');
     } else {
       parts.push('Do not use emojis in your response.');
     }
 
-    // Custom instructions
+    // ---- Custom instructions (free-form merchant override) ----
     if (aiIdentity.customInstructions) {
-      parts.push(`Additional Guidelines: ${aiIdentity.customInstructions}`);
+      parts.push(`Additional merchant guidelines (apply on top of the brand voice above): ${aiIdentity.customInstructions}`);
     }
 
     return parts.length > 0 ? `\n\n**Voice & Behavior Guidelines:**\n${parts.join('\n')}` : '';

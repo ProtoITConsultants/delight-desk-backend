@@ -407,6 +407,20 @@
       "when": 1777645759745,
       "tag": "0057_public_retro_girl",
       "breakpoints": true
+    },
+    {
+      "idx": 58,
+      "version": "7",
+      "when": 1777898057629,
+      "tag": "0058_good_susan_delgado",
+      "breakpoints": true
+    },
+    {
+      "idx": 59,
+      "version": "7",
+      "when": 1777898377074,
+      "tag": "0059_loose_raider",
+      "breakpoints": true
     }
   ]
 }

@@ -11,9 +11,9 @@ export const aiIdentity = pgTable('ai_identity', {
     .unique()
     .references(() => users.id, { onDelete: 'cascade' }),
 
-  // AI Agent Identity Fields
+  // AI Agent Identity Fields. The previous `businessType` column was removed once
+  // the only feature reading it (`industrySpecificGuidance`) was retired.
   aiAgentName: text('ai_agent_name'), // e.g., "Sarah", "Alex"
-  businessType: text('business_type'), // e.g., "E-commerce", "SaaS"
   aiAgentTitle: text('ai_agent_title'), // e.g., "Customer Support Specialist"
   emailSalutation: text('email_salutation').default('Hi'), // e.g., "Hi", "Hello", "Dear"
 
@@ -21,10 +21,12 @@ export const aiIdentity = pgTable('ai_identity', {
   companyNameForEmailSignature: text('company_name_for_email_signature'), // e.g., "Acme Corp"
   signatureFooter: text('signature_footer'), // Custom footer text
 
-  // Voice & Settings Fields
-  brandVoice: text('brand_voice').default('professional'), // 'friendly' | 'professional' | 'sophisticated' | 'custom'
-  customBrandVoice: text('custom_brand_voice'), // Custom brand voice description (used when brandVoice = 'custom')
-  industrySpecificGuidance: boolean('industry_specific_guidance').default(false).notNull(),
+  // Voice & Settings Fields. brandVoice is one of three preset values which the
+  // message formatter uses to steer reply phrasing. The previous `customBrandVoice`
+  // (free-text override for brandVoice='custom') and `industrySpecificGuidance`
+  // (boolean toggle that injected business-type best practices) columns were removed
+  // to keep the option set small and the AI's behavior predictable.
+  brandVoice: text('brand_voice').default('professional'), // 'friendly' | 'professional' | 'sophisticated'
   thankLoyalCustomers: boolean('thank_loyal_customers').default(false).notNull(),
   allowEmojiInResponses: boolean('allow_emoji_in_responses').default(false).notNull(),
   customInstructions: text('custom_instructions'), // Custom AI guidelines

@@ -70,30 +70,31 @@ export class AddressChangeActivities {
 Generate a customer acknowledgement email for an address-change request that requires warehouse confirmation.
 
 Order Number: ${orderNumber}
-${aiIdentity?.aiAgentName ? `AI Agent Name: ${aiIdentity.aiAgentName}` : ''}
-${aiIdentity?.aiAgentTitle ? `AI Agent Title: ${aiIdentity.aiAgentTitle}` : ''}
 
 Write a response that:
 1. Confirms we received the address-change request for order #${orderNumber}
 2. Clearly states we are coordinating with the warehouse team before applying the update
 3. Sets expectation that we will share a final update as soon as warehouse confirms
-4. Uses a calm and reassuring tone
-5. Keeps it under 100 tokens
-6. Do not include a salutation (like "Hi" or "Hello") at the beginning - a personalised greeting is added automatically
-7. Do not address or refer to the customer by name anywhere in the body - the greeting already handles personalisation
-8. Do not include a signature or sign-off at the end
+4. Keeps it under 100 tokens
+5. Do not include a salutation (like "Hi" or "Hello") at the beginning - a personalised greeting is added automatically
+6. Do not address or refer to the customer by name anywhere in the body - the greeting already handles personalisation
+7. Do not include a signature or sign-off at the end
 ${voiceContext}
     `;
 
     const messages = [
       {
         role: 'system',
-        content: `You are ${aiIdentity?.aiAgentName || 'a helpful customer service agent'}${aiIdentity?.aiAgentTitle ? `, ${aiIdentity.aiAgentTitle},` : ''} sending an acknowledgement while warehouse confirmation is pending for address change.`,
+        content:
+          `You are ${aiIdentity?.aiAgentName || 'a customer service rep'}${aiIdentity?.aiAgentTitle ? `, ${aiIdentity.aiAgentTitle},` : ''} writing an address-change acknowledgement. ` +
+          'Your replies are short, plain-spoken, and conversational — like a quick note from a real person, not a corporate template. ' +
+          'Get to the point in the first sentence. Use contractions. Skip apology theatrics, gratitude rituals, and FAQ-style boilerplate. ' +
+          'Brand voice and merchant overrides may layer on top of this baseline, but the baseline is always: brief, natural, helpful.',
       },
       { role: 'user', content: prompt },
     ];
 
-    const response = await this.agentsService['openaiService'].createChatCompletion(messages, 0.6);
+    const response = await this.agentsService['openaiService'].createChatCompletion(messages, 0.4);
     const rawContent = response.choices[0].message.content || '';
     const messageContent = this.messageFormattingHelper.stripMarkdownLinks(rawContent);
 
@@ -355,30 +356,31 @@ Generate a customer confirmation email for a completed shipping address update.
 
 Order Number: ${orderNumber}
 New Shipping Address: ${formattedAddress}
-${aiIdentity?.aiAgentName ? `AI Agent Name: ${aiIdentity.aiAgentName}` : ''}
-${aiIdentity?.aiAgentTitle ? `AI Agent Title: ${aiIdentity.aiAgentTitle}` : ''}
 
 Write a response that:
 1. Confirms the shipping address update for order #${orderNumber}
 2. Clearly states the new address we updated to
-3. Encourages customer to reply immediately if any detail is wrong
-4. Keeps tone warm and professional
-5. Keeps it under 120 tokens
-6. Do not include a salutation (like "Hi" or "Hello") at the beginning - a personalised greeting is added automatically
-7. Do not address or refer to the customer by name anywhere in the body - the greeting already handles personalisation
-8. Do not include a signature or sign-off at the end
+3. Encourages the customer to reply immediately if any detail is wrong
+4. Keeps it under 120 tokens
+5. Do not include a salutation (like "Hi" or "Hello") at the beginning - a personalised greeting is added automatically
+6. Do not address or refer to the customer by name anywhere in the body - the greeting already handles personalisation
+7. Do not include a signature or sign-off at the end
 ${voiceContext}
     `;
 
     const messages = [
       {
         role: 'system',
-        content: `You are ${aiIdentity?.aiAgentName || 'a helpful customer service agent'}${aiIdentity?.aiAgentTitle ? `, ${aiIdentity.aiAgentTitle},` : ''} sending an address-change confirmation.`,
+        content:
+          `You are ${aiIdentity?.aiAgentName || 'a customer service rep'}${aiIdentity?.aiAgentTitle ? `, ${aiIdentity.aiAgentTitle},` : ''} writing an address-change confirmation. ` +
+          'Your replies are short, plain-spoken, and conversational — like a quick note from a real person, not a corporate template. ' +
+          'Get to the point in the first sentence. Use contractions. Skip apology theatrics, gratitude rituals, and FAQ-style boilerplate. ' +
+          'Brand voice and merchant overrides may layer on top of this baseline, but the baseline is always: brief, natural, helpful.',
       },
       { role: 'user', content: prompt },
     ];
 
-    const response = await this.agentsService['openaiService'].createChatCompletion(messages, 0.6);
+    const response = await this.agentsService['openaiService'].createChatCompletion(messages, 0.4);
     const rawContent = response.choices[0].message.content || '';
     const messageContent = this.messageFormattingHelper.stripMarkdownLinks(rawContent);
 
@@ -402,30 +404,31 @@ Generate a response for an address-change request that cannot be completed autom
 
 Order Number: ${orderNumber}
 Reason: ${reason}
-${aiIdentity?.aiAgentName ? `AI Agent Name: ${aiIdentity.aiAgentName}` : ''}
-${aiIdentity?.aiAgentTitle ? `AI Agent Title: ${aiIdentity.aiAgentTitle}` : ''}
 
 Write a response that:
 1. Acknowledges the address change request
 2. Clearly explains why it cannot be completed automatically
 3. States that support will continue this manually
-4. Keeps it empathetic and concise
-5. Keeps it under 110 tokens
-6. Do not include a salutation (like "Hi" or "Hello") at the beginning - a personalised greeting is added automatically
-7. Do not address or refer to the customer by name anywhere in the body - the greeting already handles personalisation
-8. Do not include a signature or sign-off at the end
+4. Keeps it under 110 tokens
+5. Do not include a salutation (like "Hi" or "Hello") at the beginning - a personalised greeting is added automatically
+6. Do not address or refer to the customer by name anywhere in the body - the greeting already handles personalisation
+7. Do not include a signature or sign-off at the end
 ${voiceContext}
     `;
 
     const messages = [
       {
         role: 'system',
-        content: `You are ${aiIdentity?.aiAgentName || 'a helpful customer service agent'}${aiIdentity?.aiAgentTitle ? `, ${aiIdentity.aiAgentTitle},` : ''} responding to an address-change limitation.`,
+        content:
+          `You are ${aiIdentity?.aiAgentName || 'a customer service rep'}${aiIdentity?.aiAgentTitle ? `, ${aiIdentity.aiAgentTitle},` : ''} writing an address-change limitation response. ` +
+          'Your replies are short, plain-spoken, and conversational — like a quick note from a real person, not a corporate template. ' +
+          'Get to the point in the first sentence. Use contractions. Skip apology theatrics, gratitude rituals, and FAQ-style boilerplate. ' +
+          'Brand voice and merchant overrides may layer on top of this baseline, but the baseline is always: brief, natural, helpful.',
       },
       { role: 'user', content: prompt },
     ];
 
-    const response = await this.agentsService['openaiService'].createChatCompletion(messages, 0.6);
+    const response = await this.agentsService['openaiService'].createChatCompletion(messages, 0.4);
     const rawContent = response.choices[0].message.content || '';
     const messageContent = this.messageFormattingHelper.stripMarkdownLinks(rawContent);
 

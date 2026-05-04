@@ -21,46 +21,43 @@ export class CustomerMessageActivities {
     const voiceContext = this.messageFormattingHelper.buildVoiceAndSettingsContext(aiIdentity);
 
     const prompt = `
-      Generate a brief, friendly acknowledgement email for a customer who inquired about their order status.
+Generate a brief acknowledgement email for a customer who inquired about their order status.
 
-      Order Number: ${orderNumber}
-      Customer's Question: ${customerQuery}
-      ${aiIdentity?.aiAgentName ? `AI Agent Name: ${aiIdentity.aiAgentName}` : ''}
-      ${aiIdentity?.aiAgentTitle ? `AI Agent Title: ${aiIdentity.aiAgentTitle}` : ''}
+Order Number: ${orderNumber}
+Customer's Question: ${customerQuery}
 
-      Write a warm acknowledgement that:
-      1. Confirms we received their inquiry about order #${orderNumber}
-      2. Lets them know we're looking into it and will provide an update soon
-      3. Sets a positive, reassuring tone
-      4. Keeps it under 80 tokens
-      5. Do not include a salutation (like "Hi" or "Hello") at the beginning — a personalised greeting is added automatically
-      6. Do not address or refer to the customer by name anywhere in the body — the greeting already handles personalisation
-      7. Do not include a signature or sign-off at the end
+Write an acknowledgement that:
+1. Confirms we received their inquiry about order #${orderNumber}
+2. Lets them know we're looking into it and will provide an update soon
+3. Keeps it under 80 tokens
+4. Do not include a salutation (like "Hi" or "Hello") at the beginning — a personalised greeting is added automatically
+5. Do not address or refer to the customer by name anywhere in the body — the greeting already handles personalisation
+6. Do not include a signature or sign-off at the end
 ${voiceContext}
 
-      Important: This is just an acknowledgement, not the final response. Keep it brief and reassuring.
+Important: This is just an acknowledgement, not the final response. Keep it brief and direct.
     `;
 
     const messages = [
       {
         role: 'system',
-        content: `You are ${aiIdentity?.aiAgentName || 'a helpful customer service agent'}${aiIdentity?.aiAgentTitle ? `, ${aiIdentity.aiAgentTitle},` : ''} acknowledging customer inquiries.`,
+        content:
+          `You are ${aiIdentity?.aiAgentName || 'a customer service rep'}${aiIdentity?.aiAgentTitle ? `, ${aiIdentity.aiAgentTitle},` : ''} writing a quick order inquiry acknowledgement. ` +
+          'Your replies are short, plain-spoken, and conversational — like a quick note from a real person, not a corporate template. ' +
+          'Get to the point in the first sentence. Use contractions. Skip apology theatrics, gratitude rituals, and FAQ-style boilerplate. ' +
+          'Brand voice and merchant overrides may layer on top of this baseline, but the baseline is always: brief, natural, helpful.',
       },
       {
         role: 'user',
         content: prompt,
       },
     ];
-    const temperature = 0.7;
 
-    const response = await this.agentsService['openaiService'].createChatCompletion(
-      messages,
-      temperature,
-    );
+    const response = await this.agentsService['openaiService'].createChatCompletion(messages, 0.4);
 
-    const messageContent = response.choices[0].message.content || '';
+    const rawContent = response.choices[0].message.content || '';
+    const messageContent = this.messageFormattingHelper.stripMarkdownLinks(rawContent);
 
-    // Format the message with AI identity
     return this.messageFormattingHelper.formatMessageWithAiIdentity(
       messageContent,
       customerName,
@@ -77,50 +74,45 @@ ${voiceContext}
     const voiceContext = this.messageFormattingHelper.buildVoiceAndSettingsContext(aiIdentity);
 
     const prompt = `
-      Generate a polite, helpful email asking a customer to provide their order information.
+Generate an email asking a customer to provide their order information so we can help them.
 
-      Customer's Original Question: ${customerQuery}
-      ${aiIdentity?.aiAgentName ? `AI Agent Name: ${aiIdentity.aiAgentName}` : ''}
-      ${aiIdentity?.aiAgentTitle ? `AI Agent Title: ${aiIdentity.aiAgentTitle}` : ''}
+Customer's Original Question: ${customerQuery}
 
-      Context: We couldn't find their order number in their email or match their email to recent orders.
+Context: We couldn't find their order number in their email or match their email to recent orders.
 
-      Write a friendly email that:
-      1. Explains we'd love to help but need a bit more information
-      2. Politely asks them to provide either:
-         - Their order number (e.g., #12345)
-         - OR the email address they used when placing the order
-      3. Reassures them we'll help as soon as they provide this info
-      4. Uses a warm, apologetic tone (we want to help!)
-      5. Keeps it under 100 tokens
-      6. Do not include a salutation (like "Hi" or "Hello") at the beginning — a personalised greeting is added automatically
-      7. Do not address or refer to the customer by name anywhere in the body — the greeting already handles personalisation
-      8. Do not include a signature or sign-off at the end
+Write an email that:
+1. Explains we'd love to help but need a bit more information
+2. Asks them to provide either:
+   - Their order number (e.g., #12345)
+   - OR the email address they used when placing the order
+3. Reassures them we'll help as soon as they provide this info
+4. Keeps it under 100 tokens
+5. Do not include a salutation (like "Hi" or "Hello") at the beginning — a personalised greeting is added automatically
+6. Do not address or refer to the customer by name anywhere in the body — the greeting already handles personalisation
+7. Do not include a signature or sign-off at the end
 ${voiceContext}
-
-      Important: Be apologetic for the inconvenience but keep it positive and solution-focused.
     `;
 
     const messages = [
       {
         role: 'system',
-        content: `You are ${aiIdentity?.aiAgentName || 'a helpful customer service agent'}${aiIdentity?.aiAgentTitle ? `, ${aiIdentity.aiAgentTitle},` : ''} requesting order information.`,
+        content:
+          `You are ${aiIdentity?.aiAgentName || 'a customer service rep'}${aiIdentity?.aiAgentTitle ? `, ${aiIdentity.aiAgentTitle},` : ''} writing a request for order details. ` +
+          'Your replies are short, plain-spoken, and conversational — like a quick note from a real person, not a corporate template. ' +
+          'Get to the point in the first sentence. Use contractions. Skip apology theatrics, gratitude rituals, and FAQ-style boilerplate. ' +
+          'Brand voice and merchant overrides may layer on top of this baseline, but the baseline is always: brief, natural, helpful.',
       },
       {
         role: 'user',
         content: prompt,
       },
     ];
-    const temperature = 0.7;
 
-    const response = await this.agentsService['openaiService'].createChatCompletion(
-      messages,
-      temperature,
-    );
+    const response = await this.agentsService['openaiService'].createChatCompletion(messages, 0.4);
 
-    const messageContent = response.choices[0].message.content || '';
+    const rawContent = response.choices[0].message.content || '';
+    const messageContent = this.messageFormattingHelper.stripMarkdownLinks(rawContent);
 
-    // Format the message with AI identity
     return this.messageFormattingHelper.formatMessageWithAiIdentity(
       messageContent,
       customerName,
@@ -173,19 +165,19 @@ ${voiceContext}
     const messages = [
       {
         role: 'system',
-        content: `You are ${aiIdentity?.aiAgentName || 'a helpful customer service agent'}${aiIdentity?.aiAgentTitle ? `, ${aiIdentity.aiAgentTitle},` : ''} providing order status updates.`,
+        content:
+          `You are ${aiIdentity?.aiAgentName || 'a customer service rep'}${aiIdentity?.aiAgentTitle ? `, ${aiIdentity.aiAgentTitle},` : ''} writing an order status update. ` +
+          'Your replies are clear, plain-spoken, and conversational — like a quick note from a real person, not a corporate template. ' +
+          'Lead with the most important status detail. Use contractions. Skip apology theatrics, gratitude rituals, and FAQ-style boilerplate. ' +
+          'Brand voice and merchant overrides may layer on top of this baseline, but the baseline is always: clear, natural, helpful.',
       },
       {
         role: 'user',
         content: prompt,
       },
     ];
-    const temperature = 0.7;
 
-    const response = await this.agentsService['openaiService'].createChatCompletion(
-      messages,
-      temperature,
-    );
+    const response = await this.agentsService['openaiService'].createChatCompletion(messages, 0.5);
 
     const rawContent = response.choices[0].message.content || '';
     const messageContent = this.messageFormattingHelper.stripMarkdownLinks(rawContent);
@@ -208,41 +200,42 @@ ${voiceContext}
     const voiceContext = this.messageFormattingHelper.buildVoiceAndSettingsContext(aiIdentity);
 
     const prompt = `
-      Generate a clear and empathetic customer response for an order cancellation request that cannot proceed automatically.
+Generate a customer response for an order cancellation request that cannot proceed automatically.
 
-      Order Number: ${orderNumber}
-      Current Order Status: ${orderStatus}
-      ${aiIdentity?.aiAgentName ? `AI Agent Name: ${aiIdentity.aiAgentName}` : ''}
-      ${aiIdentity?.aiAgentTitle ? `AI Agent Title: ${aiIdentity.aiAgentTitle}` : ''}
+Order Number: ${orderNumber}
+Current Order Status: ${orderStatus}
 
-      Context:
-      - The customer asked to cancel their order.
-      - The order status is currently "${orderStatus}".
-      - This status requires manual support handling instead of automated cancellation.
+Context:
+- The customer asked to cancel their order.
+- The order status is currently "${orderStatus}".
+- This status requires manual support handling instead of automated cancellation.
 
-      Write a response that:
-      1. Acknowledges the cancellation request
-      2. Clearly explains we cannot complete automatic cancellation due to current order status
-      3. Sets expectation that support will review manually
-      4. Uses a reassuring and professional tone
-      5. Keeps it under 120 tokens
-      6. Do not include a salutation (like "Hi" or "Hello") at the beginning — a personalised greeting is added automatically
-      7. Do not address or refer to the customer by name anywhere in the body — the greeting already handles personalisation
-      8. Do not include a signature or sign-off at the end
+Write a response that:
+1. Acknowledges the cancellation request
+2. Clearly explains we cannot complete automatic cancellation due to the current order status
+3. Sets expectation that support will review manually
+4. Keeps it under 120 tokens
+5. Do not include a salutation (like "Hi" or "Hello") at the beginning — a personalised greeting is added automatically
+6. Do not address or refer to the customer by name anywhere in the body — the greeting already handles personalisation
+7. Do not include a signature or sign-off at the end
 ${voiceContext}
     `;
 
     const messages = [
       {
         role: 'system',
-        content: `You are ${aiIdentity?.aiAgentName || 'a helpful customer service agent'}${aiIdentity?.aiAgentTitle ? `, ${aiIdentity.aiAgentTitle},` : ''} responding to order cancellation limitations.`,
+        content:
+          `You are ${aiIdentity?.aiAgentName || 'a customer service rep'}${aiIdentity?.aiAgentTitle ? `, ${aiIdentity.aiAgentTitle},` : ''} writing a manual-review-required cancellation response. ` +
+          'Your replies are short, plain-spoken, and conversational — like a quick note from a real person, not a corporate template. ' +
+          'Get to the point in the first sentence. Use contractions. Skip apology theatrics, gratitude rituals, and FAQ-style boilerplate. ' +
+          'Brand voice and merchant overrides may layer on top of this baseline, but the baseline is always: brief, natural, helpful.',
       },
       {
         role: 'user',
         content: prompt,
       },
     ];
-    const temperature = 0.6;
+    const temperature = 0.4;
 
     const response = await this.agentsService['openaiService'].createChatCompletion(
       messages,

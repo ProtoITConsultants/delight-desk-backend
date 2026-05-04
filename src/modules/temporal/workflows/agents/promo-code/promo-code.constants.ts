@@ -56,6 +56,10 @@ export const PROMO_DISTRESS_REPEAT_REQUEST_KEYWORDS = [
 export const SOFT_REFUSAL_KINDS: ReadonlySet<string> = new Set([
   'subscription_excluded',
   'already_refunded',
+  // None of the order's line items qualify under the coupon's product restrictions.
+  // We send a polite reply naming the items the customer ordered. Mixed orders
+  // (`partial_refund_required`) are intentionally NOT in this set — they escalate.
+  'product_not_eligible',
 ]);
 
 /**

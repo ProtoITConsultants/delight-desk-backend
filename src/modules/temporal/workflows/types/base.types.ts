@@ -24,6 +24,10 @@ export enum EscalationType {
   PROMO_CODE_REFUND_FAILED = 'promo_code_refund_failed',
   PROMO_CODE_INTENT_UNCLEAR = 'promo_code_intent_unclear',
   PROMO_CODE_APPLICATION_GUIDANCE_NOT_FOUND = 'promo_code_application_guidance_not_found',
+  // Mixed-eligibility orders: some line items qualify for the coupon's product
+  // restrictions and some don't. Per merchant policy, the agent never issues
+  // partial refunds automatically — a human reviewer makes the call.
+  PROMO_CODE_PARTIAL_REFUND_REQUIRES_REVIEW = 'promo_code_partial_refund_requires_review',
 }
 
 export enum HumanDecision {

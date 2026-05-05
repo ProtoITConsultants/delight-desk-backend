@@ -66,11 +66,22 @@ export class WooCommerceCouponSyncService {
    * a timestamp. Webhook delivery for that coupon within `RECENTLY_PUSHED_TTL_MS` is
    * dropped because the corresponding event is just our own write echoing back.
    *
-   * Memory bounded: entries expire after the TTL and are evicted opportunistically
-   * on every read/write so the map never grows beyond the active sync rate.
+   * Memory bounded by two mechanisms:
+   *   1. Entries expire after the TTL and are evicted opportunistically on every
+   *      read/write so the map shrinks back to near-zero in steady state.
+   *   2. A defensive hard cap (`RECENTLY_PUSHED_MAX_SIZE`) drops the oldest entries
+   *      if size ever exceeds the cap after TTL eviction. This protects against
+   *      pathological scenarios (an eviction bug, or a sustained push rate higher
+   *      than the TTL window) where the map could otherwise grow unbounded.
+   *
+   * Even if this cache misses every time, the loop is still prevented by the other
+   * two sync-loop guards in the webhook receiver — the self-marker meta check and
+   * the payload hash equality check. So this is a fast-path optimization, not a
+   * correctness dependency, and we can be aggressive about bounding its size.
    */
   private readonly recentlyPushedCache = new Map<number, number>();
   private static readonly RECENTLY_PUSHED_TTL_MS = 60_000;
+  private static readonly RECENTLY_PUSHED_MAX_SIZE = 10_000;
 
   constructor(
     private readonly promoCodeConfigsRepo: PromoCodeConfigurationsRepository,
@@ -182,6 +193,7 @@ export class WooCommerceCouponSyncService {
   private markCouponRecentlyPushed(wooCouponId: number): void {
     this.recentlyPushedCache.set(wooCouponId, Date.now());
     this.evictExpiredRecentlyPushedEntries();
+    this.enforceRecentlyPushedSizeCap();
   }
 
   private evictExpiredRecentlyPushedEntries(): void {
@@ -191,6 +203,34 @@ export class WooCommerceCouponSyncService {
         this.recentlyPushedCache.delete(id);
       }
     }
+  }
+
+  /**
+   * Defensive size cap. After TTL eviction, if the map is still over the cap, drop
+   * the oldest entries (insertion order, which Map guarantees in V8) until under it.
+   * In steady state this never fires — TTL eviction is enough on its own. The cap
+   * exists purely to bound memory if something pathological happens (an eviction
+   * bug, or a sustained push rate higher than the TTL window allows).
+   *
+   * We log a warn the FIRST time the cap is breached after a quiet period so an
+   * operator notices, but we don't spam logs while we're actively at the cap.
+   */
+  private enforceRecentlyPushedSizeCap(): void {
+    const cap = WooCommerceCouponSyncService.RECENTLY_PUSHED_MAX_SIZE;
+    if (this.recentlyPushedCache.size <= cap) return;
+
+    const initialSize = this.recentlyPushedCache.size;
+    // Map preserves insertion order. Iterating yields oldest first; deleting the
+    // first key drops the oldest entry. Repeat until under the cap.
+    while (this.recentlyPushedCache.size > cap) {
+      const oldestKey = this.recentlyPushedCache.keys().next().value;
+      if (oldestKey === undefined) break;
+      this.recentlyPushedCache.delete(oldestKey);
+    }
+
+    this.logger.warn(
+      `Recently-pushed sync-loop cache hit hard cap (${initialSize} entries, dropped to ${this.recentlyPushedCache.size}). The other two sync-loop guards (self-marker meta, hash equality) still cover correctness — investigate push volume if this persists.`,
+    );
   }
 
   /**

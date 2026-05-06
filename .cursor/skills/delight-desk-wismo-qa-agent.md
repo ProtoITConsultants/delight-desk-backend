@@ -290,24 +290,6 @@ curl -i -b "$DD_COOKIE" -X POST "$DD_API/approval-queue/actions/<approval-action
 
 Use `edit-and-approve` only when the goal is to test edited copy; otherwise approving unchanged output gives cleaner evidence of the agent's behavior.
 
-## Daily automation model
-
-Daily unattended QA is possible, but it needs an actual scheduler outside the skill. Use one of these:
-
-1. A GitHub Actions schedule or external CI job that starts the app/test runner with staging secrets.
-2. A staging cron job that runs a QA script against the deployed staging API.
-3. A long-running tmux session for an active Cloud-agent investigation only; this is not durable daily automation.
-
-A future scheduled runner should:
-
-- Load staging secrets from the scheduler secret store.
-- Select a small rotating subset of safe staging WooCommerce orders.
-- Patch QA emails/names, send test emails, poll until each case reaches a terminal or expected parked state, and restore Woo records.
-- Write a JSON/Markdown report with pass/fail, evidence links, workflow IDs, email subjects, and any cleanup failures.
-- Alert the team only on regressions or stuck workflows beyond the expected WISMO wait windows.
-
-Until that runner exists, a Cloud agent can perform this playbook manually during an active task and can leave a tmux poller running for long waits.
-
 ## Updating this skill
 
 - Add every newly discovered WISMO scenario as a named case with setup, email text, and expected result.

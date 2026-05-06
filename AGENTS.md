@@ -41,3 +41,12 @@ All commands are in `package.json`. The most relevant:
 6. **Session store**: The session table `user_sessions` is created by drizzle migrations. No need to create it manually.
 
 7. **The dev server listens on port 3000** by default. Test with `curl http://localhost:3000/` (expect 404 on root; use `/auth/signup`, `/auth/login`, `/dashboard/analytics`, etc.).
+
+### Pull request automation — reviewers
+
+For PR assessments and automation (risk classification, approvals, comments):
+
+- **Do not request GitHub reviewers.** Do not call reviewer-assignment APIs or add `@` reviewer requests for this repo.
+- Code review is handled by the senior developer maintainer; other collaborators are not developers, so automated reviewer requests are unwanted noise.
+
+Agents should still write accurate risk summaries and follow approve/dismiss rules; only the **reviewer-request** step must be skipped. See `.cursor/rules/pr-review-requests.mdc`.

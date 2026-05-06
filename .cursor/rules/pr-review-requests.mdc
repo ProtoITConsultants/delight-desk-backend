@@ -1,0 +1,14 @@
+---
+description: PR automation must not request GitHub reviewers; sole senior dev workflow.
+alwaysApply: true
+---
+
+# Pull requests — do not request reviewers
+
+When assessing PRs, posting reviews, or running PR automation for this repository:
+
+- **Never** assign or request GitHub reviewers (`RequestReviewers`, `gh pr edit --add-reviewer`, equivalent APIs, or team reviewer requests).
+- **Reason:** The maintainer team uses a single senior developer for code review; other repo members are not developers, so reviewer requests are inappropriate and should not be used.
+- **Still do:** Risk assessment from the diff, review comments, approve or dismiss approval per project policy, Slack notifications if the automation requires them, and any merge-readiness notes directed at the author—without pinging reviewers.
+
+If branch protection or CODEOWNERS requires human approval, note that in the review comment for the senior dev; do not substitute by requesting non-dev accounts.

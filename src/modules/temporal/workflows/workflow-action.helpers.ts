@@ -242,6 +242,10 @@ async function awaitHumanModeration(
         decision: humanResponse?.decision || 'TIMEOUT',
       });
 
+      if (context.approvalQueueId) {
+        await updateApprovalQueueStatus(context.approvalQueueId, context.userId, 'escalated');
+      }
+
       return {
         success: false,
         actionId: action.id,
@@ -277,6 +281,10 @@ async function awaitHumanModeration(
     await updateApprovalQueueAction(action.id, {
       actionStatus: ActionStatus.FAILED,
     });
+
+    if (context.approvalQueueId) {
+      await updateApprovalQueueStatus(context.approvalQueueId, context.userId, 'escalated');
+    }
 
     return {
       success: false,

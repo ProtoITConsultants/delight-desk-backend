@@ -1,0 +1,106 @@
+---
+description: How to evolve the database schema with Drizzle in this project. Read before any change to src/database/schema/**.
+alwaysApply: true
+---
+
+# Drizzle Migrations — Source of Truth Rules
+
+This project uses `drizzle-kit` to manage Postgres migrations. **Never hand-author files
+in `drizzle/` or hand-edit `drizzle/meta/_journal.json` or any `drizzle/meta/*.json`
+snapshot.** They are generated artifacts. Hand-editing them desyncs the snapshot, and the
+next `npm run db:generate` will produce a duplicate migration that fails on `db:migrate`.
+
+## Allowed workflow
+
+When you need a schema change:
+
+1. Edit only the schema file(s) under `src/database/schema/**` (and exports in `index.ts`).
+2. Tell the user to run:
+   ```bash
+   npm run db:generate
+   npm run db:migrate
+   ```
+3. Do NOT create files in `drizzle/` yourself. Do NOT edit `drizzle/meta/_journal.json`.
+4. If you need to reference the new column in code (DTOs, services, repos), update those
+   normally — they live outside the `drizzle/` folder.
+
+## What you may NOT do
+
+- ❌ Write a new `.sql` file under `drizzle/` (e.g. `drizzle/0052_my_change.sql`).
+- ❌ Append a new entry to `drizzle/meta/_journal.json`.
+- ❌ Touch any `drizzle/meta/NNNN_snapshot.json` file.
+- ❌ Run raw `ALTER TABLE` SQL against the database to "make it work".
+
+## What you should do
+
+- ✅ Edit `src/database/schema/<table>.schema.ts` and re-export from
+  `src/database/schema/index.ts` if it's a new file.
+- ✅ Update the matching repository under `src/database/repos/` and the DTOs under
+  the relevant module.
+- ✅ Tell the user the exact commands to run (`npm run db:generate` then
+  `npm run db:migrate`) and what the migration will contain.
+
+## Concrete example
+
+Adding a `nickname` column to the users table:
+
+```ts
+// src/database/schema/user.schema.ts
+export const users = pgTable('users', {
+  // ...existing columns...
+  nickname: text('nickname'),
+});
+```
+
+Then say to the user:
+
+> I updated `user.schema.ts`. Please run `npm run db:generate` to produce the migration
+> file and `npm run db:migrate` to apply it.
+
+That's it. Drizzle handles the SQL, the snapshot, and the journal in one go.
+
+## Recovery playbook (safe, no manual journal edits)
+
+If `db:migrate` fails, recover with generated artifacts only. Do NOT hand-edit journal/snapshots.
+
+### A) Missing migration file error
+
+Example: `No file ./drizzle/0057_x.sql found`.
+
+1. Restore journal to committed state:
+   ```bash
+   git restore drizzle/meta/_journal.json
+   ```
+2. Remove only uncommitted generated migration artifacts (latest failed attempt):
+   ```bash
+   rm -f drizzle/00XX_*.sql drizzle/meta/00XX_snapshot.json
+   ```
+3. Re-generate and migrate:
+   ```bash
+   npm run db:generate
+   npm run db:migrate
+   ```
+
+### B) Type conversion error (e.g. `text` -> `text[]` cannot be cast automatically)
+
+Prefer schema strategy that avoids unsafe in-place casts:
+
+1. Keep legacy column as-is.
+2. Add a new column with the new type (e.g. `usage_types text[]`).
+3. Update app code to read/write new column, with fallback to legacy values if needed.
+4. Run:
+   ```bash
+   npm run db:generate
+   npm run db:migrate
+   ```
+
+### C) Duplicate/overlapping generated migrations
+
+If two generated migrations represent the same change:
+
+1. Keep one canonical generated migration.
+2. Delete only the extra uncommitted generated migration + its snapshot.
+3. Re-run `npm run db:generate` and then `npm run db:migrate`.
+
+If artifacts were already committed and history is shared, stop and coordinate a cleanup PR
+instead of force-fixing locally.

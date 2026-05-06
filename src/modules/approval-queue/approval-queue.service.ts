@@ -32,6 +32,8 @@ import {
   SHIPBOB_STAGES,
   SHIPSTATION_STAGES,
   SELF_FULFILLMENT_STAGES,
+  ADDRESS_CHANGE_SELF_STAGES,
+  ADDRESS_CHANGE_CUSTOM_WAREHOUSE_STAGES,
 } from './approval-queue-progress.constants';
 import { HumanDecision } from '../temporal/workflows/types';
 import { InfraService } from '../temporal/infra.service';
@@ -209,7 +211,13 @@ export class ApprovalQueueService {
               actions,
               userSettings?.fulfillmentMethod,
             )
-          : null;
+          : item.approval.category === 'address_change'
+            ? this.buildAddressChangeProgress(
+                item.approval.status,
+                actions,
+                userSettings?.fulfillmentMethod,
+              )
+            : null;
 
       return {
         id: item.approval.id,
@@ -426,6 +434,33 @@ export class ApprovalQueueService {
     };
   }
 
+  private buildAddressChangeProgress(
+    workflowStatus: string,
+    actions: QueueAction[],
+    configuredMethod: string | null | undefined,
+  ): ApprovalQueueActionProgressResponse {
+    const fulfillmentMethod = this.resolveFulfillmentMethod(configuredMethod, actions);
+    const stages = this.buildACStagesForMethod(fulfillmentMethod);
+    const timeline = stages.map((stage) => this.buildStageProgress(stage, actions, workflowStatus));
+
+    let currentStep: ApprovalProgressStage | null =
+      timeline.find((stage) => stage.status === 'blocked') ||
+      timeline.find((stage) => stage.status === 'in_progress') ||
+      timeline.find((stage) => stage.status === 'pending') ||
+      null;
+
+    if (workflowStatus === 'completed') {
+      const completedStages = timeline.filter((stage) => stage.status === 'completed');
+      currentStep = completedStages.length > 0 ? completedStages[completedStages.length - 1] : null;
+    }
+
+    return {
+      fulfillmentMethod,
+      currentStep,
+      timeline,
+    };
+  }
+
   private resolveFulfillmentMethod(
     configuredMethod: string | null | undefined,
     actions: QueueAction[],
@@ -450,9 +485,13 @@ export class ApprovalQueueService {
       return 'shipstation';
     }
 
-    // If cancellation/refund actions exist and no provider-specific signals were found,
-    // this is the self-fulfillment flow.
-    if (actionTypes.has('process_cancellation') || actionTypes.has('process_refund')) {
+    // If cancellation/refund/address-change actions exist and no provider-specific signals
+    // were found, this is the self-fulfillment flow.
+    if (
+      actionTypes.has('process_cancellation') ||
+      actionTypes.has('process_refund') ||
+      actionTypes.has('process_address_change')
+    ) {
       return 'self';
     }
 
@@ -485,6 +524,15 @@ export class ApprovalQueueService {
     return SELF_FULFILLMENT_STAGES;
   }
 
+  private buildACStagesForMethod(fulfillmentMethod: ProgressFulfillmentMethod): StageBlueprint[] {
+    if (fulfillmentMethod === 'custom_warehouse') {
+      return ADDRESS_CHANGE_CUSTOM_WAREHOUSE_STAGES;
+    }
+
+    // self, shipbob, shipstation and unknown all share the same address-change stage layout.
+    return ADDRESS_CHANGE_SELF_STAGES;
+  }
+
   private buildStageProgress(
     stage: StageBlueprint,
     actions: QueueAction[],
@@ -502,7 +550,12 @@ export class ApprovalQueueService {
     });
     const actionStatuses = stageActions.map((action) => action.actionStatus);
     const blockedStatuses = new Set(['failed', 'escalated', 'rejected']);
-    const inProgressStatuses = new Set(['pending_approval', 'approved', 'executing']);
+    const inProgressStatuses = new Set([
+      'pending_approval',
+      'approved',
+      'executing',
+      'awaiting_customer_reply',
+    ]);
 
     let status: ApprovalProgressStageStatus = 'pending';
     if (actionStatuses.some((actionStatus) => blockedStatuses.has(actionStatus))) {

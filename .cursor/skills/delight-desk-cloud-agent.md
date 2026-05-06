@@ -8,6 +8,7 @@ description: Use this when a Cloud agent needs to run, test, or debug the Deligh
 ## Start here
 
 - Work from `/workspace`; the app is a NestJS backend with PostgreSQL, Drizzle, Temporal, OpenAI, SendGrid, OAuth providers, and WooCommerce integrations.
+- For end-to-end WISMO QA runs that simulate customer emails against staging WooCommerce, use `delight-desk-wismo-qa-agent.md`.
 - Use Node 20+ and run `npm install` only if `node_modules` is missing or stale.
 - Cloud VMs may export production-like env vars. Before running local app commands, set:
 

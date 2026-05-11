@@ -23,7 +23,8 @@ Ask the user or staging owner for these before running real email QA:
 
 - Delight Desk staging account with WISMO enabled and a connected support inbox.
 - Staging WooCommerce REST credentials with permission to read and update orders/customers.
-- QA sender mailbox access, preferably with plus-address aliases such as `wismo-qa+case-001@example.test`.
+- QA customer Gmail mailbox access via app password for SMTP and IMAP. This mailbox simulates the other side of the conversation and must be different from the connected Delight Desk support inbox.
+- QA sender/customer mailbox should preferably support plus-address aliases such as `wismo-qa+case-001@example.test`.
 - Temporal namespace/API access for workflow visibility.
 - OpenAI key, email-provider credentials, WooCommerce connection, and AfterShip credentials already configured in staging.
 - Permission to mutate staging WooCommerce order billing names/emails, tracking metadata, and order statuses.
@@ -50,13 +51,20 @@ export DD_COOKIE=/tmp/dd-wismo-qa-cookie.txt
 
 export DD_STAGING_EMAIL="staging-user@example.test"
 export DD_STAGING_PASSWORD="replace-me"
+export WISMO_SUPPORT_INBOX_EMAIL="support-inbox@example.test"
 
 export WOO_STORE_URL="https://staging-store.example.test"
 export WOO_CONSUMER_KEY="ck_replace_me"
 export WOO_CONSUMER_SECRET="cs_replace_me"
 
+export WISMO_CUSTOMER_GMAIL_EMAIL="wismo-customer@example.test"
+export WISMO_CUSTOMER_GMAIL_APP_PASSWORD="gmail-app-password"
+export WISMO_REPLY_TIMEOUT_SECONDS="900"
+
 export QA_RUN_ID="wismo-qa-$(date +%Y%m%d-%H%M%S)"
 ```
+
+`WISMO_SUPPORT_INBOX_EMAIL` is the Gmail or Outlook account already connected inside Delight Desk. `WISMO_CUSTOMER_GMAIL_EMAIL` is the separate Gmail account used to act as the customer. Never use the same mailbox for both sides of the simulation.
 
 Log in to Delight Desk and keep the cookie:
 
@@ -115,14 +123,106 @@ Restore changed orders after the run using the saved `/tmp/${QA_RUN_ID}-*-before
 
 ## Sending customer emails
 
-Use the QA sender mailbox UI/API or an approved SMTP/API client. The exact send command depends on the mailbox provider, so keep provider-specific commands in a private runbook or environment setup, not in git.
+Use the QA customer Gmail account through SMTP so Cloud agents can send customer-like messages without needing browser access. Keep actual app passwords in Cursor Cloud secrets or local environment variables only; never commit them.
 
 Every test email must include:
 
-- From: QA sender email matching the staging Woo order when the scenario requires email lookup.
-- To: connected Delight Desk support inbox.
+- From: `WISMO_CUSTOMER_GMAIL_EMAIL`, or a plus alias of that mailbox matching the staging Woo order when the scenario requires email lookup.
+- To: `WISMO_SUPPORT_INBOX_EMAIL`, the inbox connected to Delight Desk.
 - Subject: `[WISMO-QA <run-id> <case-id>] <plain customer subject>`.
 - Body: realistic customer language, one scenario per email.
+
+Send an initial customer email:
+
+```bash
+export CASE_ID="case-001"
+export SUBJECT="[WISMO-QA ${QA_RUN_ID} ${CASE_ID}] Where is my order #56789?"
+export BODY="Hi, can you tell me where order 56789 is and when it will be delivered?
+
+Thanks."
+
+python3 - <<'PY'
+import os, smtplib
+from email.message import EmailMessage
+
+msg = EmailMessage()
+msg["From"] = os.environ["WISMO_CUSTOMER_GMAIL_EMAIL"]
+msg["To"] = os.environ["WISMO_SUPPORT_INBOX_EMAIL"]
+msg["Subject"] = os.environ["SUBJECT"]
+msg.set_content(os.environ["BODY"])
+
+with smtplib.SMTP("smtp.gmail.com", 587) as smtp:
+    smtp.starttls()
+    smtp.login(
+        os.environ["WISMO_CUSTOMER_GMAIL_EMAIL"],
+        os.environ["WISMO_CUSTOMER_GMAIL_APP_PASSWORD"],
+    )
+    smtp.send_message(msg)
+PY
+```
+
+Poll the QA customer Gmail inbox through IMAP to verify Delight Desk sent the reply to the other side of the conversation:
+
+```bash
+python3 - <<'PY'
+import email, imaplib, os, sys, time
+
+subject_token = os.environ["QA_RUN_ID"]
+deadline = time.time() + int(os.environ.get("WISMO_REPLY_TIMEOUT_SECONDS", "900"))
+
+while time.time() < deadline:
+    with imaplib.IMAP4_SSL("imap.gmail.com", 993) as imap:
+        imap.login(
+            os.environ["WISMO_CUSTOMER_GMAIL_EMAIL"],
+            os.environ["WISMO_CUSTOMER_GMAIL_APP_PASSWORD"],
+        )
+        imap.select("INBOX")
+        _, data = imap.search(None, "SUBJECT", f'"{subject_token}"')
+        ids = data[0].split()
+        if ids:
+            latest_id = ids[-1]
+            _, msg_data = imap.fetch(latest_id, "(RFC822)")
+            msg = email.message_from_bytes(msg_data[0][1])
+            print("found_id=" + latest_id.decode())
+            print("message_id=" + (msg.get("Message-ID") or ""))
+            print("from=" + (msg.get("From") or ""))
+            print("subject=" + (msg.get("Subject") or ""))
+            sys.exit(0)
+    time.sleep(30)
+
+raise SystemExit("Timed out waiting for Delight Desk reply in QA customer inbox")
+PY
+```
+
+For follow-up scenarios, reply from the QA customer mailbox to the Delight Desk response in the same thread. First capture the `message_id` from the IMAP poll above, then send the customer clarification with `In-Reply-To` and `References` headers:
+
+```bash
+export DD_REPLY_MESSAGE_ID="<message-id-from-imap-poll>"
+export FOLLOWUP_BODY="It is order 56789."
+
+python3 - <<'PY'
+import os, smtplib
+from email.message import EmailMessage
+
+msg = EmailMessage()
+msg["From"] = os.environ["WISMO_CUSTOMER_GMAIL_EMAIL"]
+msg["To"] = os.environ["WISMO_SUPPORT_INBOX_EMAIL"]
+msg["Subject"] = "Re: " + os.environ["SUBJECT"]
+msg["In-Reply-To"] = os.environ["DD_REPLY_MESSAGE_ID"]
+msg["References"] = os.environ["DD_REPLY_MESSAGE_ID"]
+msg.set_content(os.environ["FOLLOWUP_BODY"])
+
+with smtplib.SMTP("smtp.gmail.com", 587) as smtp:
+    smtp.starttls()
+    smtp.login(
+        os.environ["WISMO_CUSTOMER_GMAIL_EMAIL"],
+        os.environ["WISMO_CUSTOMER_GMAIL_APP_PASSWORD"],
+    )
+    smtp.send_message(msg)
+PY
+```
+
+If Gmail does not thread the follow-up, retry with the exact original subject from the Delight Desk reply and confirm the IMAP `Message-ID` belongs to the support inbox reply, not the customer's own sent message.
 
 ## Scenario catalog
 
@@ -174,7 +274,7 @@ Can you check my delivery status? I do not have the order number handy.
 Expected:
 
 - If no Woo order matches the sender email, WISMO sends a follow-up requesting order information.
-- Reply to the same thread with `It is order 56789`.
+- Poll `WISMO_CUSTOMER_GMAIL_EMAIL` until the follow-up request arrives, then reply to the same thread with `It is order 56789`.
 - Workflow receives the customer reply signal, resolves the order, and continues.
 
 ### Case 4: tracking not available yet
@@ -265,6 +365,7 @@ For each case, capture:
 - Workflow ID, current state, and final status.
 - Approval queue items and decisions if moderation is enabled.
 - Outbound reply body and timestamp.
+- QA customer inbox IMAP evidence for outbound replies, including `Message-ID` when the scenario requires a same-thread follow-up.
 - Pass/fail verdict with the exact mismatch if failed.
 
 For the two-hour WISMO tracking waits, leave a named tmux poller running during an active QA task:

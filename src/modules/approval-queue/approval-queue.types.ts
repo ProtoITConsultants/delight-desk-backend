@@ -4,7 +4,7 @@ export interface ApprovalQueueStatsResponse {
   total: number;
   pending: number;
   inProgress: number;
-  requiresApproval: number;
+  pendingApproval: number;
   escalated: number;
   cancelled: number;
   completed: number;

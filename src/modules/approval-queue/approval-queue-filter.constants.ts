@@ -6,14 +6,18 @@ export const APPROVAL_QUEUE_WORKFLOW_STATUSES = [
   'completed',
 ] as const;
 
-/** Query `status` values accepted by GET /approval-queue (includes virtual filters). */
+/** Action status when a step is waiting for human approve/reject. */
+export const PENDING_APPROVAL_ACTION_STATUS = 'pending_approval' as const;
+
+/**
+ * Query `status` values accepted by GET /approval-queue.
+ * Includes workflow statuses plus `pending_approval`, which filters items that
+ * have at least one action in `pending_approval` (not the workflow-level `pending` status).
+ */
 export const APPROVAL_QUEUE_FILTER_STATUSES = [
   ...APPROVAL_QUEUE_WORKFLOW_STATUSES,
-  'requires_approval',
+  PENDING_APPROVAL_ACTION_STATUS,
 ] as const;
 
 export type ApprovalQueueWorkflowStatus = (typeof APPROVAL_QUEUE_WORKFLOW_STATUSES)[number];
 export type ApprovalQueueFilterStatus = (typeof APPROVAL_QUEUE_FILTER_STATUSES)[number];
-
-export const REQUIRES_APPROVAL_FILTER_STATUS = 'requires_approval' as const;
-export const PENDING_APPROVAL_ACTION_STATUS = 'pending_approval' as const;

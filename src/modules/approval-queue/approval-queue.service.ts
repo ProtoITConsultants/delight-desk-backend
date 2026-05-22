@@ -40,7 +40,6 @@ import { HumanDecision } from '../temporal/workflows/types';
 import { InfraService } from '../temporal/infra.service';
 import { ApprovalQueueEventsService } from './approval-queue-events.service';
 import { ActivityLogEventsService } from '../dashboard/activity-log/activity-log-events.service';
-import { PENDING_APPROVAL_ACTION_STATUS } from './approval-queue-filter.constants';
 
 @Injectable()
 export class ApprovalQueueService {
@@ -121,15 +120,11 @@ export class ApprovalQueueService {
 
     const data = items.map((item) => {
       const actions = actionsByApprovalId[item.approval.id] ?? [];
-      const requiresApproval = actions.some(
-        (action) => action.actionStatus === PENDING_APPROVAL_ACTION_STATUS,
-      );
 
       return {
         id: item.approval.id,
         workflowId: item.approval.workflowId,
         status: item.approval.status,
-        requiresApproval,
         category: item.approval.category,
         customerEmail: item.approval.customerEmail,
         customerName: item.approval.customerName,

@@ -1,11 +1,5 @@
 import { InferSelectModel } from 'drizzle-orm';
-import {
-  pgTable,
-  text,
-  timestamp,
-  uuid,
-  varchar,
-} from 'drizzle-orm/pg-core';
+import { pgTable, text, timestamp, uuid, varchar } from 'drizzle-orm/pg-core';
 import { approvalQueue } from './approval_queue.schema';
 import { escalations } from './escalation.schema';
 
@@ -20,7 +14,7 @@ export const approvalQueueActions = pgTable('approval_queue_actions', {
   // Action-specific fields
   actionType: varchar('action_type', { length: 100 }).notNull(), // MARK_EMAIL_READ, EXTRACT_ORDER, etc.
   actionStep: varchar('action_step', { length: 10 }).notNull(), // Sequential step number (1, 2, 3, 3.1, 3.2...)
-  actionStatus: varchar('action_status', { length: 50 }).notNull(), // pending_approval, approved, executing, executed, failed, escalated, rejected
+  actionStatus: varchar('action_status', { length: 50 }).notNull(), // pending_approval, approved, executing, executed, failed, escalated, rejected, cancelled
 
   // Human-readable action name (e.g., "Mark Email as Read")
   name: varchar('name', { length: 255 }),

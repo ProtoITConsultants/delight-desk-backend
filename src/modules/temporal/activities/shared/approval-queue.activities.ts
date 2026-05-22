@@ -36,6 +36,22 @@ export class ApprovalQueueActivities {
 
   @ActivityMethod({ name: 'updateApprovalQueueAction' })
   async updateApprovalQueueAction(actionId: string, data: any): Promise<any> {
+    const existingAction = await this.approvalQueueActionsRepository.findById(actionId);
+    if (existingAction && data?.actionStatus && data.actionStatus !== 'cancelled') {
+      const userId = await this.approvalQueueRepository.findUserIdByApprovalQueueId(
+        existingAction.approvalQueueId,
+      );
+      if (userId) {
+        const workflow = await this.approvalQueueRepository.findById(
+          existingAction.approvalQueueId,
+          userId,
+        );
+        if (workflow?.status === 'cancelled') {
+          return existingAction;
+        }
+      }
+    }
+
     const updated = await this.approvalQueueActionsRepository.updateAction(actionId, data);
     await this.emitQueueUpdatedByActionId(actionId, 'action_updated');
     return updated;
@@ -48,6 +64,11 @@ export class ApprovalQueueActivities {
     status: string,
     escalationId?: string,
   ): Promise<any> {
+    const existingWorkflow = await this.approvalQueueRepository.findById(approvalQueueId, userId);
+    if (existingWorkflow?.status === 'cancelled' && status !== 'cancelled') {
+      return existingWorkflow;
+    }
+
     let updated: any;
     if (status === 'in_progress') {
       updated = await this.approvalQueueRepository.markAsInProgress(approvalQueueId, userId);
@@ -79,6 +100,22 @@ export class ApprovalQueueActivities {
     escalationId: string,
     escalationReason: string,
   ): Promise<any> {
+    const existingAction = await this.approvalQueueActionsRepository.findById(actionId);
+    if (existingAction) {
+      const userId = await this.approvalQueueRepository.findUserIdByApprovalQueueId(
+        existingAction.approvalQueueId,
+      );
+      if (userId) {
+        const workflow = await this.approvalQueueRepository.findById(
+          existingAction.approvalQueueId,
+          userId,
+        );
+        if (workflow?.status === 'cancelled') {
+          return existingAction;
+        }
+      }
+    }
+
     const updated = await this.approvalQueueActionsRepository.markAsEscalated(
       actionId,
       escalationId,
@@ -128,8 +165,7 @@ export class ApprovalQueueActivities {
       return;
     }
 
-    const userId =
-      await this.approvalQueueRepository.findUserIdByApprovalQueueId(approvalQueueId);
+    const userId = await this.approvalQueueRepository.findUserIdByApprovalQueueId(approvalQueueId);
     if (!userId) {
       return;
     }

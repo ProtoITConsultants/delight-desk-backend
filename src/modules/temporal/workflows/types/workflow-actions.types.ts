@@ -113,6 +113,7 @@ export enum ActionStatus {
   EXECUTED = 'executed',
   FAILED = 'failed',
   ESCALATED = 'escalated',
+  CANCELLED = 'cancelled',
 }
 
 /**

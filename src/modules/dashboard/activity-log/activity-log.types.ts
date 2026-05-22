@@ -13,11 +13,12 @@
  *
  * The underlying `approval_queue_actions.actionStatus` has more granular
  * values (pending_approval / approved / executing / executed / failed /
- * escalated / rejected). Those are collapsed into these three buckets in
+ * escalated / rejected / cancelled). Those are collapsed into these buckets in
  * the service layer.
  */
 export enum ActivityLogStatus {
   COMPLETED = 'completed',
   FAILED = 'failed',
   PENDING = 'pending',
+  CANCELLED = 'cancelled',
 }

@@ -4,11 +4,7 @@ import {
   ActivityLogRepository,
   ActivityLogRow,
 } from '../../../database/repos/activity-log.repository';
-import {
-  ActivityLogItemDto,
-  ActivityLogResponseDto,
-  GetActivityLogDto,
-} from './activity-log.dto';
+import { ActivityLogItemDto, ActivityLogResponseDto, GetActivityLogDto } from './activity-log.dto';
 import { ActivityLogEventsService } from './activity-log-events.service';
 import { ActivityLogStatus } from './activity-log.types';
 
@@ -20,7 +16,8 @@ import { ActivityLogStatus } from './activity-log.types';
 const STATUS_TO_RAW_STATUSES: Record<ActivityLogStatus, string[]> = {
   [ActivityLogStatus.COMPLETED]: ['executed', 'approved'],
   [ActivityLogStatus.FAILED]: ['failed', 'escalated', 'rejected'],
-  [ActivityLogStatus.PENDING]: ['pending_approval', 'executing'],
+  [ActivityLogStatus.PENDING]: ['pending_approval', 'executing', 'awaiting_customer_reply'],
+  [ActivityLogStatus.CANCELLED]: ['cancelled'],
 };
 
 @Injectable()
@@ -38,10 +35,7 @@ export class ActivityLogService {
     return this.activityLogEventsService.getStreamStats();
   }
 
-  async getActivityLog(
-    userId: string,
-    dto: GetActivityLogDto,
-  ): Promise<ActivityLogResponseDto> {
+  async getActivityLog(userId: string, dto: GetActivityLogDto): Promise<ActivityLogResponseDto> {
     const page = dto.page ?? 1;
     const limit = dto.limit ?? 20;
     const offset = (page - 1) * limit;

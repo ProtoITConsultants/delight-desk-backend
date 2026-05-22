@@ -2,6 +2,7 @@
 
 - **[Git workflow — Remy](git-setup/GIT_WORKFLOW_REMY.md)** — Remy only (`dev/remy` → `main`).
 - **[Git workflow — Nabeel](git-setup/GIT_WORKFLOW_NABEEL.md)** — Nabeel only (`dev/nabeel` → `main`).
+- **[Cancel Workflow API (frontend handoff)](frontend/cancel-workflow-api.md)** — Approval queue cancel endpoint, statuses, SSE, and UI integration notes.
 
 This folder holds diagrams, video scripts, and supporting docs for the Delight Desk backend. Use the structure below so everything stays easy to find as you add more agents and artifacts.
 

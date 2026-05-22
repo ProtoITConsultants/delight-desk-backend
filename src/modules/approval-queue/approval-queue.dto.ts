@@ -1,9 +1,10 @@
 import { IsEnum, IsNotEmpty, IsOptional, IsString, Min } from 'class-validator';
 import { Type } from 'class-transformer';
+import { APPROVAL_QUEUE_FILTER_STATUSES } from './approval-queue-filter.constants';
 
 export class GetApprovalQueueDto {
   @IsOptional()
-  @IsEnum(['pending', 'in_progress', 'cancelled', 'escalated', 'completed'], { each: true })
+  @IsEnum(APPROVAL_QUEUE_FILTER_STATUSES, { each: true })
   status?: string;
 
   @IsOptional()

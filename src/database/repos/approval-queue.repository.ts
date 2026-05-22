@@ -1,8 +1,12 @@
 import { Inject, Injectable } from '@nestjs/common';
-import { and, desc, eq, sql } from 'drizzle-orm';
+import { and, desc, eq, exists, sql, type SQL } from 'drizzle-orm';
 import { NodePgDatabase } from 'drizzle-orm/node-postgres';
 import { DATABASE_CONNECTION } from '../database.module';
 import { approvalQueue, approvalQueueActions } from '../schema';
+import {
+  PENDING_APPROVAL_ACTION_STATUS,
+  REQUIRES_APPROVAL_FILTER_STATUS,
+} from '../../modules/approval-queue/approval-queue-filter.constants';
 
 const CANCELLABLE_ACTION_STATUSES = new Set([
   'pending_approval',
@@ -78,15 +82,7 @@ export class ApprovalQueueRepository {
     limit: number;
     offset: number;
   }) {
-    const conditions = [eq(approvalQueue.userId, filters.userId)];
-
-    if (filters.status && filters.status.length > 0) {
-      conditions.push(eq(approvalQueue.status, filters.status));
-    }
-
-    if (filters.category) {
-      conditions.push(eq(approvalQueue.category, filters.category));
-    }
+    const conditions = this.buildApprovalQueueFilterConditions(filters);
 
     const items = await this.db
       .select({
@@ -109,15 +105,7 @@ export class ApprovalQueueRepository {
     limit: number;
     offset: number;
   }): Promise<number> {
-    const conditions = [eq(approvalQueue.userId, filters.userId)];
-
-    if (filters.status && filters.status.length > 0) {
-      conditions.push(eq(approvalQueue.status, filters.status));
-    }
-
-    if (filters.category) {
-      conditions.push(eq(approvalQueue.category, filters.category));
-    }
+    const conditions = this.buildApprovalQueueFilterConditions(filters);
 
     const [result] = await this.db
       .select({ count: sql<number>`count(*)::int` })
@@ -125,6 +113,42 @@ export class ApprovalQueueRepository {
       .where(and(...conditions));
 
     return result.count;
+  }
+
+  private buildApprovalQueueFilterConditions(filters: {
+    userId: string;
+    status: string | undefined;
+    category: string | undefined;
+  }): SQL[] {
+    const conditions: SQL[] = [eq(approvalQueue.userId, filters.userId)];
+
+    if (filters.status && filters.status.length > 0) {
+      if (filters.status === REQUIRES_APPROVAL_FILTER_STATUS) {
+        conditions.push(this.buildRequiresApprovalCondition());
+      } else {
+        conditions.push(eq(approvalQueue.status, filters.status));
+      }
+    }
+
+    if (filters.category) {
+      conditions.push(eq(approvalQueue.category, filters.category));
+    }
+
+    return conditions;
+  }
+
+  private buildRequiresApprovalCondition() {
+    return exists(
+      this.db
+        .select({ id: approvalQueueActions.id })
+        .from(approvalQueueActions)
+        .where(
+          and(
+            eq(approvalQueueActions.approvalQueueId, approvalQueue.id),
+            eq(approvalQueueActions.actionStatus, PENDING_APPROVAL_ACTION_STATUS),
+          ),
+        ),
+    );
   }
 
   async updateApprovalQueueItem(
@@ -216,6 +240,11 @@ export class ApprovalQueueRepository {
         total: sql<number>`count(*)::int`,
         pending: sql<number>`count(*) filter (where ${approvalQueue.status} = 'pending')::int`,
         inProgress: sql<number>`count(*) filter (where ${approvalQueue.status} = 'in_progress')::int`,
+        requiresApproval: sql<number>`count(*) filter (where exists (
+          select 1 from approval_queue_actions a
+          where a.approval_queue_id = ${approvalQueue.id}
+          and a.action_status = 'pending_approval'
+        ))::int`,
         cancelled: sql<number>`count(*) filter (where ${approvalQueue.status} = 'cancelled')::int`,
         escalated: sql<number>`count(*) filter (where ${approvalQueue.status} = 'escalated')::int`,
         completed: sql<number>`count(*) filter (where ${approvalQueue.status} = 'completed')::int`,

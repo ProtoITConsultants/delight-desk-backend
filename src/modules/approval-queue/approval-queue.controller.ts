@@ -60,7 +60,7 @@ export class ApprovalQueueController {
   @Post('cancel')
   @HttpCode(HttpStatus.OK)
   async cancelWorkflow(@CurrentUserId() userId: string, @Body() dto: CancelWorkflowDto) {
-    return this.approvalQueueService.cancelWorkflow(userId, dto.workflowId);
+    return this.approvalQueueService.cancelWorkflow(userId, dto);
   }
 
   @Post('actions/:id/approve')

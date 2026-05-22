@@ -4,6 +4,13 @@ import { NodePgDatabase } from 'drizzle-orm/node-postgres';
 import { DATABASE_CONNECTION } from '../database.module';
 import { approvalQueueActions } from '../schema';
 
+const CANCELLABLE_ACTION_STATUSES = new Set([
+  'pending_approval',
+  'executing',
+  'approved',
+  'awaiting_customer_reply',
+]);
+
 @Injectable()
 export class ApprovalQueueActionsRepository {
   constructor(@Inject(DATABASE_CONNECTION) private db: NodePgDatabase) {}
@@ -53,10 +60,7 @@ export class ApprovalQueueActionsRepository {
       .select()
       .from(approvalQueueActions)
       .where(inArray(approvalQueueActions.approvalQueueId, approvalQueueIds))
-      .orderBy(
-        asc(approvalQueueActions.approvalQueueId),
-        asc(approvalQueueActions.actionStep),
-      );
+      .orderBy(asc(approvalQueueActions.approvalQueueId), asc(approvalQueueActions.actionStep));
   }
 
   /**
@@ -162,6 +166,7 @@ export class ApprovalQueueActionsRepository {
         failed: sql<number>`count(*) filter (where ${approvalQueueActions.actionStatus} = 'failed')::int`,
         escalated: sql<number>`count(*) filter (where ${approvalQueueActions.actionStatus} = 'escalated')::int`,
         rejected: sql<number>`count(*) filter (where ${approvalQueueActions.actionStatus} = 'rejected')::int`,
+        cancelled: sql<number>`count(*) filter (where ${approvalQueueActions.actionStatus} = 'cancelled')::int`,
       })
       .from(approvalQueueActions)
       .where(eq(approvalQueueActions.approvalQueueId, approvalQueueId));
@@ -216,18 +221,24 @@ export class ApprovalQueueActionsRepository {
   }
 
   /**
-   * Cancel all pending_approval actions for a workflow (bulk update to rejected)
+   * Cancel the current in-flight action for a workflow.
    */
-  async cancelPendingActions(approvalQueueId: string) {
-    await this.db
-      .update(approvalQueueActions)
-      .set({ actionStatus: 'rejected', updatedAt: new Date() })
-      .where(
-        and(
-          eq(approvalQueueActions.approvalQueueId, approvalQueueId),
-          eq(approvalQueueActions.actionStatus, 'pending_approval'),
-        ),
-      );
+  async cancelCurrentAction(approvalQueueId: string) {
+    const actions = await this.db
+      .select()
+      .from(approvalQueueActions)
+      .where(eq(approvalQueueActions.approvalQueueId, approvalQueueId))
+      .orderBy(desc(approvalQueueActions.actionStep));
+
+    const actionToCancel =
+      actions.find((action) => CANCELLABLE_ACTION_STATUSES.has(action.actionStatus)) ??
+      actions.find((action) => action.actionStatus !== 'executed');
+
+    if (!actionToCancel) {
+      return null;
+    }
+
+    return this.updateActionStatus(actionToCancel.id, 'cancelled');
   }
 
   /**

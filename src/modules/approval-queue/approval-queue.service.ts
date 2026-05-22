@@ -14,6 +14,7 @@ import {
   EditAndApproveDto,
   GetApprovalQueueDto,
   GetWorkflowProgressItemsDto,
+  CancelWorkflowDto,
   RejectItemDto,
 } from './approval-queue.dto';
 import {
@@ -381,8 +382,14 @@ export class ApprovalQueueService {
     return { message: 'Action edited and approved successfully' };
   }
 
-  async cancelWorkflow(userId: string, workflowId: string) {
-    const workflow = await this.approvalQueueRepository.findByWorkflowId(workflowId, userId);
+  async cancelWorkflow(userId: string, dto: CancelWorkflowDto) {
+    if (!dto.workflowId && !dto.id) {
+      throw new BadRequestException('Either workflowId or id is required');
+    }
+
+    const workflow = dto.workflowId
+      ? await this.approvalQueueRepository.findByWorkflowId(dto.workflowId, userId)
+      : await this.approvalQueueRepository.findById(dto.id!, userId);
 
     if (!workflow) {
       throw new NotFoundException('Workflow not found');
@@ -393,9 +400,19 @@ export class ApprovalQueueService {
       throw new BadRequestException(`Cannot cancel a workflow with status: ${workflow.status}`);
     }
 
-    await this.infraService.cancelWorkflow(workflowId);
-
     await this.approvalQueueRepository.cancelWorkflowTransactionally(workflow.id, userId);
+
+    try {
+      await this.infraService.cancelWorkflow(workflow.workflowId);
+    } catch (error) {
+      if (error instanceof BadRequestException) {
+        // Workflow row is already cancelled in DB; Temporal may have already finished.
+        this.approvalQueueEventsService.emitQueueUpdated(userId, 'workflow_cancelled');
+        this.activityLogEventsService.emitActivityUpdated(userId, 'workflow_cancelled');
+        return { message: 'Workflow cancelled successfully' };
+      }
+      throw error;
+    }
 
     this.approvalQueueEventsService.emitQueueUpdated(userId, 'workflow_cancelled');
     this.activityLogEventsService.emitActivityUpdated(userId, 'workflow_cancelled');
@@ -558,7 +575,9 @@ export class ApprovalQueueService {
     ]);
 
     let status: ApprovalProgressStageStatus = 'pending';
-    if (actionStatuses.some((actionStatus) => blockedStatuses.has(actionStatus))) {
+    if (actionStatuses.some((actionStatus) => actionStatus === 'cancelled')) {
+      status = 'cancelled';
+    } else if (actionStatuses.some((actionStatus) => blockedStatuses.has(actionStatus))) {
       status = 'blocked';
     } else if (actionStatuses.some((actionStatus) => inProgressStatuses.has(actionStatus))) {
       status = 'in_progress';

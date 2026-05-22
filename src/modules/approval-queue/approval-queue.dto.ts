@@ -52,9 +52,13 @@ export class RejectItemDto {
 }
 
 export class CancelWorkflowDto {
-  @IsNotEmpty()
+  @IsOptional()
   @IsString()
-  workflowId: string;
+  workflowId?: string;
+
+  @IsOptional()
+  @IsString()
+  id?: string;
 }
 
 export class EditAndApproveDto {

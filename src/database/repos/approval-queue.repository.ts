@@ -4,6 +4,13 @@ import { NodePgDatabase } from 'drizzle-orm/node-postgres';
 import { DATABASE_CONNECTION } from '../database.module';
 import { approvalQueue, approvalQueueActions } from '../schema';
 
+const CANCELLABLE_ACTION_STATUSES = new Set([
+  'pending_approval',
+  'executing',
+  'approved',
+  'awaiting_customer_reply',
+]);
+
 @Injectable()
 export class ApprovalQueueRepository {
   constructor(@Inject(DATABASE_CONNECTION) private db: NodePgDatabase) {}
@@ -179,15 +186,22 @@ export class ApprovalQueueRepository {
 
   async cancelWorkflowTransactionally(id: string, userId: string) {
     await this.db.transaction(async (tx) => {
-      await tx
-        .update(approvalQueueActions)
-        .set({ actionStatus: 'rejected', updatedAt: new Date() })
-        .where(
-          and(
-            eq(approvalQueueActions.approvalQueueId, id),
-            eq(approvalQueueActions.actionStatus, 'pending_approval'),
-          ),
-        );
+      const actions = await tx
+        .select()
+        .from(approvalQueueActions)
+        .where(eq(approvalQueueActions.approvalQueueId, id))
+        .orderBy(desc(approvalQueueActions.actionStep));
+
+      const actionToCancel =
+        actions.find((action) => CANCELLABLE_ACTION_STATUSES.has(action.actionStatus)) ??
+        actions.find((action) => action.actionStatus !== 'executed');
+
+      if (actionToCancel) {
+        await tx
+          .update(approvalQueueActions)
+          .set({ actionStatus: 'cancelled', updatedAt: new Date() })
+          .where(eq(approvalQueueActions.id, actionToCancel.id));
+      }
 
       await tx
         .update(approvalQueue)

@@ -5,7 +5,6 @@ import { DATABASE_CONNECTION } from '../database.module';
 import { approvalQueue, approvalQueueActions } from '../schema';
 import {
   PENDING_APPROVAL_ACTION_STATUS,
-  REQUIRES_APPROVAL_FILTER_STATUS,
 } from '../../modules/approval-queue/approval-queue-filter.constants';
 
 const CANCELLABLE_ACTION_STATUSES = new Set([
@@ -123,8 +122,8 @@ export class ApprovalQueueRepository {
     const conditions: SQL[] = [eq(approvalQueue.userId, filters.userId)];
 
     if (filters.status && filters.status.length > 0) {
-      if (filters.status === REQUIRES_APPROVAL_FILTER_STATUS) {
-        conditions.push(this.buildRequiresApprovalCondition());
+      if (filters.status === PENDING_APPROVAL_ACTION_STATUS) {
+        conditions.push(this.buildPendingApprovalFilterCondition());
       } else {
         conditions.push(eq(approvalQueue.status, filters.status));
       }
@@ -137,7 +136,7 @@ export class ApprovalQueueRepository {
     return conditions;
   }
 
-  private buildRequiresApprovalCondition() {
+  private buildPendingApprovalFilterCondition() {
     return exists(
       this.db
         .select({ id: approvalQueueActions.id })
@@ -240,7 +239,7 @@ export class ApprovalQueueRepository {
         total: sql<number>`count(*)::int`,
         pending: sql<number>`count(*) filter (where ${approvalQueue.status} = 'pending')::int`,
         inProgress: sql<number>`count(*) filter (where ${approvalQueue.status} = 'in_progress')::int`,
-        requiresApproval: sql<number>`count(*) filter (where exists (
+        pendingApproval: sql<number>`count(*) filter (where exists (
           select 1 from approval_queue_actions a
           where a.approval_queue_id = ${approvalQueue.id}
           and a.action_status = 'pending_approval'

@@ -67,8 +67,7 @@ for v in "${required_vars[@]}"; do
   [ -n "${!v:-}" ] || missing+=("$v")
 done
 if [ "${#missing[@]}" -gt 0 ]; then
-  printf 'Missing required vars: %s
-' "${missing[*]}"
+  printf 'Missing required vars: %s\n' "${missing[*]}"
   exit 1
 fi
 ```

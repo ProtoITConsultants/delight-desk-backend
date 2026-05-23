@@ -9,6 +9,20 @@ description: Codex-native staging-first QA skill for running end-to-end WISMO va
 
 Run WISMO QA end-to-end using **staging backend APIs** (preferred) and customer-like email flows, while keeping full evidence and safe rollback for any WooCommerce mutations.
 
+## Continuous improvement loop (required)
+
+This skill is **recursive by design**. Every run must improve future runs when new information appears.
+
+When you encounter an undocumented blocker, edge case, or scenario and successfully resolve it:
+
+1. Add the new case to this skill (scenario/workflow/preflight/blocker policy sections).
+2. Add exact detection signals (API response, log pattern, workflow state, timeout shape).
+3. Add the remediation path that worked.
+4. Record evidence references in the run report.
+5. Commit the skill update in the same cycle as the QA execution outcome.
+
+Apply the same recursive pattern to future skills created in `.agents/skills/`.
+
 ## Execution mode (required)
 
 - Primary mode: **staging URL** in `DD_API` (non-localhost).
@@ -110,3 +124,4 @@ When blocked, output:
 3. Why it blocks progression
 4. Concrete remediation variable/value class needed (never print secret values)
 
+If the blocker is resolved during the run, immediately fold that resolution back into this skill using the continuous improvement loop above.

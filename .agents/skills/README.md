@@ -27,8 +27,11 @@ Recommended optional files per skill:
    - rollback/evidence requirements
 4. Keep workflows scenario-based with deterministic case IDs.
 5. Include a “preflight” command section that fails fast.
+6. Treat every skill as **recursive and continuously improving**:
+   - when a new blocker/scenario is discovered and resolved, update that skill in the same execution cycle;
+   - add the new detection/remediation step to preflight, workflow, or blocker policy;
+   - persist evidence so future runs are faster and more deterministic.
 
 ## Current skills
 
 - `wismo-qa` — End-to-end QA execution for WISMO agent via staging APIs and QA mailbox simulation.
-

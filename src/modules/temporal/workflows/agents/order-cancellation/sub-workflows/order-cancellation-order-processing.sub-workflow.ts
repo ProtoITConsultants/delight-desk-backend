@@ -147,7 +147,6 @@ export async function handleOrderCancellationOrderProcessing(
           description: `Order status is ${orderStatus} - notifying customer and escalating`,
           actionDetails: `Order #${context.state.orderNumber} has a problematic status (${orderStatus}) that prevents automated cancellation handling in this flow iteration. Sending a notification email to the customer, then escalating for manual review.`,
           proposedEmailBody: statusMessage,
-          skipApproval: true,
           metadata: {
             orderNumber: context.state.orderNumber,
             orderStatus,

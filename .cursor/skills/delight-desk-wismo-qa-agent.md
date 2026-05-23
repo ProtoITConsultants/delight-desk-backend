@@ -52,6 +52,25 @@ Never use production customers or production inboxes for these simulations.
 
 ## Environment setup
 
+Before doing anything else, run a preflight guard to fail fast when required environment variables are missing in the current Codex session:
+
+```bash
+required_vars=(
+  DD_API DD_COOKIE DD_STAGING_EMAIL DD_STAGING_PASSWORD
+  WISMO_SUPPORT_INBOX_EMAIL WOO_STORE_URL WOO_CONSUMER_KEY WOO_CONSUMER_SECRET
+  WISMO_CUSTOMER_GMAIL_EMAIL WISMO_CUSTOMER_GMAIL_APP_PASSWORD
+)
+missing=()
+for v in "${required_vars[@]}"; do
+  [ -n "${!v:-}" ] || missing+=("$v")
+done
+if [ "${#missing[@]}" -gt 0 ]; then
+  printf 'Missing required vars: %s
+' "${missing[*]}"
+  exit 1
+fi
+```
+
 Use the starter Cloud skill for local backend setup, then add the QA-specific variables:
 
 ```bash

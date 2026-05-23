@@ -31,13 +31,13 @@ export class DashboardService {
   ) {}
 
   async getNavBadgeCounts(userId: string): Promise<NavBadgeCountsResponseDto> {
-    const [approvalQueueStats, aiAssistantPending] = await Promise.all([
-      this.approvalQueueRepository.getStats(userId),
+    const [approvalQueuePendingApproval, aiAssistantPending] = await Promise.all([
+      this.approvalQueueRepository.countPendingApprovalItems(userId),
       this.escalationsRepository.countByStatus(userId, 'pending'),
     ]);
 
     return {
-      approvalQueuePendingApproval: approvalQueueStats.pendingApproval,
+      approvalQueuePendingApproval,
       aiAssistantPending,
     };
   }

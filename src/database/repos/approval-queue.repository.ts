@@ -150,6 +150,16 @@ export class ApprovalQueueRepository {
     );
   }
 
+  async countPendingApprovalItems(userId: string): Promise<number> {
+    return this.countApprovalQueueWithFilters({
+      userId,
+      status: PENDING_APPROVAL_ACTION_STATUS,
+      category: undefined,
+      limit: 0,
+      offset: 0,
+    });
+  }
+
   async updateApprovalQueueItem(
     id: string,
     userId: string,
@@ -234,23 +244,33 @@ export class ApprovalQueueRepository {
   }
 
   async getStats(userId: string) {
-    const [stats] = await this.db
-      .select({
-        total: sql<number>`count(*)::int`,
-        pending: sql<number>`count(*) filter (where ${approvalQueue.status} = 'pending')::int`,
-        inProgress: sql<number>`count(*) filter (where ${approvalQueue.status} = 'in_progress')::int`,
-        pendingApproval: sql<number>`count(*) filter (where exists (
-          select 1 from approval_queue_actions a
-          where a.approval_queue_id = ${approvalQueue.id}
-          and a.action_status = 'pending_approval'
-        ))::int`,
-        cancelled: sql<number>`count(*) filter (where ${approvalQueue.status} = 'cancelled')::int`,
-        escalated: sql<number>`count(*) filter (where ${approvalQueue.status} = 'escalated')::int`,
-        completed: sql<number>`count(*) filter (where ${approvalQueue.status} = 'completed')::int`,
-      })
-      .from(approvalQueue)
-      .where(eq(approvalQueue.userId, userId));
+    const [statsRows, pendingApproval] = await Promise.all([
+      this.db
+        .select({
+          total: sql<number>`count(*)::int`,
+          pending: sql<number>`count(*) filter (where ${approvalQueue.status} = 'pending')::int`,
+          inProgress: sql<number>`count(*) filter (where ${approvalQueue.status} = 'in_progress')::int`,
+          cancelled: sql<number>`count(*) filter (where ${approvalQueue.status} = 'cancelled')::int`,
+          escalated: sql<number>`count(*) filter (where ${approvalQueue.status} = 'escalated')::int`,
+          completed: sql<number>`count(*) filter (where ${approvalQueue.status} = 'completed')::int`,
+        })
+        .from(approvalQueue)
+        .where(eq(approvalQueue.userId, userId)),
+      this.countPendingApprovalItems(userId),
+    ]);
 
-    return stats;
+    const stats = statsRows[0] ?? {
+      total: 0,
+      pending: 0,
+      inProgress: 0,
+      cancelled: 0,
+      escalated: 0,
+      completed: 0,
+    };
+
+    return {
+      ...stats,
+      pendingApproval,
+    };
   }
 }

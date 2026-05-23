@@ -53,6 +53,7 @@ TEMPORAL_CLI_ADDRESS
 TEMPORAL_CLI_NAMESPACE
 TEMPORAL_CLI_TLS_SERVER_NAME
 TEMPORAL_CLI_API_KEY
+DD_API_CONFIRMED_STAGING           # default: false; set true only when host looks prod-like but is known staging
 ```
 
 ## Preflight (must run first)
@@ -80,7 +81,20 @@ if [[ "$DD_API" == *"localhost"* || "$DD_API" == *"127.0.0.1"* ]]; then
   echo "Blocked: this skill is staging-first; provide staging DD_API instead of localhost."
   exit 1
 fi
+
+# Safety gate for production-like hosts.
+# If host contains 'api.delightdesk.io' or other prod-like naming, require explicit operator confirmation.
+if [[ "$DD_API" =~ api\.delightdesk\.io ]] && [[ "${DD_API_CONFIRMED_STAGING:-false}" != "true" ]]; then
+  echo "Blocked: DD_API host looks production-like. Set DD_API_CONFIRMED_STAGING=true only if this endpoint is your staging target."
+  exit 1
+fi
 ```
+
+### Prod-like host override policy
+
+- Some tenants run staging traffic on prod-like DNS names.
+- In those cases, allow execution only when `DD_API_CONFIRMED_STAGING=true` is explicitly set by the operator for that run.
+- Never infer this automatically; require explicit confirmation to preserve safety.
 
 ## Core workflow
 

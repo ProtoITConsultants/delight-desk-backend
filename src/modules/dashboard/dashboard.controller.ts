@@ -7,6 +7,7 @@ import {
   DashboardAnalyticsRange,
   DashboardAnalyticsResponseDto,
   GetDashboardAnalyticsDto,
+  NavBadgeCountsResponseDto,
 } from './dashboard.dto';
 
 @UseGuards(SessionGuard)
@@ -20,5 +21,10 @@ export class DashboardController {
     @Query() dto: GetDashboardAnalyticsDto,
   ): Promise<DashboardAnalyticsResponseDto> {
     return this.dashboardService.getAnalytics(userId, dto.range ?? DashboardAnalyticsRange.TODAY);
+  }
+
+  @Get('nav-badge-counts')
+  getNavBadgeCounts(@CurrentUserId() userId: string): Promise<NavBadgeCountsResponseDto> {
+    return this.dashboardService.getNavBadgeCounts(userId);
   }
 }

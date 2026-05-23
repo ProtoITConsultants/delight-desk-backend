@@ -226,6 +226,15 @@ export class EscalationsRepository {
     return updated;
   }
 
+  async countByStatus(userId: string, status: string): Promise<number> {
+    const [result] = await this.db
+      .select({ count: sql<number>`count(*)::int` })
+      .from(escalations)
+      .where(and(eq(escalations.userId, userId), eq(escalations.status, status)));
+
+    return result?.count ?? 0;
+  }
+
   async getStats(userId: string, dateFrom?: string, dateTo?: string) {
     const conditions = [eq(escalations.userId, userId)];
 

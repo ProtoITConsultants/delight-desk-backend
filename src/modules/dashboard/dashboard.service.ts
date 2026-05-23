@@ -3,7 +3,13 @@ import {
   DashboardAnalyticsRepository,
   DashboardDateRange,
 } from '../../database/repos/dashboard-analytics.repository';
-import { DashboardAnalyticsRange, DashboardAnalyticsResponseDto } from './dashboard.dto';
+import { ApprovalQueueRepository } from '../../database/repos/approval-queue.repository';
+import { EscalationsRepository } from '../../database/repos/escalations.repository';
+import {
+  DashboardAnalyticsRange,
+  DashboardAnalyticsResponseDto,
+  NavBadgeCountsResponseDto,
+} from './dashboard.dto';
 
 // Estimated minutes saved per automated AI agent action that the system
 // executed on the user's behalf (e.g., replying to a WISMO email, issuing
@@ -18,7 +24,23 @@ const MINUTES_SAVED_PER_ASSISTANT_TICKET_RESOLVED = 10;
 
 @Injectable()
 export class DashboardService {
-  constructor(private readonly analyticsRepository: DashboardAnalyticsRepository) {}
+  constructor(
+    private readonly analyticsRepository: DashboardAnalyticsRepository,
+    private readonly approvalQueueRepository: ApprovalQueueRepository,
+    private readonly escalationsRepository: EscalationsRepository,
+  ) {}
+
+  async getNavBadgeCounts(userId: string): Promise<NavBadgeCountsResponseDto> {
+    const [approvalQueueStats, aiAssistantPending] = await Promise.all([
+      this.approvalQueueRepository.getStats(userId),
+      this.escalationsRepository.countByStatus(userId, 'pending'),
+    ]);
+
+    return {
+      approvalQueuePendingApproval: approvalQueueStats.pendingApproval,
+      aiAssistantPending,
+    };
+  }
 
   async getAnalytics(
     userId: string,
@@ -42,9 +64,8 @@ export class DashboardService {
       aiAgentActionsCompleted * MINUTES_SAVED_PER_AI_AGENT_ACTION +
       aiAssistantTicketsResolved * MINUTES_SAVED_PER_ASSISTANT_TICKET_RESOLVED;
 
-    const averageActionsPerResolvedTicket = this.computeAverageActionsPerResolvedTicket(
-      resolvedTicketActionStats,
-    );
+    const averageActionsPerResolvedTicket =
+      this.computeAverageActionsPerResolvedTicket(resolvedTicketActionStats);
 
     return {
       range,

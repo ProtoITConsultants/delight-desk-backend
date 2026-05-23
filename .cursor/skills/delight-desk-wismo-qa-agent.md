@@ -21,6 +21,17 @@ The WISMO implementation runs through preparation, order discovery, order proces
 
 Ask the user or staging owner for these before running real email QA:
 
+### Codex Cloud secret injection (recommended)
+
+For browser-based Codex Cloud runs, provide sensitive values through project/environment secrets instead of chat text or committed files:
+
+1. Open the Codex project settings for this repo.
+2. Add each secret as an environment variable (for example `DD_STAGING_PASSWORD`, `WOO_CONSUMER_SECRET`, `WISMO_CUSTOMER_GMAIL_APP_PASSWORD`, `TEMPORAL_API_KEY`).
+3. Re-run the agent so the variables are injected into the runtime.
+4. Verify with `env | rg "^(DD_|WOO_|WISMO_|TEMPORAL_)"` and confirm values are present (do not print full secret values in logs).
+
+Never paste raw secrets into PRs, markdown skill files, or chat transcripts.
+
 - Delight Desk staging account with WISMO enabled and a connected support inbox.
 - Staging WooCommerce REST credentials with permission to read and update orders/customers.
 - QA customer Gmail mailbox access via app password for SMTP and IMAP. This mailbox simulates the other side of the conversation and must be different from the connected Delight Desk support inbox.
@@ -397,3 +408,38 @@ Use `edit-and-approve` only when the goal is to test edited copy; otherwise appr
 - Add provider-specific sending or inbox polling steps only when they are safe to store in git and contain no secrets.
 - If a test requires a timing shortcut, document the exact code/config flag that makes it safe.
 - When a daily QA runner is implemented, replace the automation model with the exact command, required secrets, report location, and failure triage steps.
+
+
+## Recursive execution model for long-running workflows
+
+Use this loop for non-instant workflows (for example two-hour tracking waits):
+
+1. Start a QA run and assign a fixed `QA_RUN_ID`.
+2. Persist case state in a run log file (`/tmp/wismo-qa-<run-id>.jsonl`) after every poll.
+3. Poll in intervals (30s for immediate replies, 5m for approval/workflow transitions, 2h for tracking wait cases).
+4. On each poll, classify each case as `pending`, `needs-human-action`, `passed`, or `failed`.
+5. Continue recursively until all cases are terminal or SLA timeout is reached.
+
+Reference polling skeleton:
+
+```bash
+cat > /tmp/wismo-qa-poller.sh <<'SH'
+#!/usr/bin/env bash
+set -euo pipefail
+: "${DD_API:?}" "${DD_COOKIE:?}" "${QA_RUN_ID:?}"
+OUT="/tmp/wismo-qa-${QA_RUN_ID}.jsonl"
+while true; do
+  ts="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+  wf_json="$(curl -s -b "$DD_COOKIE" "$DD_API/approval-queue/workflows?limit=50")"
+  approvals_json="$(curl -s -b "$DD_COOKIE" "$DD_API/approval-queue?limit=50")"
+  printf '{"ts":"%s","workflow":%s,"approvals":%s}
+' "$ts" "$wf_json" "$approvals_json" >> "$OUT"
+  sleep 300
+  # Stop externally when all tracked cases are terminal.
+done
+SH
+chmod +x /tmp/wismo-qa-poller.sh
+nohup /tmp/wismo-qa-poller.sh >/tmp/wismo-qa-poller.log 2>&1 &
+```
+
+For waits longer than one session, relaunch polling with the same `QA_RUN_ID` and continue appending evidence to the same log.

@@ -128,6 +128,12 @@ export interface ActionConfig {
   proposedEmailBody?: string; // Proposed email body for email-sending actions
   requiresUserData?: boolean; // For actions like "edit response"
   metadata?: Record<string, any>;
+  /**
+   * When true, this action executes automatically even when moderation is enabled.
+   * Use for internal/backend actions (validations, data fetching, tracking) that
+   * don't affect the customer directly and don't need human review.
+   */
+  skipApproval?: boolean;
 }
 
 /**

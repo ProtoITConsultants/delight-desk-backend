@@ -95,6 +95,7 @@ export async function handleShipBobFulfillmentMethod(
       description: 'Validate customer email matches order records',
       actionDetails:
         'Confirming request sender email matches WooCommerce billing email before ShipBob cancellation.',
+      skipApproval: true,
       metadata: {
         senderEmail,
         orderEmail: customerEmailFromOrder,
@@ -201,6 +202,7 @@ export async function handleShipBobFulfillmentMethod(
       description: 'Resolve linked ShipBob order',
       actionDetails:
         'Looking up the ShipBob order using WooCommerce order number before cancellation eligibility checks.',
+      skipApproval: true,
       metadata: {
         orderNumber: context.state.orderNumber,
       },
@@ -249,6 +251,7 @@ export async function handleShipBobFulfillmentMethod(
       description: 'Check ShipBob cancellation eligibility',
       actionDetails:
         'Checking ShipBob order and shipment statuses to confirm cancellation can still be completed automatically.',
+      skipApproval: true,
       metadata: {
         orderNumber: context.state.orderNumber,
         shipBobOrderId: shipBobOrder?.id,
@@ -438,6 +441,7 @@ export async function handleShipBobFulfillmentMethod(
       description: `Update WooCommerce order #${context.state.orderNumber} status to cancelled`,
       actionDetails:
         'Syncing WooCommerce order status to cancelled after successful ShipBob cancellation.',
+      skipApproval: true,
     },
     async () => {
       const cancelledOrder = await updateWooCommerceOrderStatus(

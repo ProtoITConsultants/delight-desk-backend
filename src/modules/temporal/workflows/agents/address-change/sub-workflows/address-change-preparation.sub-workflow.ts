@@ -60,6 +60,7 @@ export async function handleAddressChangePreparation(
       description: `Verify AI classification confidence (${context.state.classification.confidence}%)`,
       actionDetails:
         'Verifying AI classification confidence is sufficient to proceed automatically.',
+      skipApproval: true,
       metadata: {
         confidence: context.state.classification.confidence,
         category: context.state.classification.category,
@@ -113,6 +114,7 @@ export async function handleAddressChangePreparation(
       description: 'Detect urgency and frustration signals for auto-escalation',
       actionDetails:
         'Scoring customer distress using email language, classifier priority, and sentiment to decide whether immediate human escalation is required.',
+      skipApproval: true,
     },
     async () => {
       if (context.state.classification.scenarios?.escalation) {

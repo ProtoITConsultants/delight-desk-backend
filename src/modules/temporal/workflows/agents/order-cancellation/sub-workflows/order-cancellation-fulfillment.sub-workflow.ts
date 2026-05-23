@@ -47,6 +47,7 @@ export async function handleOrderCancellationFulfillment(
         description: 'Detect user fulfillment method',
         actionDetails:
           "Detecting the user's configured fulfillment method to route order cancellation through the correct cancellation provider workflow.",
+        skipApproval: true,
       },
       async () => {
         fulfillmentMethod = await getFulfillmentMethod(context.userId);

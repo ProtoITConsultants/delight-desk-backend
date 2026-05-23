@@ -191,6 +191,7 @@ export async function handleWismoTracking(
         step: 6,
         description: `Wait for tracking number to become available (up to ${MAX_TRACKING_RETRIES_IN_DAYS} days)`,
         actionDetails: `Polling WooCommerce for a tracking number on order #${context.state.orderNumber}. Checks every ${TRACKING_RETRY_INTERVAL} for up to ${MAX_TRACKING_RETRIES_IN_DAYS} days.`,
+        skipApproval: true,
         metadata: {
           orderNumber: context.state.orderNumber,
           maxRetries: MAX_TRACKING_RETRIES_IN_DAYS,
@@ -267,6 +268,7 @@ export async function handleWismoTracking(
         step: 7,
         description: `Create AfterShip tracking for ${context.state.wooOrder?.trackingNumber}`,
         actionDetails: `Creating an AfterShip tracking entry to enable real-time shipment monitoring.`,
+        skipApproval: true,
         metadata: {
           trackingNumber: context.state.wooOrder?.trackingNumber,
           trackingProvider: context.state.wooOrder?.trackingProvider,
@@ -308,6 +310,7 @@ export async function handleWismoTracking(
         step: 8,
         description: 'Monitor tracking status and send updates until delivered',
         actionDetails: `Monitoring shipment status for order #${context.state.orderNumber} (tracking: ${context.state.aftershipTracking?.tracking_number}) until delivery. Checks status every ${STATUS_CHECK_INTERVAL} and automatically sends customer email notifications on each status change.`,
+        skipApproval: true,
         metadata: {
           trackingNumber: context.state.aftershipTracking?.tracking_number,
           orderNumber: context.state.orderNumber,

@@ -63,6 +63,7 @@ export async function handleProductResponse(
       description: `Verify product classification confidence (${context.state.classification.confidence}%)`,
       actionDetails:
         'Validating product intent classification confidence and ensuring inquiry is safe to answer automatically.',
+      skipApproval: true,
       metadata: {
         confidence: context.state.classification.confidence,
         category: context.state.classification.category,
@@ -113,6 +114,7 @@ export async function handleProductResponse(
       description: 'Retrieve relevant product knowledge chunks',
       actionDetails:
         'Performing vector retrieval against user-provided product knowledge and validating relevance quality.',
+      skipApproval: true,
       metadata: {
         retrieval: PRODUCT_RETRIEVAL_DEFAULTS,
       },
@@ -189,6 +191,7 @@ export async function handleProductResponse(
       step: 4,
       description: 'Generate response using retrieved product knowledge',
       actionDetails: 'Generate a store-specific product response grounded in retrieved knowledge.',
+      skipApproval: true,
     },
     async () => {
       const generatedResponse = await generateProductKnowledgeResponse({

@@ -105,6 +105,7 @@ export async function handleOrderCancellationOrderDiscovery(
         description: 'Extract order number from email',
         actionDetails:
           "Extracting the order number from the email body using AI parsing, or looking up the customer's most recent order by their email address.",
+        skipApproval: true,
       },
       async () => {
         orderDetection = await extractOrderNumberFromEmail(context.email);
@@ -134,7 +135,10 @@ export async function handleOrderCancellationOrderDiscovery(
       context,
     );
 
-    const extractOrderFailure = buildOrderCancellationFailureResult(context.state, extractOrderResult);
+    const extractOrderFailure = buildOrderCancellationFailureResult(
+      context.state,
+      extractOrderResult,
+    );
     if (extractOrderFailure) {
       return {
         ...extractOrderFailure,
@@ -195,7 +199,10 @@ export async function handleOrderCancellationOrderDiscovery(
           context.state.awaitingCustomerReply = true;
           await runtimeControl?.setStatus(ActionStatus.AWAITING_CUSTOMER_REPLY);
           const maxWaitMs = MAX_CUSTOMER_REPLY_WAIT_DAYS * 24 * 60 * 60 * 1000;
-          const replyReceived = await condition(() => !!context.state.customerReplyEmail, maxWaitMs);
+          const replyReceived = await condition(
+            () => !!context.state.customerReplyEmail,
+            maxWaitMs,
+          );
           context.state.awaitingCustomerReply = false;
 
           if (replyReceived) {

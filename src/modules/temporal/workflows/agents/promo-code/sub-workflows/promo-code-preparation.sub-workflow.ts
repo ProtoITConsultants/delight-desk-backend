@@ -59,6 +59,7 @@ export async function handlePromoCodePreparation(
       description: `Verify AI classification confidence (${context.state.classification.confidence}%)`,
       actionDetails:
         'Verifying the top-level email classifier flagged this as a promo_code email with sufficient confidence.',
+      skipApproval: true,
       metadata: {
         confidence: context.state.classification.confidence,
         category: context.state.classification.category,
@@ -105,6 +106,7 @@ export async function handlePromoCodePreparation(
       description: 'Detect urgency and frustration signals for auto-escalation',
       actionDetails:
         'Scoring customer distress to decide whether to escalate the promo code inquiry to a human agent before any automated handling.',
+      skipApproval: true,
     },
     async () => {
       if (context.state.classification.scenarios?.escalation) {

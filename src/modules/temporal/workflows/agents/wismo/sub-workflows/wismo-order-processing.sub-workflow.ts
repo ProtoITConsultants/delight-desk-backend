@@ -74,6 +74,7 @@ export async function handleWismoOrderProcessing(
           step: 4,
           description: `Fetch order #${context.state.orderNumber} details from WooCommerce`,
           actionDetails: `Fetching full order details from WooCommerce for order #${context.state.orderNumber}.`,
+          skipApproval: true,
           metadata: {
             orderNumber: context.state.orderNumber,
           },
@@ -143,6 +144,7 @@ export async function handleWismoOrderProcessing(
           description: `Order status is ${orderStatus} - notifying customer and escalating`,
           actionDetails: `Order #${context.state.orderNumber} has a problematic status (${orderStatus}) that prevents tracking. Sending a notification email to the customer explaining the situation, then escalating for manual review. Input: Order number, order status. Output: Customer notified, workflow escalated.`,
           proposedEmailBody: statusMessage,
+          skipApproval: true,
           metadata: {
             orderNumber: context.state.orderNumber,
             orderStatus: orderStatus,

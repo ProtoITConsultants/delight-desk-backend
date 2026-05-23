@@ -121,6 +121,7 @@ export async function handleCustomWarehouseFulfillmentMethod(
       description: 'Validate customer email matches order records',
       actionDetails:
         'Confirming request sender email matches WooCommerce billing email before any warehouse coordination.',
+      skipApproval: true,
       metadata: {
         senderEmail,
         orderEmail: customerEmailFromOrder,
@@ -226,6 +227,7 @@ export async function handleCustomWarehouseFulfillmentMethod(
       description: 'Validate custom warehouse cancellation time window',
       actionDetails:
         'Checking 24-hour cancellation window with Friday-noon weekend extension policy for custom warehouse automation.',
+      skipApproval: true,
       metadata: {
         orderNumber: context.state.orderNumber,
         orderCreatedAt: orderCreatedAt?.toISOString(),
@@ -275,6 +277,7 @@ export async function handleCustomWarehouseFulfillmentMethod(
       description: 'Load custom warehouse configuration',
       actionDetails:
         'Loading configured warehouse email for this user before contacting warehouse team.',
+      skipApproval: true,
       metadata: {
         orderNumber: context.state.orderNumber,
       },
@@ -423,6 +426,7 @@ export async function handleCustomWarehouseFulfillmentMethod(
       description: `Wait up to ${CUSTOM_WAREHOUSE_REPLY_TIMEOUT_HOURS} hours for warehouse response`,
       actionDetails:
         'Waiting for warehouse email response and parsing response keywords to determine cancellation outcome.',
+      skipApproval: true,
       metadata: {
         timeoutHours: CUSTOM_WAREHOUSE_REPLY_TIMEOUT_HOURS,
         warehouseEmail: resolvedWarehouseEmail,

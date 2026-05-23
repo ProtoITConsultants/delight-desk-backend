@@ -409,6 +409,26 @@ Use `edit-and-approve` only when the goal is to test edited copy; otherwise appr
 - If a test requires a timing shortcut, document the exact code/config flag that makes it safe.
 - When a daily QA runner is implemented, replace the automation model with the exact command, required secrets, report location, and failure triage steps.
 
+### Continuous in-cycle skill maintenance (required pattern)
+
+During an active QA run, update this skill in parallel with testing whenever reality differs from the documented runbook.
+
+Trigger an update in the same cycle when any of these happen:
+
+- A new scenario appears (new WISMO behavior, provider edge case, or escalation path).
+- A documented step is incomplete, wrong, or out of date.
+- A polling cadence, timeout, or approval flow needs adjustment.
+- A restore/rollback step is missing for a mutation performed in staging.
+
+Minimum update workflow per discovery:
+
+1. Capture evidence in the run log (what happened, timestamp, identifiers, expected vs actual).
+2. Patch this skill immediately with the corrected or new runbook step/case.
+3. Commit and open a PR for the skill change in the same QA cycle.
+4. Continue remaining test cases with the updated skill as the source of truth.
+
+This establishes a recursive QA loop: run tests -> detect drift -> update skill -> continue tests -> repeat.
+
 
 ## Recursive execution model for long-running workflows
 

@@ -30,3 +30,11 @@ export class DashboardAnalyticsResponseDto {
 
   averageActionsPerResolvedTicket!: number;
 }
+
+export class NavBadgeCountsResponseDto {
+  /** Approval queue items with at least one action in `pending_approval`. */
+  approvalQueuePendingApproval!: number;
+
+  /** AI Assistant escalation tickets with status `pending`. */
+  aiAssistantPending!: number;
+}

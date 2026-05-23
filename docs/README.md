@@ -4,6 +4,7 @@
 - **[Git workflow — Nabeel](git-setup/GIT_WORKFLOW_NABEEL.md)** — Nabeel only (`dev/nabeel` → `main`).
 - **[Cancel Workflow API (frontend handoff)](frontend/cancel-workflow-api.md)** — Approval queue cancel endpoint, statuses, SSE, and UI integration notes.
 - **[Pending Approval filter (frontend handoff)](frontend/approval-queue-pending-approval-filter.md)** — Filter approval queue items with actions in `pending_approval`.
+- **[Navbar badge counts (frontend handoff)](frontend/navbar-badge-counts.md)** — Counter badges for Approval Queue and AI Assistant nav items.
 
 This folder holds diagrams, video scripts, and supporting docs for the Delight Desk backend. Use the structure below so everything stays easy to find as you add more agents and artifacts.
 

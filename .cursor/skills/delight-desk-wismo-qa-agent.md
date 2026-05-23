@@ -52,11 +52,13 @@ Never use production customers or production inboxes for these simulations.
 
 ## Environment setup
 
-Before doing anything else, run a preflight guard to fail fast when required environment variables are missing in the current Codex session:
+Before doing anything else, run a preflight guard to fail fast when required environment variables are missing in the current Codex session.
+
+Use the **minimum required** list first (this removes optional noise and keeps the QA run focused):
 
 ```bash
 required_vars=(
-  DD_API DD_COOKIE DD_STAGING_EMAIL DD_STAGING_PASSWORD
+  DD_API DD_STAGING_EMAIL DD_STAGING_PASSWORD
   WISMO_SUPPORT_INBOX_EMAIL WOO_STORE_URL WOO_CONSUMER_KEY WOO_CONSUMER_SECRET
   WISMO_CUSTOMER_GMAIL_EMAIL WISMO_CUSTOMER_GMAIL_APP_PASSWORD
 )
@@ -70,6 +72,31 @@ if [ "${#missing[@]}" -gt 0 ]; then
   exit 1
 fi
 ```
+
+`DD_COOKIE` is not a secret and can always be set to a local file path like `/tmp/dd-wismo-qa-cookie.txt`.
+
+If `DD_API` points to a local backend (Codex starts Nest itself), also validate **app runtime** vars before startup. Without these, Nest may compile but fail at runtime during strategy/module initialization.
+
+```bash
+if [[ "$DD_API" == *"localhost"* || "$DD_API" == *"127.0.0.1"* ]]; then
+  local_runtime_vars=(
+    DATABASE_URL
+    GOOGLE_CLIENT_ID GOOGLE_CLIENT_SECRET GOOGLE_CALLBACK_URL
+    MICROSOFT_CLIENT_ID MICROSOFT_CLIENT_SECRET MICROSOFT_CALLBACK_URL
+    TEMPORAL_NAMESPACE TEMPORAL_API_KEY TEMPORAL_ENDPOINT TEMPORAL_TASK_QUEUE
+  )
+  for v in "${local_runtime_vars[@]}"; do
+    [ -n "${!v:-}" ] || { echo "Missing local-only runtime var: $v"; exit 1; }
+  done
+fi
+```
+
+Temporal visibility checks (if performed via CLI/API outside Delight Desk endpoints) may also require:
+
+- `TEMPORAL_CLI_ADDRESS`
+- `TEMPORAL_CLI_NAMESPACE`
+- `TEMPORAL_CLI_TLS_SERVER_NAME` (when your endpoint requires it)
+- `TEMPORAL_CLI_API_KEY` (or equivalent auth token)
 
 Use the starter Cloud skill for local backend setup, then add the QA-specific variables:
 

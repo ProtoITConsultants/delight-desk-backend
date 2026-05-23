@@ -168,11 +168,13 @@ async function createAndInitializeAction(
   actionConfig: ActionConfig,
   context: ActionExecutionContext,
 ): Promise<WorkflowActionRecord> {
+  const needsApproval = context.requiresModeration && !actionConfig.skipApproval;
+
   const actionData: CreateActionData = {
     approvalQueueId: context.approvalQueueId!,
     actionType: actionConfig.type,
     actionStep: String(actionConfig.step), // Convert to string to support sub-steps like "3.1"
-    actionStatus: context.requiresModeration
+    actionStatus: needsApproval
       ? ActionStatus.PENDING_APPROVAL
       : ActionStatus.APPROVED,
     description: actionConfig.description,
@@ -340,14 +342,16 @@ export async function executeWorkflowAction<T>(
   await ensureApprovalQueueExists(context, actionConfig);
   const action = await createAndInitializeAction(actionConfig, context);
 
-  const moderationResult = await awaitHumanModeration(
-    action,
-    actionConfig,
-    context,
-    humanResponseGetter,
-  );
-  if (moderationResult) {
-    return moderationResult;
+  if (!actionConfig.skipApproval) {
+    const moderationResult = await awaitHumanModeration(
+      action,
+      actionConfig,
+      context,
+      humanResponseGetter,
+    );
+    if (moderationResult) {
+      return moderationResult;
+    }
   }
 
   // 5. Update action status to executing

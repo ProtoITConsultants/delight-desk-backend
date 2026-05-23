@@ -13,11 +13,11 @@ import {
   OrderCancellationActionType,
 } from '../../../types';
 import { executeWorkflowAction } from '../../../workflow-action.helpers';
+import { OrderCancellationWorkflowState, PreparationResult } from '../order-cancellation.types';
 import {
-  OrderCancellationWorkflowState,
-  PreparationResult,
-} from '../order-cancellation.types';
-import { ACTIVITY_TIMEOUTS, CLASSIFICATION_CONFIDENCE_THRESHOLD } from '../order-cancellation.constants';
+  ACTIVITY_TIMEOUTS,
+  CLASSIFICATION_CONFIDENCE_THRESHOLD,
+} from '../order-cancellation.constants';
 import {
   assessCustomerDistress,
   buildOrderCancellationFailureResult,
@@ -77,7 +77,9 @@ export async function handleOrderCancellationPreparation(
         type: OrderCancellationActionType.VERIFY_AI_CONFIDENCE,
         step: 2,
         description: `Verify AI classification confidence (${context.state.classification.confidence}%)`,
-        actionDetails: 'Verifying AI classification confidence is sufficient to proceed automatically.',
+        actionDetails:
+          'Verifying AI classification confidence is sufficient to proceed automatically.',
+        skipApproval: true,
         metadata: {
           confidence: context.state.classification.confidence,
           category: context.state.classification.category,
@@ -112,7 +114,10 @@ export async function handleOrderCancellationPreparation(
       context,
     );
 
-    const confidenceFailure = buildOrderCancellationFailureResult(context.state, confidenceCheckResult);
+    const confidenceFailure = buildOrderCancellationFailureResult(
+      context.state,
+      confidenceCheckResult,
+    );
     if (confidenceFailure) {
       return {
         ...confidenceFailure,
@@ -133,6 +138,7 @@ export async function handleOrderCancellationPreparation(
         description: 'Detect urgency and frustration signals for auto-escalation',
         actionDetails:
           'Scoring customer distress using email language, classifier priority, and sentiment to decide whether immediate human escalation is required.',
+        skipApproval: true,
       },
       async () => {
         if (context.state.classification.scenarios?.escalation) {

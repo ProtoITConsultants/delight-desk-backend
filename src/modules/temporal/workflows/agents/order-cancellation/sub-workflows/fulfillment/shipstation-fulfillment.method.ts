@@ -95,6 +95,7 @@ export async function handleShipStationFulfillmentMethod(
       description: 'Validate customer email matches order records',
       actionDetails:
         'Confirming request sender email matches WooCommerce billing email before ShipStation cancellation.',
+      skipApproval: true,
       metadata: {
         senderEmail,
         orderEmail: customerEmailFromOrder,
@@ -201,6 +202,7 @@ export async function handleShipStationFulfillmentMethod(
       description: 'Resolve linked ShipStation order',
       actionDetails:
         'Looking up the ShipStation order using WooCommerce order number before cancellation eligibility checks.',
+      skipApproval: true,
       metadata: {
         orderNumber: context.state.orderNumber,
       },
@@ -249,6 +251,7 @@ export async function handleShipStationFulfillmentMethod(
       description: 'Check ShipStation cancellation eligibility',
       actionDetails:
         'Checking ShipStation shipment and label statuses to confirm cancellation can still be completed automatically.',
+      skipApproval: true,
       metadata: {
         orderNumber: context.state.orderNumber,
         shipStationShipmentId: shipStationOrder?.shipment_id,
@@ -438,6 +441,7 @@ export async function handleShipStationFulfillmentMethod(
       description: `Update WooCommerce order #${context.state.orderNumber} status to cancelled`,
       actionDetails:
         'Syncing WooCommerce order status to cancelled after successful ShipStation cancellation.',
+      skipApproval: true,
     },
     async () => {
       const cancelledOrder = await updateWooCommerceOrderStatus(

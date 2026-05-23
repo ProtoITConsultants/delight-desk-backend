@@ -159,6 +159,7 @@ async function handleMissedPromoRefund(
       description: 'Resolve the order the refund applies to',
       actionDetails:
         'Resolving which order the missed promo code refund should apply to using AI extraction and a lookup of the most recent order matching the inbound email address.',
+      skipApproval: true,
       metadata: {
         candidateOrderNumbers: intent.mentionedOrderNumbers,
       },
@@ -287,6 +288,7 @@ async function handleMissedPromoRefund(
         description: 'Verify the customer is a first-time buyer',
         actionDetails:
           "Checking past WooCommerce orders by the order's billing email (canonical customer identity) and, where available, by billing address to confirm the customer is eligible for the first-time-only promo code.",
+        skipApproval: true,
       },
       async () => {
         const assessment = await pcAssessFirstTimeCustomer(
@@ -331,6 +333,7 @@ async function handleMissedPromoRefund(
       description: `Check refund eligibility for order #${context.state.resolvedOrderId}`,
       actionDetails:
         'Computing the partial refund amount, applying the configured maximum refund cap, validating the order subtotal meets the minimum order value, and checking how much has already been refunded.',
+      skipApproval: true,
       metadata: {
         promoCode: config.promoCode,
         orderId: context.state.resolvedOrderId,
@@ -710,6 +713,7 @@ async function handleFirstTimeDenied(
       description: 'Confirm the customer has prior orders',
       actionDetails:
         'Looking up WooCommerce orders for this customer (by email and billing address) to confirm they are not actually a first-time buyer before sending the denial explanation.',
+      skipApproval: true,
     },
     async () => {
       const assessment = await pcAssessFirstTimeCustomer(context.userId, inboundEmail);
@@ -785,6 +789,7 @@ async function handleApplicationGuidance(
       description: 'Look up checkout / promo application guidance in product knowledge',
       actionDetails:
         'Running a vector search against the merchant-authored product knowledge to find documented instructions on where/how to apply a promo code at checkout. The reply is grounded only in retrieved snippets; if no relevant content is found the workflow escalates instead of guessing.',
+      skipApproval: true,
       metadata: {
         retrieval: PROMO_KNOWLEDGE_RETRIEVAL_DEFAULTS,
         minTopSimilarity: PROMO_KNOWLEDGE_MIN_TOP_SIMILARITY,

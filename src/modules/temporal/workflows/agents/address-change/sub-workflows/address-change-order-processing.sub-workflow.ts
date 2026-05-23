@@ -62,6 +62,7 @@ export async function handleAddressChangeOrderProcessing(
         step: 4,
         description: `Fetch order #${context.state.orderNumber} details from WooCommerce`,
         actionDetails: `Fetching full order details from WooCommerce for order #${context.state.orderNumber}.`,
+        skipApproval: true,
         metadata: {
           orderNumber: context.state.orderNumber,
         },
@@ -111,6 +112,7 @@ export async function handleAddressChangeOrderProcessing(
         description: `Order status is ${orderStatus} - requires manual handling`,
         actionDetails:
           'Order status indicates this address change can no longer be completed automatically.',
+        skipApproval: true,
         metadata: {
           orderNumber: context.state.orderNumber,
           orderStatus,

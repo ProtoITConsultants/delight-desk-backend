@@ -49,6 +49,7 @@ export async function handlePromoCodeIntentClassification(
       description: 'Classify which promo code scenario the email matches',
       actionDetails:
         'Running an AI sub-classifier to decide whether the customer wants a missed-promo refund, is hitting a first-time-only restriction, needs application guidance, or is making a general inquiry.',
+      skipApproval: true,
       metadata: {
         configuredCodes: configurations.map((c) => c.promoCode),
         threshold: PROMO_CODE_INTENT_CONFIDENCE_THRESHOLD,
@@ -94,6 +95,7 @@ export async function handlePromoCodeIntentClassification(
         : 'Resolve configured promo code (none mentioned)',
       actionDetails:
         'Looking up the Delight Desk promo code configuration the customer referenced. For refund and denial intents we cannot proceed automatically without an active matching record.',
+      skipApproval: true,
       metadata: {
         mentionedCode: intent.mentionedCode,
         intent: intent.intent,

@@ -75,6 +75,7 @@ export async function handleOrderCancellationOrderProcessing(
           step: 4,
           description: `Fetch order #${context.state.orderNumber} details from WooCommerce`,
           actionDetails: `Fetching full order details from WooCommerce for order #${context.state.orderNumber}.`,
+          skipApproval: true,
           metadata: {
             orderNumber: context.state.orderNumber,
           },
@@ -146,6 +147,7 @@ export async function handleOrderCancellationOrderProcessing(
           description: `Order status is ${orderStatus} - notifying customer and escalating`,
           actionDetails: `Order #${context.state.orderNumber} has a problematic status (${orderStatus}) that prevents automated cancellation handling in this flow iteration. Sending a notification email to the customer, then escalating for manual review.`,
           proposedEmailBody: statusMessage,
+          skipApproval: true,
           metadata: {
             orderNumber: context.state.orderNumber,
             orderStatus,

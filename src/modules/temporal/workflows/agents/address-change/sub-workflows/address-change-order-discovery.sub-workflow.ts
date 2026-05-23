@@ -91,6 +91,7 @@ export async function handleAddressChangeOrderDiscovery(
       description: 'Extract order number from email',
       actionDetails:
         "Extracting the order number from the email body using AI parsing, or looking up the customer's most recent order by their email address.",
+      skipApproval: true,
     },
     async () => {
       orderDetection = await extractOrderNumberFromEmail(context.email);

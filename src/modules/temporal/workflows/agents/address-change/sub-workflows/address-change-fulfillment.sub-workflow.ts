@@ -146,6 +146,7 @@ export async function handleAddressChangeFulfillment(
       description: 'Detect user fulfillment method',
       actionDetails:
         "Detecting the user's configured fulfillment method to route address change processing through the correct path.",
+      skipApproval: true,
     },
     async () => {
       fulfillmentMethod = await getFulfillmentMethod(context.userId);
@@ -173,6 +174,7 @@ export async function handleAddressChangeFulfillment(
       description: 'Extract requested shipping address from customer message',
       actionDetails:
         'Using AI extraction to parse the new shipping address fields from the customer email body.',
+      skipApproval: true,
       metadata: {
         source: context.state.latestCustomerMessageBody ? 'latest_customer_reply' : 'initial_email',
       },
@@ -239,6 +241,7 @@ export async function handleAddressChangeFulfillment(
         step: 8,
         description: 'Load custom warehouse configuration',
         actionDetails: 'Loading configured warehouse email before contacting warehouse team.',
+        skipApproval: true,
         metadata: {
           orderNumber: context.state.orderNumber,
         },
@@ -369,6 +372,7 @@ export async function handleAddressChangeFulfillment(
         description: `Wait up to ${CUSTOM_WAREHOUSE_REPLY_TIMEOUT_HOURS} hours for warehouse response`,
         actionDetails:
           'Waiting for warehouse email response and parsing updated/cannot_update intent before continuing.',
+        skipApproval: true,
         metadata: {
           timeoutHours: CUSTOM_WAREHOUSE_REPLY_TIMEOUT_HOURS,
           warehouseEmail,
@@ -501,6 +505,7 @@ export async function handleAddressChangeFulfillment(
         context.state.fulfillmentMethod === 'custom_warehouse'
           ? 'Applying WooCommerce shipping address update only after warehouse confirmed update.'
           : 'Applying the newly requested shipping address with provider-first sequencing. External fulfillment provider is handled first where supported, then WooCommerce is synced.',
+      skipApproval: true,
       metadata: {
         orderNumber: context.state.orderNumber,
         fulfillmentMethod,

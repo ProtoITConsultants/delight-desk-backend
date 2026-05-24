@@ -1,5 +1,5 @@
 import { Inject, Injectable } from '@nestjs/common';
-import { and, asc, desc, eq, gte, inArray, like, lte, sql } from 'drizzle-orm';
+import { and, asc, desc, eq, gte, inArray, like, lte, SQL, sql } from 'drizzle-orm';
 import { NodePgDatabase } from 'drizzle-orm/node-postgres';
 import { DATABASE_CONNECTION } from '../database.module';
 import { emails, emailThreads, escalations } from '../schema';
@@ -21,6 +21,19 @@ export interface GetEscalationsFilters {
 export class EscalationsRepository {
   constructor(@Inject(DATABASE_CONNECTION) private db: NodePgDatabase) {}
 
+  private addDateRangeConditions(
+    conditions: SQL<unknown>[],
+    dateFrom?: string,
+    dateTo?: string,
+  ): void {
+    if (dateFrom) {
+      conditions.push(gte(escalations.createdAt, new Date(dateFrom)));
+    }
+    if (dateTo) {
+      conditions.push(lte(escalations.createdAt, new Date(dateTo)));
+    }
+  }
+
   async createEscalation(data: any) {
     const [created] = await this.db.insert(escalations).values(data).returning();
     return created;
@@ -37,12 +50,7 @@ export class EscalationsRepository {
       conditions.push(like(escalations.reason, `%${filters.search}%`));
     }
 
-    if (filters.dateFrom) {
-      conditions.push(gte(escalations.createdAt, new Date(filters.dateFrom)));
-    }
-    if (filters.dateTo) {
-      conditions.push(lte(escalations.createdAt, new Date(filters.dateTo)));
-    }
+    this.addDateRangeConditions(conditions, filters.dateFrom, filters.dateTo);
 
     const sortColumn = filters.sortBy || 'createdAt';
     const sortDirection = filters.sortOrder === 'asc' ? asc : desc;
@@ -90,12 +98,7 @@ export class EscalationsRepository {
     }
 
     // Date range filters
-    if (filters.dateFrom) {
-      conditions.push(gte(escalations.createdAt, new Date(filters.dateFrom)));
-    }
-    if (filters.dateTo) {
-      conditions.push(lte(escalations.createdAt, new Date(filters.dateTo)));
-    }
+    this.addDateRangeConditions(conditions, filters.dateFrom, filters.dateTo);
 
     // Build sort order
     const sortColumn = filters.sortBy || 'createdAt';
@@ -138,12 +141,7 @@ export class EscalationsRepository {
       conditions.push(like(escalations.reason, `%${filters.search}%`));
     }
 
-    if (filters.dateFrom) {
-      conditions.push(gte(escalations.createdAt, new Date(filters.dateFrom)));
-    }
-    if (filters.dateTo) {
-      conditions.push(lte(escalations.createdAt, new Date(filters.dateTo)));
-    }
+    this.addDateRangeConditions(conditions, filters.dateFrom, filters.dateTo);
 
     const result = await this.db
       .select({ count: sql<number>`count(*)::int` })
@@ -237,13 +235,7 @@ export class EscalationsRepository {
 
   async getStats(userId: string, dateFrom?: string, dateTo?: string) {
     const conditions = [eq(escalations.userId, userId)];
-
-    if (dateFrom) {
-      conditions.push(gte(escalations.createdAt, new Date(dateFrom)));
-    }
-    if (dateTo) {
-      conditions.push(lte(escalations.createdAt, new Date(dateTo)));
-    }
+    this.addDateRangeConditions(conditions, dateFrom, dateTo);
 
     // Total count
     const totalResult = await this.db

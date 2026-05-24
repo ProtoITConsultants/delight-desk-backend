@@ -85,7 +85,18 @@ export class AiAssistantService {
   }
 
   async getEscalations(userId: string, dto: GetEscalationsDto): Promise<EscalationListResponse> {
-    const { page = 1, limit = 20, status, priority, sortBy, sortOrder, search } = dto;
+    const {
+      page = 1,
+      limit = 20,
+      status,
+      priority,
+      sortBy,
+      sortOrder,
+      search,
+      dateFrom,
+      dateTo,
+    } = dto;
+    this.validateDateRange(dateFrom, dateTo);
 
     const offset = (page - 1) * limit;
 
@@ -94,6 +105,8 @@ export class AiAssistantService {
       status,
       priority,
       search,
+      dateFrom,
+      dateTo,
       sortBy,
       sortOrder,
       limit,
@@ -136,7 +149,18 @@ export class AiAssistantService {
     userId: string,
     dto: GetEscalationsDto,
   ): Promise<EscalationListWithThreadResponse> {
-    const { page = 1, limit = 20, status, priority, sortBy, sortOrder, search } = dto;
+    const {
+      page = 1,
+      limit = 20,
+      status,
+      priority,
+      sortBy,
+      sortOrder,
+      search,
+      dateFrom,
+      dateTo,
+    } = dto;
+    this.validateDateRange(dateFrom, dateTo);
 
     const offset = (page - 1) * limit;
 
@@ -145,6 +169,8 @@ export class AiAssistantService {
       status,
       priority,
       search,
+      dateFrom,
+      dateTo,
       sortBy,
       sortOrder,
       limit,
@@ -324,6 +350,7 @@ export class AiAssistantService {
 
   async getStats(userId: string, dto: GetEscalationStatsDto): Promise<EscalationStatsResponse> {
     const { dateFrom, dateTo } = dto;
+    this.validateDateRange(dateFrom, dateTo);
 
     const stats = await this.escalationsRepository.getStats(userId, dateFrom, dateTo);
 
@@ -355,6 +382,12 @@ export class AiAssistantService {
       byStatus,
       byPriority,
     };
+  }
+
+  private validateDateRange(dateFrom?: string, dateTo?: string): void {
+    if (dateFrom && dateTo && new Date(dateFrom).getTime() > new Date(dateTo).getTime()) {
+      throw new BadRequestException('dateFrom must be less than or equal to dateTo');
+    }
   }
 
   // Email Signature Methods

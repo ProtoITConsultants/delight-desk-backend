@@ -1,0 +1,1 @@
+CREATE INDEX "escalations_user_id_created_at_idx" ON "escalations" USING btree ("user_id","created_at");

@@ -6,6 +6,7 @@ import {
   IsEmail,
   IsEnum,
   IsInt,
+  IsISO8601,
   IsNotEmpty,
   IsOptional,
   IsString,
@@ -53,6 +54,14 @@ export class GetEscalationsDto {
   @IsString()
   @MaxLength(100)
   search?: string;
+
+  @IsOptional()
+  @IsISO8601({ strict: true, strictSeparator: true })
+  dateFrom?: string;
+
+  @IsOptional()
+  @IsISO8601({ strict: true, strictSeparator: true })
+  dateTo?: string;
 }
 
 export class UpdateEscalationStatusDto {
@@ -83,11 +92,11 @@ export class BulkUpdateEscalationStatusDto {
 
 export class GetEscalationStatsDto {
   @IsOptional()
-  @IsString()
+  @IsISO8601({ strict: true, strictSeparator: true })
   dateFrom?: string;
 
   @IsOptional()
-  @IsString()
+  @IsISO8601({ strict: true, strictSeparator: true })
   dateTo?: string;
 }
 

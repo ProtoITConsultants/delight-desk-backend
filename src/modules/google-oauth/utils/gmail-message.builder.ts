@@ -70,9 +70,14 @@ export class GmailMessageBuilder {
   static plainTextToHtml(text: string): string {
     if (!text) return '';
 
-    const htmlTagPattern = /<\/?[a-z][\s\S]*>/i;
-    if (htmlTagPattern.test(text)) {
+    const htmlDocumentPattern = /<!doctype html|<html[\s>]|<body[\s>]/i;
+    if (htmlDocumentPattern.test(text)) {
       return text;
+    }
+
+    const htmlFragmentPattern = /<\/?[a-z][^>]*>/i;
+    if (htmlFragmentPattern.test(text)) {
+      return GmailMessageBuilder.wrapInEmailShell(text);
     }
 
     const normalised = text.replace(/\r\n/g, '\n').replace(/\r/g, '\n').trim();
@@ -91,7 +96,11 @@ export class GmailMessageBuilder {
         return `<p style="margin:0 0 10px 0;">${inner}</p>`;
       });
 
-    return `<!DOCTYPE html><html><body style="font-family:sans-serif;font-size:14px;line-height:1.6;color:#222;margin:0;padding:0;">${blocks.join('')}</body></html>`;
+    return GmailMessageBuilder.wrapInEmailShell(blocks.join(''));
+  }
+
+  private static wrapInEmailShell(content: string): string {
+    return `<!DOCTYPE html><html><head><meta charset="UTF-8"><meta name="x-apple-disable-message-reformatting"><meta name="viewport" content="width=device-width, initial-scale=1.0"></head><body style="margin:0;padding:0;width:100%;background:#ffffff;-webkit-text-size-adjust:100%;-ms-text-size-adjust:100%;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;color:#222222;font-size:16px;line-height:1.6;"><table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="border-collapse:collapse;width:100%;"><tr><td style="padding:0;"><div style="max-width:680px;margin:0 auto;padding:0;font-size:16px;line-height:1.6;">${content}</div></td></tr></table></body></html>`;
   }
 
   /**

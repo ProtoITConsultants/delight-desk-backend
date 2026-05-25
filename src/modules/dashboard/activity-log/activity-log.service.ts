@@ -102,14 +102,10 @@ export class ActivityLogService {
   }
 
   /**
-   * Prefer the action's own `description` field (it is authored by the
-   * agent itself and already tuned for human consumption). When it's
-   * missing — which should be rare — fall back to the action name.
+   * Use the action's user-facing name as activity log message.
+   * Fall back to a humanized action type for older rows.
    */
   private buildMessage(row: ActivityLogRow): string {
-    if (row.description && row.description.trim().length > 0) {
-      return row.description;
-    }
     if (row.actionName && row.actionName.trim().length > 0) {
       return row.actionName;
     }

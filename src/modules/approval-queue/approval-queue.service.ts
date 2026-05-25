@@ -134,7 +134,6 @@ export class ApprovalQueueService {
         workflowActions: actions.map((action) => ({
           id: action.id,
           name: action.name,
-          description: action.description,
           actionDetails: action.actionDetails,
           status: action.actionStatus,
           step: action.actionStep,
@@ -635,7 +634,7 @@ export class ApprovalQueueService {
   private actionsContainKeyword(actions: QueueAction[], keyword: string): boolean {
     const normalizedKeyword = keyword.toLowerCase();
     return actions.some((action) => {
-      const haystack = [action.name, action.description, action.actionDetails]
+      const haystack = [action.name, action.actionDetails]
         .filter(Boolean)
         .join(' ')
         .toLowerCase();
@@ -647,7 +646,7 @@ export class ApprovalQueueService {
     const regex = /order\s*#?(\d+)/i;
 
     for (const action of actions) {
-      const sources = [action.description, action.actionDetails];
+      const sources = [action.name, action.actionDetails];
       for (const text of sources) {
         if (!text) continue;
         const match = text.match(regex);

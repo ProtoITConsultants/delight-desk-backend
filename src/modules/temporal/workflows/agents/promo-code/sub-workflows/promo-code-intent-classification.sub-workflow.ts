@@ -46,7 +46,7 @@ export async function handlePromoCodeIntentClassification(
     {
       type: PromoCodeActionType.CLASSIFY_PROMO_CODE_INTENT,
       step: 3,
-      description: 'Classify which promo code scenario the email matches',
+      name: 'Classify which promo code scenario the email matches',
       actionDetails:
         'Running an AI sub-classifier to decide whether the customer wants a missed-promo refund, is hitting a first-time-only restriction, needs application guidance, or is making a general inquiry.',
       skipApproval: true,
@@ -90,7 +90,7 @@ export async function handlePromoCodeIntentClassification(
     {
       type: PromoCodeActionType.RESOLVE_PROMO_CODE_CONFIG,
       step: 4,
-      description: intent.mentionedCode
+      name: intent.mentionedCode
         ? `Resolve configured promo code "${intent.mentionedCode}"`
         : 'Resolve configured promo code (none mentioned)',
       actionDetails:

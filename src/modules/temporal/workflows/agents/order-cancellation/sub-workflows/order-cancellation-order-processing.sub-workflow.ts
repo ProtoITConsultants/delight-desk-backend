@@ -73,7 +73,7 @@ export async function handleOrderCancellationOrderProcessing(
         {
           type: OrderCancellationActionType.FETCH_ORDER_DETAILS,
           step: 4,
-          description: `Fetch order #${context.state.orderNumber} details from WooCommerce`,
+          name: `Fetch order #${context.state.orderNumber} details from WooCommerce`,
           actionDetails: `Fetching full order details from WooCommerce for order #${context.state.orderNumber}.`,
           skipApproval: true,
           metadata: {
@@ -144,7 +144,7 @@ export async function handleOrderCancellationOrderProcessing(
         {
           type: OrderCancellationActionType.VALIDATE_ORDER_STATUS,
           step: 4.1,
-          description: `Order status is ${orderStatus} - notifying customer and escalating`,
+          name: `Order status is ${orderStatus} - notifying customer and escalating`,
           actionDetails: `Order #${context.state.orderNumber} has a problematic status (${orderStatus}) that prevents automated cancellation handling in this flow iteration. Sending a notification email to the customer, then escalating for manual review.`,
           proposedEmailBody: statusMessage,
           metadata: {
@@ -227,7 +227,7 @@ export async function handleOrderCancellationOrderProcessing(
         {
           type: OrderCancellationActionType.SEND_ACKNOWLEDGEMENT,
           step: 5,
-          description: 'Send acknowledgement email to customer',
+          name: 'Send acknowledgement email to customer',
           actionDetails: `Sending an AI-generated acknowledgement email to ${extractEmail(context.email.fromEmail)} confirming receipt of their order cancellation request for order #${context.state.orderNumber}. The proposed message can be reviewed and edited before sending.`,
           proposedEmailBody: acknowledgementMessage,
           metadata: {

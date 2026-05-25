@@ -65,7 +65,7 @@ export async function handleSelfFulfillmentMethod(
     {
       type: OrderCancellationActionType.PROCESS_CANCELLATION,
       step: 7,
-      description: `Update order #${context.state.orderNumber} status to cancelled`,
+      name: `Update order #${context.state.orderNumber} status to cancelled`,
       actionDetails:
         'Marking order as cancelled in WooCommerce to stop fulfillment and reflect cancellation outcome.',
     },
@@ -108,7 +108,7 @@ export async function handleSelfFulfillmentMethod(
     {
       type: OrderCancellationActionType.SEND_FINAL_NOTIFICATION,
       step: 7.1,
-      description: 'Notify customer that cancellation is completed',
+      name: 'Notify customer that cancellation is completed',
       actionDetails:
         'Sending a status update email to confirm the order has been cancelled successfully. Refund details are sent in a separate follow-up email.',
       proposedEmailBody: cancellationStatusMessage,
@@ -151,7 +151,7 @@ export async function handleSelfFulfillmentMethod(
     {
       type: OrderCancellationActionType.PROCESS_REFUND,
       step: 8,
-      description: `Process refund for order #${context.state.orderNumber}`,
+      name: `Process refund for order #${context.state.orderNumber}`,
       actionDetails:
         'Processing WooCommerce refund for the cancellation. Full refund is attempted for eligible self-fulfillment orders.',
     },
@@ -227,7 +227,7 @@ export async function handleSelfFulfillmentMethod(
     {
       type: OrderCancellationActionType.SEND_FINAL_NOTIFICATION,
       step: 8.1,
-      description: 'Send refund completion confirmation',
+      name: 'Send refund completion confirmation',
       actionDetails:
         'Sending a dedicated refund confirmation email with expected processing timeline so customers know when funds should appear.',
       proposedEmailBody: refundConfirmationMessage,

@@ -45,7 +45,7 @@ export async function handleProductResponse(
     {
       type: ProductActionType.MARK_EMAIL_READ,
       step: 1,
-      description: 'Mark incoming email as read',
+      name: 'Mark incoming email as read',
       actionDetails: `Marking product inquiry email from ${context.email.fromEmail} as read.`,
     },
     () => markEmailAsRead(context.email.userId, context.email.messageId),
@@ -60,7 +60,7 @@ export async function handleProductResponse(
     {
       type: ProductActionType.VERIFY_AI_CONFIDENCE,
       step: 2,
-      description: `Verify product classification confidence (${context.state.classification.confidence}%)`,
+      name: `Verify product classification confidence (${context.state.classification.confidence}%)`,
       actionDetails:
         'Validating product intent classification confidence and ensuring inquiry is safe to answer automatically.',
       skipApproval: true,
@@ -111,7 +111,7 @@ export async function handleProductResponse(
     {
       type: ProductActionType.RETRIEVE_PRODUCT_KNOWLEDGE,
       step: 3,
-      description: 'Retrieve relevant product knowledge chunks',
+      name: 'Retrieve relevant product knowledge chunks',
       actionDetails:
         'Performing vector retrieval against user-provided product knowledge and validating relevance quality.',
       skipApproval: true,
@@ -189,7 +189,7 @@ export async function handleProductResponse(
     {
       type: ProductActionType.GENERATE_PRODUCT_RESPONSE,
       step: 4,
-      description: 'Generate response using retrieved product knowledge',
+      name: 'Generate response using retrieved product knowledge',
       actionDetails: 'Generate a store-specific product response grounded in retrieved knowledge.',
       skipApproval: true,
     },
@@ -215,7 +215,7 @@ export async function handleProductResponse(
     {
       type: ProductActionType.SEND_PRODUCT_RESPONSE,
       step: 5,
-      description: 'Send final product response to customer',
+      name: 'Send final product response to customer',
       actionDetails:
         'Send the generated product answer back to the customer thread with store-specific context.',
       proposedEmailBody: context.state.generatedResponse,

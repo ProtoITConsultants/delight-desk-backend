@@ -92,7 +92,7 @@ export async function handleShipStationFulfillmentMethod(
     {
       type: OrderCancellationActionType.VALIDATE_CUSTOMER_EMAIL,
       step: 6.0,
-      description: 'Validate customer email matches order records',
+      name: 'Validate customer email matches order records',
       actionDetails:
         'Confirming request sender email matches WooCommerce billing email before ShipStation cancellation.',
       skipApproval: true,
@@ -145,7 +145,7 @@ export async function handleShipStationFulfillmentMethod(
       {
         type: OrderCancellationActionType.SEND_FINAL_NOTIFICATION,
         step: 6.1,
-        description: 'Send cannot-cancel response to customer',
+        name: 'Send cannot-cancel response to customer',
         actionDetails:
           'WooCommerce status indicates cancellation is too late. Sending customer guidance with return next-step info.',
         proposedEmailBody: cannotCancelMessage,
@@ -199,7 +199,7 @@ export async function handleShipStationFulfillmentMethod(
     {
       type: OrderCancellationActionType.FETCH_ORDER_DETAILS,
       step: 6.2,
-      description: 'Resolve linked ShipStation order',
+      name: 'Resolve linked ShipStation order',
       actionDetails:
         'Looking up the ShipStation order using WooCommerce order number before cancellation eligibility checks.',
       skipApproval: true,
@@ -248,7 +248,7 @@ export async function handleShipStationFulfillmentMethod(
     {
       type: OrderCancellationActionType.CHECK_TIME_ELIGIBILITY,
       step: 6.3,
-      description: 'Check ShipStation cancellation eligibility',
+      name: 'Check ShipStation cancellation eligibility',
       actionDetails:
         'Checking ShipStation shipment and label statuses to confirm cancellation can still be completed automatically.',
       skipApproval: true,
@@ -291,7 +291,7 @@ export async function handleShipStationFulfillmentMethod(
       {
         type: OrderCancellationActionType.SEND_FINAL_NOTIFICATION,
         step: 6.4,
-        description: 'Send cannot-cancel response to customer',
+        name: 'Send cannot-cancel response to customer',
         actionDetails:
           'ShipStation indicates cancellation is not eligible. Sending customer final guidance and return next-step info.',
         proposedEmailBody: cannotCancelMessage,
@@ -348,7 +348,7 @@ export async function handleShipStationFulfillmentMethod(
     {
       type: OrderCancellationActionType.SEND_ACKNOWLEDGEMENT,
       step: 6.5,
-      description: 'Send ShipStation processing acknowledgement',
+      name: 'Send ShipStation processing acknowledgement',
       actionDetails:
         'Cancellation is eligible in ShipStation. Sending customer update that cancellation is actively being processed.',
       proposedEmailBody: processingMessage,
@@ -389,7 +389,7 @@ export async function handleShipStationFulfillmentMethod(
     {
       type: OrderCancellationActionType.PROCESS_CANCELLATION,
       step: 7,
-      description: 'Cancel order in ShipStation',
+      name: 'Cancel order in ShipStation',
       actionDetails:
         'Submitting cancellation request to ShipStation for the linked fulfillment order before WooCommerce status/refund updates.',
       metadata: {
@@ -438,7 +438,7 @@ export async function handleShipStationFulfillmentMethod(
     {
       type: OrderCancellationActionType.PROCESS_CANCELLATION,
       step: 7.1,
-      description: `Update WooCommerce order #${context.state.orderNumber} status to cancelled`,
+      name: `Update WooCommerce order #${context.state.orderNumber} status to cancelled`,
       actionDetails:
         'Syncing WooCommerce order status to cancelled after successful ShipStation cancellation.',
       skipApproval: true,
@@ -471,7 +471,7 @@ export async function handleShipStationFulfillmentMethod(
     {
       type: OrderCancellationActionType.PROCESS_REFUND,
       step: 8,
-      description: `Process refund for order #${context.state.orderNumber}`,
+      name: `Process refund for order #${context.state.orderNumber}`,
       actionDetails:
         'Processing full WooCommerce refund after successful ShipStation cancellation.',
     },
@@ -541,7 +541,7 @@ export async function handleShipStationFulfillmentMethod(
     {
       type: OrderCancellationActionType.SEND_FINAL_NOTIFICATION,
       step: 9,
-      description: 'Send final success notification to customer',
+      name: 'Send final success notification to customer',
       actionDetails:
         'Sending final confirmation that cancellation and refund were completed successfully through ShipStation fulfillment.',
       proposedEmailBody: successMessage,

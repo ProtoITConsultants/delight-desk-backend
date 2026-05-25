@@ -169,7 +169,6 @@ Use `GET /approval-queue` to populate the approval queue and determine which ite
     {
       "id": "action-uuid",
       "name": "Send Acknowledgement",
-      "description": "...",
       "actionDetails": "...",
       "status": "pending_approval",
       "step": "5",

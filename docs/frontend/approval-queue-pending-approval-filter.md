@@ -113,7 +113,6 @@ GET /approval-queue?status=pending_approval&page=1&limit=20
         {
           "id": "action-uuid",
           "name": "Send Acknowledgement",
-          "description": "...",
           "actionDetails": "...",
           "status": "pending_approval",
           "step": "5",

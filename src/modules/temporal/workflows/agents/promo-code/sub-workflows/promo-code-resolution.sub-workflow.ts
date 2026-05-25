@@ -156,7 +156,7 @@ async function handleMissedPromoRefund(
     {
       type: PromoCodeActionType.EXTRACT_ORDER_NUMBER,
       step: 5,
-      description: 'Resolve the order the refund applies to',
+      name: 'Resolve the order the refund applies to',
       actionDetails:
         'Resolving which order the missed promo code refund should apply to using AI extraction and a lookup of the most recent order matching the inbound email address.',
       skipApproval: true,
@@ -203,7 +203,7 @@ async function handleMissedPromoRefund(
       {
         type: PromoCodeActionType.REQUEST_ORDER_INFO,
         step: 5.1,
-        description: 'Ask customer for their order number',
+        name: 'Ask customer for their order number',
         actionDetails: `No order could be matched to ${inboundEmail} or extracted from the email body. Sending a follow-up message asking the customer to provide their order number, then waiting up to ${MAX_CUSTOMER_REPLY_WAIT_DAYS} days for their reply.`,
         proposedEmailBody: followUpMessage,
         metadata: { maxWaitDays: MAX_CUSTOMER_REPLY_WAIT_DAYS },
@@ -285,7 +285,7 @@ async function handleMissedPromoRefund(
       {
         type: PromoCodeActionType.ASSESS_FIRST_TIME_CUSTOMER,
         step: 6,
-        description: 'Verify the customer is a first-time buyer',
+        name: 'Verify the customer is a first-time buyer',
         actionDetails:
           "Checking past WooCommerce orders by the order's billing email (canonical customer identity) and, where available, by billing address to confirm the customer is eligible for the first-time-only promo code.",
         skipApproval: true,
@@ -330,7 +330,7 @@ async function handleMissedPromoRefund(
     {
       type: PromoCodeActionType.CHECK_REFUND_ELIGIBILITY,
       step: 7,
-      description: `Check refund eligibility for order #${context.state.resolvedOrderId}`,
+      name: `Check refund eligibility for order #${context.state.resolvedOrderId}`,
       actionDetails:
         'Computing the partial refund amount, applying the configured maximum refund cap, validating the order subtotal meets the minimum order value, and checking how much has already been refunded.',
       skipApproval: true,
@@ -429,7 +429,7 @@ async function handleMissedPromoRefund(
     {
       type: PromoCodeActionType.PROCESS_PROMO_CODE_REFUND,
       step: 8,
-      description: `Refund $${eligibility.proposedRefundAmount} for order #${context.state.resolvedOrderId}`,
+      name: `Refund $${eligibility.proposedRefundAmount} for order #${context.state.resolvedOrderId}`,
       actionDetails: `Issuing a $${eligibility.proposedRefundAmount} partial refund on WooCommerce order #${context.state.resolvedOrderId} to honor promo code ${config.promoCode}.`,
       proposedEmailBody: message,
       metadata: {
@@ -462,7 +462,7 @@ async function handleMissedPromoRefund(
     {
       type: PromoCodeActionType.SEND_RESPONSE_MESSAGE,
       step: 9,
-      description: 'Send refund confirmation to the customer',
+      name: 'Send refund confirmation to the customer',
       actionDetails: 'Sending the refund confirmation email to the customer thread.',
       proposedEmailBody: message,
     },
@@ -517,7 +517,7 @@ async function sendSubscriptionExcludedReply(
     {
       type: PromoCodeActionType.SEND_RESPONSE_MESSAGE,
       step: 8,
-      description: `Notify customer that promo "${config.promoCode}" does not apply to subscription orders`,
+      name: `Notify customer that promo "${config.promoCode}" does not apply to subscription orders`,
       actionDetails: `Order #${context.state.resolvedOrderId} is a subscription order, but promo code "${config.promoCode}" is configured to apply only to one-time orders. Sending a polite policy explanation to the customer instead of escalating to a human.`,
       proposedEmailBody: message,
       metadata: {
@@ -582,7 +582,7 @@ async function sendAlreadyRefundedReply(
     {
       type: PromoCodeActionType.SEND_RESPONSE_MESSAGE,
       step: 8,
-      description: `Confirm prior promo "${config.promoCode}" refund on order #${context.state.resolvedOrderId}`,
+      name: `Confirm prior promo "${config.promoCode}" refund on order #${context.state.resolvedOrderId}`,
       actionDetails: `Order #${context.state.resolvedOrderId} already has a promo code refund of $${eligibility.alreadyRefundedAmount}. Confirming the prior refund to the customer instead of escalating to a human or issuing a duplicate refund.`,
       proposedEmailBody: message,
       metadata: {
@@ -654,7 +654,7 @@ async function sendProductNotEligibleReply(
     {
       type: PromoCodeActionType.SEND_RESPONSE_MESSAGE,
       step: 8,
-      description: `Notify customer that promo "${config.promoCode}" does not apply to items in order #${context.state.resolvedOrderId}`,
+      name: `Notify customer that promo "${config.promoCode}" does not apply to items in order #${context.state.resolvedOrderId}`,
       actionDetails: `None of the items in order #${context.state.resolvedOrderId} qualify under promo code "${config.promoCode}"'s product restrictions. Sending a polite explanation to the customer instead of escalating to a human.`,
       proposedEmailBody: message,
       metadata: {
@@ -710,7 +710,7 @@ async function handleFirstTimeDenied(
     {
       type: PromoCodeActionType.ASSESS_FIRST_TIME_CUSTOMER,
       step: 5,
-      description: 'Confirm the customer has prior orders',
+      name: 'Confirm the customer has prior orders',
       actionDetails:
         'Looking up WooCommerce orders for this customer (by email and billing address) to confirm they are not actually a first-time buyer before sending the denial explanation.',
       skipApproval: true,
@@ -740,7 +740,7 @@ async function handleFirstTimeDenied(
     {
       type: PromoCodeActionType.SEND_RESPONSE_MESSAGE,
       step: 6,
-      description: 'Send first-time-only explanation to the customer',
+      name: 'Send first-time-only explanation to the customer',
       actionDetails:
         'Sending the empathetic explanation that the promo code is reserved for first-time customers.',
       proposedEmailBody: message,
@@ -786,7 +786,7 @@ async function handleApplicationGuidance(
     {
       type: PromoCodeActionType.RETRIEVE_PRODUCT_KNOWLEDGE,
       step: 5,
-      description: 'Look up checkout / promo application guidance in product knowledge',
+      name: 'Look up checkout / promo application guidance in product knowledge',
       actionDetails:
         'Running a vector search against the merchant-authored product knowledge to find documented instructions on where/how to apply a promo code at checkout. The reply is grounded only in retrieved snippets; if no relevant content is found the workflow escalates instead of guessing.',
       skipApproval: true,
@@ -860,7 +860,7 @@ async function handleApplicationGuidance(
     {
       type: PromoCodeActionType.SEND_RESPONSE_MESSAGE,
       step: 6,
-      description: 'Send promo code application guidance to the customer',
+      name: 'Send promo code application guidance to the customer',
       actionDetails:
         "Sending the AI-generated answer (grounded in the merchant's product knowledge) telling the customer where to apply the promo code.",
       proposedEmailBody: message,
@@ -933,7 +933,7 @@ async function handleGeneralInquiry(
     {
       type: PromoCodeActionType.SEND_RESPONSE_MESSAGE,
       step: 5,
-      description: 'Send promo code general inquiry response',
+      name: 'Send promo code general inquiry response',
       actionDetails:
         'Sending a response to the customer with an eligible promo code (or politely letting them know none are available right now).',
       proposedEmailBody: message,

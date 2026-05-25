@@ -24,51 +24,75 @@ import {
  * The oc_ prefix is stripped and snake_case is converted to Title Case as a fallback.
  */
 const ACTION_NAME_MAP: Record<string, string> = {
-  mark_email_read: 'Mark Email as Read',
-  oc_mark_email_read: 'Mark Email as Read',
-  verify_ai_confidence: 'Verify AI Classification',
-  oc_verify_ai_confidence: 'Verify AI Classification',
-  detect_customer_distress: 'Detect Customer Distress',
-  extract_order_number: 'Extract Order Number',
-  oc_extract_order_number: 'Extract Order Number',
-  request_order_info: 'Request Order Information',
-  oc_request_order_info: 'Request Order Information',
-  fetch_order_details: 'Fetch Order Details',
-  oc_fetch_order_details: 'Fetch Order Details',
-  send_acknowledgement: 'Send Acknowledgement',
-  oc_send_acknowledgement: 'Send Acknowledgement',
-  wait_for_tracking: 'Wait for Tracking Number',
-  create_aftership_tracking: 'Create AfterShip Tracking',
-  monitor_tracking_status: 'Monitor Tracking Status',
-  send_tracking_update: 'Send Tracking Update',
-  send_final_notification: 'Send Final Notification',
-  oc_send_final_notification: 'Send Final Notification',
-  wait_for_customer_reply: 'Wait for Customer Reply',
-  oc_validate_order_status: 'Validate Order Status',
-  oc_check_duplicate: 'Check Duplicate Request',
-  oc_check_rate_limit: 'Check Rate Limit',
-  oc_record_request: 'Record Cancellation Request',
-  oc_check_time_eligibility: 'Check Cancellation Eligibility',
-  oc_validate_customer_email: 'Validate Customer Email',
-  oc_process_cancellation: 'Process Order Cancellation',
-  oc_process_refund: 'Process Refund',
-  oc_contact_warehouse: 'Contact Warehouse',
-  oc_wait_for_warehouse_reply: 'Wait for Warehouse Reply',
-  extract_address_details: 'Extract Address Details',
-  contact_warehouse: 'Contact Warehouse',
-  wait_for_warehouse_reply: 'Wait for Warehouse Reply',
-  process_address_change: 'Process Address Change',
-  retrieve_product_knowledge: 'Retrieve Product Knowledge',
-  generate_product_response: 'Generate Product Response',
-  send_product_response: 'Send Product Response',
-  pc_classify_intent: 'Classify Promo Code Intent',
-  pc_resolve_config: 'Resolve Promo Code Configuration',
-  pc_assess_first_time_customer: 'Assess First-Time Customer',
+  mark_email_read: 'Open Customer Email',
+  oc_mark_email_read: 'Open Customer Email',
+  verify_ai_confidence: 'Confirm Request Type',
+  oc_verify_ai_confidence: 'Confirm Request Type',
+  detect_customer_distress: 'Check If Urgent',
+  extract_order_number: 'Find Customer Order',
+  oc_extract_order_number: 'Find Customer Order',
+  request_order_info: 'Ask For Order Details',
+  oc_request_order_info: 'Ask For Order Details',
+  fetch_order_details: 'Load Order Details',
+  oc_fetch_order_details: 'Load Order Details',
+  send_acknowledgement: 'Send Quick Update',
+  oc_send_acknowledgement: 'Send Quick Update',
+  wait_for_tracking: 'Wait For Tracking Number',
+  create_aftership_tracking: 'Start Shipment Tracking',
+  monitor_tracking_status: 'Track Shipment Progress',
+  send_tracking_update: 'Send Shipping Update',
+  send_final_notification: 'Send Final Customer Update',
+  oc_send_final_notification: 'Send Final Customer Update',
+  wait_for_customer_reply: 'Wait For Customer Reply',
+  oc_validate_order_status: 'Check Order Status',
+  oc_check_duplicate: 'Check For Duplicate Request',
+  oc_check_rate_limit: 'Check Recent Request Limit',
+  oc_record_request: 'Save Cancellation Request',
+  oc_check_time_eligibility: 'Check Cancellation Window',
+  oc_validate_customer_email: 'Confirm Customer Email',
+  oc_process_cancellation: 'Cancel Order',
+  oc_process_refund: 'Issue Refund',
+  oc_contact_warehouse: 'Contact Warehouse Team',
+  oc_wait_for_warehouse_reply: 'Wait For Warehouse Reply',
+  extract_address_details: 'Read New Address Details',
+  contact_warehouse: 'Contact Warehouse Team',
+  wait_for_warehouse_reply: 'Wait For Warehouse Reply',
+  process_address_change: 'Update Shipping Address',
+  retrieve_product_knowledge: 'Find Product Information',
+  generate_product_response: 'Write Customer Reply',
+  send_product_response: 'Send Product Reply',
+  pc_classify_intent: 'Understand Promo Request',
+  pc_resolve_config: 'Check Promo Setup',
+  pc_assess_first_time_customer: 'Check Customer Eligibility',
   pc_check_refund_eligibility: 'Check Refund Eligibility',
-  pc_process_refund: 'Process Promo Code Refund',
-  pc_generate_response: 'Generate Promo Code Response',
-  pc_send_response: 'Send Promo Code Response',
+  pc_process_refund: 'Issue Promo Refund',
+  pc_generate_response: 'Write Promo Reply',
+  pc_send_response: 'Send Promo Reply',
 };
+
+function toCustomerFriendlyText(input: string): string {
+  return input
+    .replace(/\bAI\b/gi, 'our assistant')
+    .replace(/\bclassification\b/gi, 'request type')
+    .replace(/\bworkflow\b/gi, 'request')
+    .replace(/\bparsing\b/gi, 'reading')
+    .replace(/\bextracting\b/gi, 'finding')
+    .replace(/\bretrieval\b/gi, 'search')
+    .replace(/\bvector\b/gi, '')
+    .replace(/\bescalation\b/gi, 'support handoff')
+    .replace(/\bescalate\b/gi, 'hand off to support')
+    .replace(/\bautomatically\b/gi, 'for you')
+    .replace(/\s{2,}/g, ' ')
+    .trim();
+}
+
+function buildActionName(actionConfig: ActionConfig): string {
+  if (actionConfig.name?.trim()) {
+    return actionConfig.name.trim();
+  }
+
+  return getActionName(actionConfig.type);
+}
 
 function getActionName(type: WorkflowActionType): string {
   const mapped = ACTION_NAME_MAP[type as string];
@@ -79,6 +103,25 @@ function getActionName(type: WorkflowActionType): string {
     .split('_')
     .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
     .join(' ');
+}
+
+function buildActionDetails(actionConfig: ActionConfig, actionName: string): string {
+  const raw = actionConfig.actionDetails?.trim();
+  if (!raw) {
+    return `We are ${actionName.toLowerCase()} for this customer request.`;
+  }
+
+  const cleaned = toCustomerFriendlyText(raw)
+    .replace(/\binput:.*$/i, '')
+    .replace(/\boutput:.*$/i, '')
+    .replace(/\s{2,}/g, ' ')
+    .trim();
+
+  if (!cleaned) {
+    return `We are ${actionName.toLowerCase()} for this customer request.`;
+  }
+
+  return /[.!?]$/.test(cleaned) ? cleaned : `${cleaned}.`;
 }
 
 // Proxy approval queue activities
@@ -169,6 +212,8 @@ async function createAndInitializeAction(
   context: ActionExecutionContext,
 ): Promise<WorkflowActionRecord> {
   const needsApproval = context.requiresModeration && !actionConfig.skipApproval;
+  const actionName = buildActionName(actionConfig);
+  const actionDetails = buildActionDetails(actionConfig, actionName);
 
   const actionData: CreateActionData = {
     approvalQueueId: context.approvalQueueId!,
@@ -177,9 +222,8 @@ async function createAndInitializeAction(
     actionStatus: needsApproval
       ? ActionStatus.PENDING_APPROVAL
       : ActionStatus.APPROVED,
-    description: actionConfig.description,
-    name: actionConfig.name ?? getActionName(actionConfig.type),
-    actionDetails: actionConfig.actionDetails,
+    name: actionName,
+    actionDetails,
     proposedEmailBody: actionConfig.proposedEmailBody,
   };
 
@@ -451,13 +495,13 @@ async function createEscalationFromError(
     metadata = error.metadata || {};
   } else {
     escalationType = EscalationType.MANUAL_ESCALATION;
-    escalationReason = `Unexpected error during ${actionConfig.description}: ${error instanceof Error ? error.message : String(error)}`;
+    escalationReason = `Unexpected error during ${buildActionName(actionConfig)}: ${error instanceof Error ? error.message : String(error)}`;
   }
 
   // Add action context to metadata
   metadata.action = actionConfig.type;
   metadata.step = actionConfig.step;
-  metadata.actionDescription = actionConfig.description;
+  metadata.actionName = buildActionName(actionConfig);
   metadata.workflowState = context.state.status;
 
   // Extract customer name

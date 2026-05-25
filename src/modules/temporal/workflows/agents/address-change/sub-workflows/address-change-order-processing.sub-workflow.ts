@@ -60,7 +60,7 @@ export async function handleAddressChangeOrderProcessing(
       {
         type: AddressChangeActionType.FETCH_ORDER_DETAILS,
         step: 4,
-        description: `Fetch order #${context.state.orderNumber} details from WooCommerce`,
+        name: `Fetch order #${context.state.orderNumber} details from WooCommerce`,
         actionDetails: `Fetching full order details from WooCommerce for order #${context.state.orderNumber}.`,
         skipApproval: true,
         metadata: {
@@ -109,7 +109,7 @@ export async function handleAddressChangeOrderProcessing(
       {
         type: AddressChangeActionType.VALIDATE_ORDER_STATUS,
         step: 4.1,
-        description: `Order status is ${orderStatus} - requires manual handling`,
+        name: `Order status is ${orderStatus} - requires manual handling`,
         actionDetails:
           'Order status indicates this address change can no longer be completed automatically.',
         skipApproval: true,
@@ -154,7 +154,7 @@ export async function handleAddressChangeOrderProcessing(
       {
         type: AddressChangeActionType.SEND_ACKNOWLEDGEMENT,
         step: 5,
-        description: 'Send acknowledgement email to customer',
+        name: 'Send acknowledgement email to customer',
         actionDetails: `Sending an acknowledgement email to ${extractEmail(context.email.fromEmail)} confirming receipt of their address-change request for order #${context.state.orderNumber}.`,
         proposedEmailBody: acknowledgementMessage,
       },

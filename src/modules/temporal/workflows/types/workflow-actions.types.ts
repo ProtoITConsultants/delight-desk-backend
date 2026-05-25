@@ -122,7 +122,6 @@ export enum ActionStatus {
 export interface ActionConfig {
   type: WorkflowActionType;
   step: number | string; // Supports both integers (1, 2, 3) and sub-steps (3.1, 3.2)
-  description: string;
   name?: string; // Human-readable name (auto-generated from type if omitted)
   actionDetails?: string; // Comprehensive details for UI display (inputs/outputs)
   proposedEmailBody?: string; // Proposed email body for email-sending actions
@@ -231,7 +230,6 @@ export interface CreateActionData {
   actionType: WorkflowActionType;
   actionStep: number | string; // Supports both integers (1, 2, 3) and sub-steps (3.1, 3.2)
   actionStatus: ActionStatus;
-  description: string;
   name?: string;
   actionDetails?: string;
   proposedEmailBody?: string;

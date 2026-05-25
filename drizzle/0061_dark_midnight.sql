@@ -1,0 +1,1 @@
+ALTER TABLE "approval_queue_actions" DROP COLUMN "description";

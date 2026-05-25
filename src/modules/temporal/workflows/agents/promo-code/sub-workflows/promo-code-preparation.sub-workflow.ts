@@ -38,7 +38,7 @@ export async function handlePromoCodePreparation(
     {
       type: PromoCodeActionType.MARK_EMAIL_READ,
       step: 1,
-      description: 'Mark incoming email as read',
+      name: 'Mark incoming email as read',
       actionDetails: `Marking the incoming promo code email from ${context.email.fromEmail} as read.`,
     },
     () => markEmailAsRead(context.email.userId, context.email.messageId),
@@ -56,7 +56,7 @@ export async function handlePromoCodePreparation(
     {
       type: PromoCodeActionType.VERIFY_AI_CONFIDENCE,
       step: 2,
-      description: `Verify AI classification confidence (${context.state.classification.confidence}%)`,
+      name: `Verify AI classification confidence (${context.state.classification.confidence}%)`,
       actionDetails:
         'Verifying the top-level email classifier flagged this as a promo_code email with sufficient confidence.',
       skipApproval: true,
@@ -103,7 +103,7 @@ export async function handlePromoCodePreparation(
     {
       type: PromoCodeActionType.DETECT_CUSTOMER_DISTRESS,
       step: 2.1,
-      description: 'Detect urgency and frustration signals for auto-escalation',
+      name: 'Detect urgency and frustration signals for auto-escalation',
       actionDetails:
         'Scoring customer distress to decide whether to escalate the promo code inquiry to a human agent before any automated handling.',
       skipApproval: true,

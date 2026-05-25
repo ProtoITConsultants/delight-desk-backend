@@ -19,9 +19,6 @@ export const approvalQueueActions = pgTable('approval_queue_actions', {
   // Human-readable action name (e.g., "Mark Email as Read")
   name: varchar('name', { length: 255 }),
 
-  // Action description/details
-  description: text('description').notNull(),
-
   // Comprehensive details about the action for UI display (input/output summary)
   actionDetails: text('action_details'),
 

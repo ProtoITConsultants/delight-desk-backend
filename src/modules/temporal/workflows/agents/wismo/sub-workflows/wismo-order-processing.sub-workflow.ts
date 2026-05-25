@@ -72,7 +72,7 @@ export async function handleWismoOrderProcessing(
         {
           type: WismoActionType.FETCH_ORDER_DETAILS,
           step: 4,
-          description: `Fetch order #${context.state.orderNumber} details from WooCommerce`,
+          name: `Fetch order #${context.state.orderNumber} details from WooCommerce`,
           actionDetails: `Fetching full order details from WooCommerce for order #${context.state.orderNumber}.`,
           skipApproval: true,
           metadata: {
@@ -141,7 +141,7 @@ export async function handleWismoOrderProcessing(
         {
           type: WismoActionType.SEND_ACKNOWLEDGEMENT, // Reusing existing type
           step: 4.1,
-          description: `Order status is ${orderStatus} - notifying customer and escalating`,
+          name: `Order status is ${orderStatus} - notifying customer and escalating`,
           actionDetails: `Order #${context.state.orderNumber} has a problematic status (${orderStatus}) that prevents tracking. Sending a notification email to the customer explaining the situation, then escalating for manual review. Input: Order number, order status. Output: Customer notified, workflow escalated.`,
           proposedEmailBody: statusMessage,
           metadata: {
@@ -225,7 +225,7 @@ export async function handleWismoOrderProcessing(
         {
           type: WismoActionType.SEND_ACKNOWLEDGEMENT,
           step: 5,
-          description: 'Send acknowledgement email to customer',
+          name: 'Send acknowledgement email to customer',
           actionDetails: `Sending an AI-generated acknowledgement email to ${extractEmail(context.email.fromEmail)} confirming receipt of their order status inquiry for order #${context.state.orderNumber}. The proposed message can be reviewed and edited before sending.`,
           proposedEmailBody: acknowledgementMessage,
           metadata: {

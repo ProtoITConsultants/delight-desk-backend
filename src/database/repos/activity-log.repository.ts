@@ -21,7 +21,6 @@ export interface ActivityLogRow {
   actionStatus: string;
   actionName: string | null;
   actionType: string;
-  description: string;
   actionDetails: string | null;
   updatedAt: Date;
   createdAt: Date;
@@ -60,7 +59,6 @@ export class ActivityLogRepository {
         actionStatus: approvalQueueActions.actionStatus,
         actionName: approvalQueueActions.name,
         actionType: approvalQueueActions.actionType,
-        description: approvalQueueActions.description,
         actionDetails: approvalQueueActions.actionDetails,
         updatedAt: approvalQueueActions.updatedAt,
         createdAt: approvalQueueActions.createdAt,

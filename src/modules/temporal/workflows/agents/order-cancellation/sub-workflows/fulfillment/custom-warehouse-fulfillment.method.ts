@@ -118,7 +118,7 @@ export async function handleCustomWarehouseFulfillmentMethod(
     {
       type: OrderCancellationActionType.VALIDATE_CUSTOMER_EMAIL,
       step: 6.0,
-      description: 'Validate customer email matches order records',
+      name: 'Validate customer email matches order records',
       actionDetails:
         'Confirming request sender email matches WooCommerce billing email before any warehouse coordination.',
       skipApproval: true,
@@ -171,7 +171,7 @@ export async function handleCustomWarehouseFulfillmentMethod(
       {
         type: OrderCancellationActionType.SEND_FINAL_NOTIFICATION,
         step: 6.1,
-        description: 'Send cannot-cancel response to customer',
+        name: 'Send cannot-cancel response to customer',
         actionDetails:
           'Order status indicates cancellation is too late. Sending customer guidance and return next-step info.',
         proposedEmailBody: cannotCancelMessage,
@@ -224,7 +224,7 @@ export async function handleCustomWarehouseFulfillmentMethod(
     {
       type: OrderCancellationActionType.CHECK_TIME_ELIGIBILITY,
       step: 6.05,
-      description: 'Validate custom warehouse cancellation time window',
+      name: 'Validate custom warehouse cancellation time window',
       actionDetails:
         'Checking 24-hour cancellation window with Friday-noon weekend extension policy for custom warehouse automation.',
       skipApproval: true,
@@ -274,7 +274,7 @@ export async function handleCustomWarehouseFulfillmentMethod(
     {
       type: OrderCancellationActionType.CONTACT_WAREHOUSE,
       step: 6.06,
-      description: 'Load custom warehouse configuration',
+      name: 'Load custom warehouse configuration',
       actionDetails:
         'Loading configured warehouse email for this user before contacting warehouse team.',
       skipApproval: true,
@@ -336,7 +336,7 @@ export async function handleCustomWarehouseFulfillmentMethod(
     {
       type: OrderCancellationActionType.SEND_ACKNOWLEDGEMENT,
       step: 6.2,
-      description:
+      name:
         'Acknowledge cancellation request and notify customer warehouse check is in progress',
       actionDetails:
         'Sending customer acknowledgement that we are coordinating with warehouse before final cancellation decision.',
@@ -384,7 +384,7 @@ export async function handleCustomWarehouseFulfillmentMethod(
     {
       type: OrderCancellationActionType.CONTACT_WAREHOUSE,
       step: 6.3,
-      description: 'Send urgent cancellation request to warehouse team',
+      name: 'Send urgent cancellation request to warehouse team',
       actionDetails:
         'Sending urgent standalone email to custom warehouse and awaiting explicit confirmation response.',
       proposedEmailBody: warehouseMessage,
@@ -423,7 +423,7 @@ export async function handleCustomWarehouseFulfillmentMethod(
     {
       type: OrderCancellationActionType.WAIT_FOR_WAREHOUSE_REPLY,
       step: 6.4,
-      description: `Wait up to ${CUSTOM_WAREHOUSE_REPLY_TIMEOUT_HOURS} hours for warehouse response`,
+      name: `Wait up to ${CUSTOM_WAREHOUSE_REPLY_TIMEOUT_HOURS} hours for warehouse response`,
       actionDetails:
         'Waiting for warehouse email response and parsing response keywords to determine cancellation outcome.',
       skipApproval: true,
@@ -505,7 +505,7 @@ export async function handleCustomWarehouseFulfillmentMethod(
       {
         type: OrderCancellationActionType.SEND_FINAL_NOTIFICATION,
         step: 6.5,
-        description: 'Send too-late cancellation response with return guidance',
+        name: 'Send too-late cancellation response with return guidance',
         actionDetails:
           'Warehouse confirmed cancellation is not possible. Sending customer final guidance with return instructions.',
         proposedEmailBody: tooLateMessage,
@@ -554,7 +554,7 @@ export async function handleCustomWarehouseFulfillmentMethod(
     {
       type: OrderCancellationActionType.PROCESS_CANCELLATION,
       step: 7,
-      description: `Update order #${context.state.orderNumber} status to cancelled`,
+      name: `Update order #${context.state.orderNumber} status to cancelled`,
       actionDetails:
         'Marking order as cancelled in WooCommerce after warehouse confirmation to prevent fulfillment.',
     },
@@ -590,7 +590,7 @@ export async function handleCustomWarehouseFulfillmentMethod(
     {
       type: OrderCancellationActionType.PROCESS_REFUND,
       step: 8,
-      description: `Process refund for order #${context.state.orderNumber}`,
+      name: `Process refund for order #${context.state.orderNumber}`,
       actionDetails:
         'Processing full WooCommerce refund after warehouse cancellation confirmation.',
     },
@@ -661,7 +661,7 @@ export async function handleCustomWarehouseFulfillmentMethod(
     {
       type: OrderCancellationActionType.SEND_FINAL_NOTIFICATION,
       step: 9,
-      description: 'Send final success notification to customer',
+      name: 'Send final success notification to customer',
       actionDetails:
         'Sending final successful cancellation and refund confirmation after warehouse coordination.',
       proposedEmailBody: successMessage,

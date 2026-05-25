@@ -143,7 +143,7 @@ export async function handleAddressChangeFulfillment(
     {
       type: AddressChangeActionType.DETECT_FULFILLMENT_METHOD,
       step: 6,
-      description: 'Detect user fulfillment method',
+      name: 'Detect user fulfillment method',
       actionDetails:
         "Detecting the user's configured fulfillment method to route address change processing through the correct path.",
       skipApproval: true,
@@ -171,7 +171,7 @@ export async function handleAddressChangeFulfillment(
     {
       type: AddressChangeActionType.EXTRACT_ADDRESS_DETAILS,
       step: 7,
-      description: 'Extract requested shipping address from customer message',
+      name: 'Extract requested shipping address from customer message',
       actionDetails:
         'Using AI extraction to parse the new shipping address fields from the customer email body.',
       skipApproval: true,
@@ -239,7 +239,7 @@ export async function handleAddressChangeFulfillment(
       {
         type: AddressChangeActionType.CONTACT_WAREHOUSE,
         step: 8,
-        description: 'Load custom warehouse configuration',
+        name: 'Load custom warehouse configuration',
         actionDetails: 'Loading configured warehouse email before contacting warehouse team.',
         skipApproval: true,
         metadata: {
@@ -286,7 +286,7 @@ export async function handleAddressChangeFulfillment(
       {
         type: AddressChangeActionType.SEND_ACKNOWLEDGEMENT,
         step: 8.1,
-        description: 'Acknowledge request and notify customer warehouse check is in progress',
+        name: 'Acknowledge request and notify customer warehouse check is in progress',
         actionDetails:
           'Sending customer acknowledgement that we are coordinating with the warehouse before applying address change.',
         proposedEmailBody: customerAckMessage,
@@ -331,7 +331,7 @@ export async function handleAddressChangeFulfillment(
       {
         type: AddressChangeActionType.CONTACT_WAREHOUSE,
         step: 8.2,
-        description: 'Send address-change request to warehouse team',
+        name: 'Send address-change request to warehouse team',
         actionDetails:
           'Sending standalone email to custom warehouse and waiting for explicit updated/cannot_update response.',
         proposedEmailBody: warehouseEmailContent.body,
@@ -369,7 +369,7 @@ export async function handleAddressChangeFulfillment(
       {
         type: AddressChangeActionType.WAIT_FOR_WAREHOUSE_REPLY,
         step: 8.3,
-        description: `Wait up to ${CUSTOM_WAREHOUSE_REPLY_TIMEOUT_HOURS} hours for warehouse response`,
+        name: `Wait up to ${CUSTOM_WAREHOUSE_REPLY_TIMEOUT_HOURS} hours for warehouse response`,
         actionDetails:
           'Waiting for warehouse email response and parsing updated/cannot_update intent before continuing.',
         skipApproval: true,
@@ -449,7 +449,7 @@ export async function handleAddressChangeFulfillment(
         {
           type: AddressChangeActionType.SEND_FINAL_NOTIFICATION,
           step: 8.4,
-          description: 'Inform customer warehouse could not apply address update',
+          name: 'Inform customer warehouse could not apply address update',
           actionDetails:
             'Warehouse confirmed address update cannot be completed. Sending final guidance to customer.',
           proposedEmailBody: cannotUpdateMessage,
@@ -500,7 +500,7 @@ export async function handleAddressChangeFulfillment(
     {
       type: AddressChangeActionType.PROCESS_ADDRESS_CHANGE,
       step: context.state.fulfillmentMethod === 'custom_warehouse' ? 8.5 : 8,
-      description: `Update shipping address for order #${context.state.orderNumber}`,
+      name: `Update shipping address for order #${context.state.orderNumber}`,
       actionDetails:
         context.state.fulfillmentMethod === 'custom_warehouse'
           ? 'Applying WooCommerce shipping address update only after warehouse confirmed update.'
@@ -653,7 +653,7 @@ export async function handleAddressChangeFulfillment(
     {
       type: AddressChangeActionType.SEND_FINAL_NOTIFICATION,
       step: 9,
-      description: 'Send address update confirmation to customer',
+      name: 'Send address update confirmation to customer',
       actionDetails:
         'Sending customer confirmation after successful shipping-address update processing.',
       proposedEmailBody: successMessage,

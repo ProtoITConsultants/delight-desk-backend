@@ -102,7 +102,7 @@ export async function handleOrderCancellationOrderDiscovery(
       {
         type: OrderCancellationActionType.EXTRACT_ORDER_NUMBER,
         step: 3,
-        description: 'Extract order number from email',
+        name: 'Extract order number from email',
         actionDetails:
           "Extracting the order number from the email body using AI parsing, or looking up the customer's most recent order by their email address.",
         skipApproval: true,
@@ -171,7 +171,7 @@ export async function handleOrderCancellationOrderDiscovery(
         {
           type: OrderCancellationActionType.REQUEST_ORDER_INFO,
           step: 3.1,
-          description: 'Request order information from customer and wait for reply',
+          name: 'Request order information from customer and wait for reply',
           actionDetails: `Order number not found in the original email. Sending a follow-up message to ${context.email.fromEmail} requesting their order number, then waiting up to ${MAX_CUSTOMER_REPLY_WAIT_DAYS} days for their reply.`,
           proposedEmailBody: followUpMessage,
           metadata: {

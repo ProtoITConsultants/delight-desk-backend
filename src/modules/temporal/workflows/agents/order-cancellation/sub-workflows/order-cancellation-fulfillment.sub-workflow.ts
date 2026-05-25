@@ -44,7 +44,7 @@ export async function handleOrderCancellationFulfillment(
       {
         type: OrderCancellationActionType.DETECT_FULFILLMENT_METHOD,
         step: 6,
-        description: 'Detect user fulfillment method',
+        name: 'Detect user fulfillment method',
         actionDetails:
           "Detecting the user's configured fulfillment method to route order cancellation through the correct cancellation provider workflow.",
         skipApproval: true,

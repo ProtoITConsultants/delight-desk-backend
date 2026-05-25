@@ -46,7 +46,7 @@ export async function handleWismoPreparation(
       {
         type: WismoActionType.MARK_EMAIL_READ,
         step: 1,
-        description: 'Mark incoming email as read',
+        name: 'Mark incoming email as read',
         actionDetails: `Marking the incoming email from ${context.email.fromEmail} as read to acknowledge receipt.`,
       },
       () => markEmailAsRead(context.email.userId, context.email.messageId),
@@ -72,7 +72,7 @@ export async function handleWismoPreparation(
       {
         type: WismoActionType.VERIFY_AI_CONFIDENCE,
         step: 2,
-        description: `Verify AI classification confidence (${context.state.classification.confidence}%)`,
+        name: `Verify AI classification confidence (${context.state.classification.confidence}%)`,
         actionDetails: `Verifying AI classification confidence is sufficient to proceed automatically.`,
         skipApproval: true,
         metadata: {
@@ -129,7 +129,7 @@ export async function handleWismoPreparation(
       {
         type: WismoActionType.DETECT_CUSTOMER_DISTRESS,
         step: 2.1,
-        description: 'Detect urgency and frustration signals for auto-escalation',
+        name: 'Detect urgency and frustration signals for auto-escalation',
         actionDetails:
           'Scoring customer distress using email language, classifier priority, and sentiment to decide whether immediate human escalation is required.',
         skipApproval: true,
